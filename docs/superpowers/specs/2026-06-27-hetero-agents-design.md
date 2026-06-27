@@ -144,7 +144,8 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 
 ## 10. Reproducibility (DevBox) + always-latest
 
-- **DevBox** (`devbox.json` / `devbox.lock`) pins the toolchain (Bun, jq, …) at latest-clean; `devbox shell` gives an identical env on any clone. `.env` is loaded via the `env_from: "./.env"` key; a globally-exported `OPENROUTER_API_KEY` also passes through (except under `--pure`).
+- **DevBox** (`devbox.json` / `devbox.lock`) pins the toolchain (Bun, jq, lefthook, …) at latest-clean; `devbox shell` gives an identical env on any clone. `.env` is loaded via the `env_from: "./.env"` key; a globally-exported `OPENROUTER_API_KEY` also passes through (except under `--pure`).
+- **Lint/format: ESLint only, no prettier.** `@antfu/eslint-config` (flat config) lints + formats all file types (`.ts`/`.md`/`.yml`/`.json`/`.jsonc`/`.toml`) via ESLint Stylistic + per-language plugins; the prettier-backed `formatters` option is omitted. **lefthook** runs `eslint --fix` on staged files (`pre-commit`) and `bun test` (`pre-push`); CI runs lint too.
 - **Standing rule:** always install the latest dep/tool versions (avoid day-1 rot). A `check-latest` script flags newer model releases and dep updates.
 
 ## 11. Testing strategy (objective #3)
@@ -162,6 +163,8 @@ Layered — hermetic CI without secrets, full proof opt-in.
 hetero-agents/
 ├── devbox.json / devbox.lock
 ├── package.json / tsconfig.json  # Bun, ESM, native TS (no build)
+├── eslint.config.mjs             # Antfu flat config — lint+format all, no prettier
+├── lefthook.yml                  # pre-commit eslint --fix; pre-push bun test
 ├── .env.example                  # OPENROUTER_API_KEY, optional ANTHROPIC_API_KEY, PORT
 ├── .gitignore
 ├── README.md                     # setup (global env OR repo .env), clone instructions

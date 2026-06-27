@@ -6,11 +6,12 @@
 
 **Architecture:** Claude Code points `ANTHROPIC_BASE_URL` at a local Bun reverse proxy. The proxy extracts routing signals from each request (the `x-claude-code-agent-id` header that marks subagents, the `x-app` background flag, body work-type signals, and an explicit `<<route:ALIAS>>` tag in an agent's prompt), runs a pure first-match cascade to pick an upstream + model, rewrites auth/model/beta-headers, and streams the Anthropic-format SSE response straight back. OpenRouter's Anthropic-compatible endpoint means **no format translation** — only routing + passthrough. Every decision is appended to a JSONL decision log, which is the seam all tests assert against.
 
-**Tech Stack:** Bun (runtime + `bun:test` + `.env` autoload, native TS, no build step) · Jetify DevBox (Nix-pinned reproducible toolchain) · GitHub Actions (hermetic CI + secret-gated live job).
+**Tech Stack:** Bun (runtime + `bun:test` + `.env` autoload, native TS, no build step) · Jetify DevBox (Nix-pinned reproducible toolchain) · ESLint via `@antfu/eslint-config` (lint + format all file types, no prettier) + lefthook (git hooks) · GitHub Actions (hermetic CI + secret-gated live job).
 
 ## Global Constraints
 
 - **Runtime: Bun** (latest, pinned via `devbox.lock`). Native TypeScript, no build step, no `tsx`. Tests use `bun:test`. No third-party runtime/test dependencies unless a task explicitly adds one.
+- **Lint/format: ESLint only, NO prettier.** `@antfu/eslint-config` (flat config) lints AND formats every file type — `.ts`/`.md`/`.yml`/`.json`/`.jsonc`/`.toml` — via ESLint Stylistic + per-language plugins. The prettier-backed `formatters` option is intentionally omitted. Code style: 2-space indent, double quotes, semicolons. `git` hooks via **lefthook** (`pre-commit` = `eslint --fix` staged; `pre-push` = `bun test`).
 - **Always-latest deps:** pin to the newest clean version at implementation time; never copy a stale version from this doc without checking. Re-verify model slugs and tool versions before relying on them.
 - **`Bun.serve` SSE caveat:** set `idleTimeout: 0` (or `server.timeout(req, 0)` per request) — the 10s default kills quiet streaming responses. A dedicated test must prove a delayed-chunk stream survives.
 - **Secrets never committed:** `OPENROUTER_API_KEY` (and optional `ANTHROPIC_API_KEY`) come from the environment or a gitignored `.env`. `.gitignore` already excludes `.env`, `*.env` (except `.env.example`), `openrouter-key.env`, and `decisions*.jsonl`.
@@ -25,11 +26,13 @@
 
 ```
 hetero-agents/
-├── devbox.json / devbox.lock        # Nix-pinned Bun + jq toolchain
-├── package.json                     # type:module, scripts, no deps
+├── devbox.json / devbox.lock        # Nix-pinned Bun + jq + lefthook toolchain
+├── package.json                     # type:module; 0 runtime deps; eslint(+antfu) devDep
 ├── tsconfig.json                    # erasableSyntaxOnly etc.
+├── eslint.config.mjs                # Antfu flat config — lint+format all files, NO prettier
+├── lefthook.yml                     # pre-commit: eslint --fix staged; pre-push: bun test
 ├── .env.example                     # OPENROUTER_API_KEY, optional ANTHROPIC_API_KEY, PORT
-├── .gitignore                       # (exists)
+├── .gitignore                       # (exists) + .eslintcache
 ├── routes.jsonc                     # the model menu + cascade (operator edits this)
 ├── README.md
 ├── src/
@@ -63,30 +66,36 @@ hetero-agents/
 
 ---
 
-## Task 1: Project scaffold (DevBox + Bun + empty passing test)
+## Task 1: Project scaffold (DevBox + Bun + ESLint/lefthook + passing test)
 
 **Files:**
-- Create: `devbox.json`, `package.json`, `tsconfig.json`, `bunfig.toml`, `.env.example`, `test/smoke.test.ts`
+- Create: `devbox.json`, `package.json`, `tsconfig.json`, `eslint.config.mjs`, `lefthook.yml`, `.env.example`, `test/smoke.test.ts`
+- Modify: `.gitignore`
 
 **Interfaces:**
-- Produces: a working `devbox run test` that executes `bun test`; the `src/` and `test/` layout.
+- Produces: a working `devbox run test` (runs `bun test`) and `devbox run lint` (runs `bunx eslint .`); lefthook git hooks installed; the `src/` + `test/` layout. ESLint (Antfu config) lints+formats `.ts`/`.md`/`.yml`/`.json`/`.jsonc`/`.toml` with **no prettier**.
 
-- [ ] **Step 1: Create `devbox.json`** (pin Bun + jq; load `.env`; define scripts)
+- [ ] **Step 1: Create `devbox.json`** (pin Bun + jq + lefthook; load `.env`; auto-install hooks; define scripts)
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
-  "packages": ["bun@latest", "jq@latest"],
+  "packages": ["bun@latest", "jq@latest", "lefthook@latest"],
   "env_from": "./.env",
   "env": {
     "PORT": "8787"
   },
   "shell": {
-    "init_hook": ["echo \"devbox: bun $(bun --version)\""],
+    "init_hook": [
+      "echo \"devbox: bun $(bun --version)\"",
+      "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install >/dev/null 2>&1 || true"
+    ],
     "scripts": {
       "proxy": "bun run src/server.ts",
       "test": "bun test test/",
       "test:live": "bun run scripts/live-smoke.ts",
+      "lint": "bunx eslint .",
+      "lint:fix": "bunx eslint . --fix",
       "record": "bun run scripts/record-fixtures.ts",
       "hetero": "bun run bin/hetero"
     }
@@ -94,7 +103,7 @@ hetero-agents/
 }
 ```
 
-- [ ] **Step 2: Create `package.json`** (ESM, no deps)
+- [ ] **Step 2: Create `package.json`** (ESM; zero runtime deps; ESLint as the only dev tooling)
 
 ```json
 {
@@ -105,7 +114,13 @@ hetero-agents/
   "scripts": {
     "proxy": "bun run src/server.ts",
     "test": "bun test test/",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test:live": "bun run scripts/live-smoke.ts"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.1.0",
+    "eslint": "^9.10.0"
   }
 }
 ```
@@ -130,7 +145,60 @@ hetero-agents/
 }
 ```
 
-- [ ] **Step 4: Create `.env.example`**
+- [ ] **Step 4: Create `eslint.config.mjs`** (Antfu — ESLint does ALL formatting, no prettier)
+
+```js
+// Flat config. @antfu/eslint-config lints + formats .ts/.md/.yml/.json/.jsonc/.toml
+// via ESLint Stylistic + per-language plugins. We DO NOT set `formatters`, so
+// prettier/dprint are never installed or invoked.
+import antfu from "@antfu/eslint-config";
+
+export default antfu(
+  {
+    type: "app",
+    typescript: true,
+    jsonc: true,
+    yaml: true,
+    toml: true,
+    markdown: true,
+    // ESLint Stylistic owns formatting (tuned to match this repo's code style).
+    stylistic: {
+      indent: 2,
+      quotes: "double",
+      semi: true,
+    },
+    gitignore: true,
+    // Design/plan docs hold illustrative, sometimes-partial code samples — don't lint them.
+    ignores: ["docs/**", "**/*.jsonl", "test/fixtures/**"],
+  },
+  {
+    // Project-specific relaxations: a proxy handles untyped JSON; CLIs/scripts print.
+    rules: {
+      "ts/no-explicit-any": "off",
+      "no-console": "off",
+    },
+  },
+);
+```
+
+- [ ] **Step 5: Create `lefthook.yml`** (pre-commit lints staged files, pre-push runs tests)
+
+```yaml
+pre-commit:
+  parallel: true
+  commands:
+    eslint:
+      glob: "*.{ts,md,yml,yaml,json,jsonc,toml}"
+      run: bunx eslint --fix --cache --cache-location .eslintcache {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    test:
+      run: bun test test/
+```
+
+- [ ] **Step 6: Create `.env.example`**
 
 ```bash
 # Copy to .env and fill in. .env is gitignored.
@@ -143,7 +211,15 @@ OPENROUTER_API_KEY=sk-or-v1-xxxxxxxx
 PORT=8787
 ```
 
-- [ ] **Step 5: Create `test/smoke.test.ts`**
+- [ ] **Step 7: Append the ESLint cache to `.gitignore`**
+
+Add this line to the existing `.gitignore`:
+
+```
+.eslintcache
+```
+
+- [ ] **Step 8: Create `test/smoke.test.ts`**
 
 ```ts
 import { test, expect } from "bun:test";
@@ -153,16 +229,17 @@ test("bun test runs", () => {
 });
 ```
 
-- [ ] **Step 6: Run the test**
+- [ ] **Step 9: Install deps, lint, and test**
 
-Run: `devbox run test`
-Expected: PASS — 1 test passing. (If `devbox` isn't installed: `curl -fsSL https://get.jetify.com/devbox | bash`, then `devbox install`.)
+Run: `devbox run -- bun install && devbox run lint && devbox run test`
+Expected: `bun install` resolves ESLint + Antfu config (uses the latest matching versions — per the always-latest rule, prefer `bun add -d eslint @antfu/eslint-config@latest` if you want to bump beyond the ranges above); `eslint .` reports no errors; `bun test` PASSES 1 test. Fix any lint nits ESLint surfaces before committing.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 10: Install hooks and commit**
 
 ```bash
-git add devbox.json devbox.lock package.json tsconfig.json bunfig.toml .env.example test/smoke.test.ts
-git commit -m "chore: scaffold Bun + DevBox workspace with passing smoke test"
+lefthook install   # registers .git/hooks/pre-commit + pre-push (also auto-run by devbox init_hook)
+git add devbox.json devbox.lock package.json bun.lock tsconfig.json eslint.config.mjs lefthook.yml .gitignore .env.example test/smoke.test.ts
+git commit -m "chore: scaffold Bun + DevBox + ESLint(Antfu, no prettier) + lefthook"
 ```
 
 ---
@@ -1923,7 +2000,7 @@ jobs:
           fi
 
   hermetic:
-    name: Hermetic tests (no secrets)
+    name: Lint + hermetic tests (no secrets)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1931,6 +2008,10 @@ jobs:
         uses: jetify-com/devbox-install-action@v0.12.0
         with:
           enable-cache: 'true'
+      - name: Install deps
+        run: devbox run -- bun install --frozen-lockfile
+      - name: Lint (eslint, all file types)
+        run: devbox run lint
       - name: Unit + integration
         run: devbox run test
 
@@ -2036,6 +2117,7 @@ in `routes.jsonc`.
 
 ## Testing
 
+- `devbox run lint` — ESLint (Antfu config) lints **and** formats every file type (`.ts`/`.md`/`.yml`/`.json`/`.jsonc`/`.toml`), no prettier. `devbox run lint:fix` auto-fixes. A lefthook `pre-commit` hook runs `eslint --fix` on staged files automatically; `pre-push` runs the tests.
 - `devbox run test` — hermetic unit + integration tests (no keys, runs anywhere/CI).
 - `devbox run test:live` — opt-in end-to-end: drives real `claude -p`, asserts orchestrator→Claude and subagent→GLM in the decision log.
   - **Workflow scenario (opt-in):** to also prove that **dynamic Workflow-spawned agents** route to GLM, enable it with either the flag or the env var:
