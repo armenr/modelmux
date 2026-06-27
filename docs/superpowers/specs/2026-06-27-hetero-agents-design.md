@@ -185,4 +185,3 @@ hetero-agents/
 - **Beta-header allow-list** — exact set that non-Anthropic upstreams reject may need tuning; integration fixtures should include current beta headers.
 - **Model-id / price drift** — re-verify slugs before relying on them (always-latest).
 - **Bun SSE idle timeout** — `Bun.serve` drops quiet streams after 10s unless `idleTimeout: 0`; covered by a dedicated test asserting a delayed-chunk stream survives.
-```
