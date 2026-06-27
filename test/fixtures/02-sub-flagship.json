@@ -1,0 +1,4 @@
+{
+  "headers": { "x-app": "cli", "x-claude-code-agent-id": "agent_hash_1", "anthropic-version": "2023-06-01" },
+  "body": { "model": "claude-sonnet-4-6", "system": [{ "type": "text", "text": "<<route:flagship>>\nYou are a research subagent." }], "messages": [] }
+}

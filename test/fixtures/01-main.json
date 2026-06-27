@@ -1,0 +1,4 @@
+{
+  "headers": { "x-app": "cli", "anthropic-version": "2023-06-01", "authorization": "Bearer oauth-dummy" },
+  "body": { "model": "claude-opus-4-8", "system": "You are Claude Code.", "messages": [] }
+}
