@@ -5,6 +5,9 @@ export function parseJsonc(text: string): unknown {
   let inStr = false;
   let quote = "";
   let i = 0;
+  // Track the last non-whitespace char emitted to out, so we can drop a
+  // trailing comma right before a closing } or ] without corrupting strings.
+  let lastNonWs = "";
   while (i < text.length) {
     const c = text[i];
     const next = text[i + 1];
@@ -17,6 +20,7 @@ export function parseJsonc(text: string): unknown {
       }
       if (c === quote)
         inStr = false;
+      lastNonWs = c;
       i++;
       continue;
     }
@@ -24,6 +28,7 @@ export function parseJsonc(text: string): unknown {
       inStr = true;
       quote = c;
       out += c;
+      lastNonWs = c;
       i++;
       continue;
     }
@@ -37,10 +42,15 @@ export function parseJsonc(text: string): unknown {
       i += 2;
       continue;
     }
+    // Drop a trailing comma before a closing bracket (outside strings).
+    if ((c === "}" || c === "]") && lastNonWs === ",") {
+      const cut = out.lastIndexOf(",");
+      out = out.slice(0, cut) + out.slice(cut + 1);
+    }
     out += c;
+    if (c !== " " && c !== "\t" && c !== "\n" && c !== "\r")
+      lastNonWs = c;
     i++;
   }
-  // remove trailing commas before } or ]
-  out = out.replace(/,\s*([}\]])/g, "$1");
   return JSON.parse(out);
 }

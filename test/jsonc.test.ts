@@ -15,3 +15,8 @@ test("does not corrupt // inside strings", () => {
     url: "https://openrouter.ai/api",
   });
 });
+
+test("does not corrupt comma-brace sequences inside strings", () => {
+  expect(parseJsonc("{\"a\":\",]\"}")).toEqual({ a: ",]" });
+  expect(parseJsonc("{\"a\":\"x, ]\"}")).toEqual({ a: "x, ]" });
+});
