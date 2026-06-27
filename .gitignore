@@ -1,0 +1,19 @@
+# --- secrets (never commit) ---
+.env
+*.env
+!.env.example
+openrouter-key.env
+
+# --- runtime / logs ---
+*.log
+logs/
+decisions*.jsonl
+
+# --- deps / build ---
+node_modules/
+proxy/dist/
+.devbox/
+.direnv/
+
+# --- os ---
+.DS_Store
