@@ -8,10 +8,13 @@
     "test": "bun test test/",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
     "test:live": "bun run scripts/live-smoke.ts"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.1.0",
-    "eslint": "^9.10.0"
+    "@types/bun": "^1.3.14",
+    "eslint": "^9.10.0",
+    "typescript": "^6.0.3"
   }
 }

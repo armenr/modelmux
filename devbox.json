@@ -16,6 +16,7 @@
       "test:live": "bun run scripts/live-smoke.ts",
       "lint": "bunx eslint .",
       "lint:fix": "bunx eslint . --fix",
+      "typecheck": "bunx tsc --noEmit",
       "record": "bun run scripts/record-fixtures.ts",
       "hetero": "bun run bin/hetero"
     }
