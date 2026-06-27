@@ -39,7 +39,7 @@ Chosen over claude-code-router and LiteLLM because objectives #1 (exemplar/trans
 
 ```
                           ┌─────────────────────────────────────┐
-  Claude Code  ──────────▶│  hetero-proxy (Node/TS, ~150 LOC)    │
+  Claude Code  ──────────▶│  hetero-proxy (Bun/TS, ~150 LOC)     │
   ANTHROPIC_BASE_URL      │  signals → route() → rewrite → fwd    │
   → 127.0.0.1:PORT        │                                       │
    orchestrator turn ─────┼──▶ no agent-id header ────────────────┼──▶ api.anthropic.com   (Claude; auth passthrough)
@@ -105,6 +105,8 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 
 ## 7. Proxy internals
 
+**Runtime: Bun** (chosen 2026-06-27 over Node/Deno — single binary, native TS no build step, `bun:test`, `.env` autoload → near-zero deps). Core is a web-standard `(req: Request) => Response` handler; SSE passthrough is `new Response(upstream.body, …)`. **Critical caveat:** `Bun.serve`'s 10s default idle timeout kills quiet SSE streams → set `idleTimeout: 0` (or `server.timeout(req, 0)` per-request) and test that a quiet stream survives.
+
 | File | Responsibility | Pure? |
 |---|---|---|
 | `config.ts` | load `routes.jsonc` + env overrides; resolve menu; hot-reload on file change | impure |
@@ -117,7 +119,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 - **Auth swap:** Claude leg = pass through Claude Code's own auth (subscription/OAuth) unchanged; OpenRouter leg = inject `OPENROUTER_API_KEY` as `Authorization: Bearer`.
 - **Model swap:** rewrite `body.model` to resolved slug; `"passthrough"` keeps what CC sent (Claude legs).
 - **Beta headers:** Claude leg = pass `anthropic-beta` unchanged (preserves caching); non-Anthropic leg = strip to a configurable allow-list (avoids context-management/effort/task-budgets 400s).
-- **Streaming:** both upstreams emit Anthropic SSE → pipe bytes through, no parsing.
+- **Streaming:** both upstreams emit Anthropic SSE → return `new Response(upstream.body, …)` to pipe the web `ReadableStream` straight through, no parsing. Set `idleTimeout: 0` so quiet streams aren't dropped.
 - **Decision log** (the test seam):
   ```jsonc
   { "ts":"…","sessionId":"…","agentId":"0f3a…|null","isSubagent":true,"xApp":"cli",
@@ -142,7 +144,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 
 ## 10. Reproducibility (DevBox) + always-latest
 
-- **DevBox** (`devbox.json` / `devbox.lock`) pins the toolchain (Node, jq, …) at latest-clean; `devbox shell` gives an identical env on any clone.
+- **DevBox** (`devbox.json` / `devbox.lock`) pins the toolchain (Bun, jq, …) at latest-clean; `devbox shell` gives an identical env on any clone. `.env` is loaded via the `env_from: "./.env"` key; a globally-exported `OPENROUTER_API_KEY` also passes through (except under `--pure`).
 - **Standing rule:** always install the latest dep/tool versions (avoid day-1 rot). A `check-latest` script flags newer model releases and dep updates.
 
 ## 11. Testing strategy (objective #3)
@@ -179,4 +181,5 @@ hetero-agents/
 - **Bug #43869** affecting any model-string-based tiers — Tier 3 (tag) is the mitigation; tests report what works on the installed CC version.
 - **Beta-header allow-list** — exact set that non-Anthropic upstreams reject may need tuning; integration fixtures should include current beta headers.
 - **Model-id / price drift** — re-verify slugs before relying on them (always-latest).
+- **Bun SSE idle timeout** — `Bun.serve` drops quiet streams after 10s unless `idleTimeout: 0`; covered by a dedicated test asserting a delayed-chunk stream survives.
 ```

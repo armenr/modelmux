@@ -1,0 +1,1932 @@
+# hetero-agents Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** A batteries-included template repo where Claude Code's orchestrator stays on Claude while designated subagents (including dynamic-Workflow agents) route to OpenRouter models (GLM-5.2 et al.) through a small owned Bun proxy, proven by tests.
+
+**Architecture:** Claude Code points `ANTHROPIC_BASE_URL` at a local Bun reverse proxy. The proxy extracts routing signals from each request (the `x-claude-code-agent-id` header that marks subagents, the `x-app` background flag, body work-type signals, and an explicit `<<route:ALIAS>>` tag in an agent's prompt), runs a pure first-match cascade to pick an upstream + model, rewrites auth/model/beta-headers, and streams the Anthropic-format SSE response straight back. OpenRouter's Anthropic-compatible endpoint means **no format translation** — only routing + passthrough. Every decision is appended to a JSONL decision log, which is the seam all tests assert against.
+
+**Tech Stack:** Bun (runtime + `bun:test` + `.env` autoload, native TS, no build step) · Jetify DevBox (Nix-pinned reproducible toolchain) · GitHub Actions (hermetic CI + secret-gated live job).
+
+## Global Constraints
+
+- **Runtime: Bun** (latest, pinned via `devbox.lock`). Native TypeScript, no build step, no `tsx`. Tests use `bun:test`. No third-party runtime/test dependencies unless a task explicitly adds one.
+- **Always-latest deps:** pin to the newest clean version at implementation time; never copy a stale version from this doc without checking. Re-verify model slugs and tool versions before relying on them.
+- **`Bun.serve` SSE caveat:** set `idleTimeout: 0` (or `server.timeout(req, 0)` per request) — the 10s default kills quiet streaming responses. A dedicated test must prove a delayed-chunk stream survives.
+- **Secrets never committed:** `OPENROUTER_API_KEY` (and optional `ANTHROPIC_API_KEY`) come from the environment or a gitignored `.env`. `.gitignore` already excludes `.env`, `*.env` (except `.env.example`), `openrouter-key.env`, and `decisions*.jsonl`.
+- **DevBox `.env` loading:** declare `"env_from": "./.env"` in `devbox.json` (devbox does NOT auto-detect `.env`). A globally-exported `OPENROUTER_API_KEY` also passes through (except under `devbox shell --pure`).
+- **Routing reliability:** orchestrator-vs-subagent (header), work-type (body/`x-app`), and per-agent tag (`<<route:ALIAS>>` in prompt) are the **stable** tiers. Do not rely on `body.model` for per-agent routing (Claude Code bug #43869 can silently fall it back to the parent model).
+- **Fail loud:** a request matched to an OpenRouter route with a missing key, or an unknown alias, returns HTTP 400 with a clear message and is logged — never silently fall back to Claude.
+- **Model menu (seed defaults — verify slugs before shipping):** `orchestrator=anthropic:passthrough`, `flagship=openrouter:z-ai/glm-5.2`, `max=openrouter:qwen/qwen3.7-max`, `reasoner=openrouter:deepseek/deepseek-v4-pro`, `review=openrouter:minimax/minimax-m3`, `cheap=openrouter:deepseek/deepseek-v4-flash`, `claude-review=anthropic:claude-sonnet-4.6`.
+
+---
+
+## File Structure
+
+```
+hetero-agents/
+├── devbox.json / devbox.lock        # Nix-pinned Bun + jq toolchain
+├── package.json                     # type:module, scripts, no deps
+├── tsconfig.json                    # erasableSyntaxOnly etc.
+├── .env.example                     # OPENROUTER_API_KEY, optional ANTHROPIC_API_KEY, PORT
+├── .gitignore                       # (exists)
+├── routes.jsonc                     # the model menu + cascade (operator edits this)
+├── README.md
+├── src/
+│   ├── types.ts        # shared interfaces (Config, Signals, Decision, …)
+│   ├── jsonc.ts        # parseJsonc(text) — strip comments, no deps
+│   ├── config.ts       # loadConfig + resolveMenu (env overrides) + watch/hot-reload
+│   ├── signals.ts      # extractSignals(headers, body) — pure
+│   ├── route.ts        # route(signals, config) → Decision — pure
+│   ├── upstreams.ts    # upstream registry + rewriteHeaders/rewriteBody/forwardUrl — pure
+│   ├── log.ts          # logDecision(path, signals, decision) — append JSONL + stderr
+│   └── server.ts       # Bun.serve: buffer → signals → route → rewrite → forward → log
+├── test/
+│   ├── jsonc.test.ts
+│   ├── config.test.ts
+│   ├── signals.test.ts
+│   ├── route.test.ts
+│   ├── upstreams.test.ts
+│   ├── log.test.ts
+│   ├── integration.test.ts          # 2 fake upstreams + decision-log assertions
+│   └── fixtures/                     # recorded real Claude Code requests (*.json)
+├── scripts/
+│   ├── record-fixtures.ts           # capture real CC requests into test/fixtures
+│   ├── live-smoke.ts                # drive `claude -p` → assert decision log
+│   └── check-latest.ts              # freshness: newer model/dep releases
+├── bin/hetero                       # switching CLI (models/set/use/check-latest)
+├── .claude/
+│   ├── settings.json                # ANTHROPIC_BASE_URL → proxy
+│   └── agents/{glm-researcher,minimax-reviewer,claude-control}.md
+└── .github/workflows/ci.yml         # gate + hermetic + live jobs
+```
+
+---
+
+## Task 1: Project scaffold (DevBox + Bun + empty passing test)
+
+**Files:**
+- Create: `devbox.json`, `package.json`, `tsconfig.json`, `bunfig.toml`, `.env.example`, `test/smoke.test.ts`
+
+**Interfaces:**
+- Produces: a working `devbox run test` that executes `bun test`; the `src/` and `test/` layout.
+
+- [ ] **Step 1: Create `devbox.json`** (pin Bun + jq; load `.env`; define scripts)
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": ["bun@latest", "jq@latest"],
+  "env_from": "./.env",
+  "env": {
+    "PORT": "8787"
+  },
+  "shell": {
+    "init_hook": ["echo \"devbox: bun $(bun --version)\""],
+    "scripts": {
+      "proxy": "bun run src/server.ts",
+      "test": "bun test test/",
+      "test:live": "bun run scripts/live-smoke.ts",
+      "record": "bun run scripts/record-fixtures.ts",
+      "hetero": "bun run bin/hetero"
+    }
+  }
+}
+```
+
+- [ ] **Step 2: Create `package.json`** (ESM, no deps)
+
+```json
+{
+  "name": "hetero-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "proxy": "bun run src/server.ts",
+    "test": "bun test test/",
+    "test:live": "bun run scripts/live-smoke.ts"
+  }
+}
+```
+
+- [ ] **Step 3: Create `tsconfig.json`** (Bun-friendly, strip-only safe)
+
+```json
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+- [ ] **Step 4: Create `.env.example`**
+
+```bash
+# Copy to .env and fill in. .env is gitignored.
+# Your OpenRouter key (https://openrouter.ai/keys). Required for non-Claude routes.
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxx
+# Optional: only needed if the live test shows Claude Code does NOT forward its
+# subscription/OAuth auth through a custom ANTHROPIC_BASE_URL (see README).
+# ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+# Port the proxy listens on (must match .claude/settings.json).
+PORT=8787
+```
+
+- [ ] **Step 5: Create `test/smoke.test.ts`**
+
+```ts
+import { test, expect } from "bun:test";
+
+test("bun test runs", () => {
+  expect(1 + 1).toBe(2);
+});
+```
+
+- [ ] **Step 6: Run the test**
+
+Run: `devbox run test`
+Expected: PASS — 1 test passing. (If `devbox` isn't installed: `curl -fsSL https://get.jetify.com/devbox | bash`, then `devbox install`.)
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add devbox.json devbox.lock package.json tsconfig.json bunfig.toml .env.example test/smoke.test.ts
+git commit -m "chore: scaffold Bun + DevBox workspace with passing smoke test"
+```
+
+---
+
+## Task 2: Shared types + JSONC parser
+
+**Files:**
+- Create: `src/types.ts`, `src/jsonc.ts`, `test/jsonc.test.ts`
+
+**Interfaces:**
+- Produces:
+  - `type Upstream = "anthropic" | "openrouter"`
+  - `interface ModelRef { upstream: Upstream; slug: string }` (`slug` may be `"passthrough"`)
+  - `type WorkType = "background" | "think" | "longContext" | "webSearch"`
+  - `interface RouteRule { when: { tag?: string; workType?: WorkType; anySubagent?: boolean }; use: string }`
+  - `interface Config { models: Record<string, ModelRef>; default: string; routes: RouteRule[]; longContextThreshold: number }`
+  - `interface Signals { agentId: string | null; isSubagent: boolean; xApp: string | null; requestedModel: string | null; systemText: string; tag: string | null; hasThinking: boolean; tokensIn: number; hasWebSearch: boolean }`
+  - `interface Decision { alias: string; upstream: Upstream; model: string; matchedRule: string }`
+  - `function parseJsonc(text: string): unknown`
+
+- [ ] **Step 1: Write the failing test** `test/jsonc.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { parseJsonc } from "../src/jsonc.ts";
+
+test("strips line and block comments and trailing commas", () => {
+  const text = `{
+    // a line comment
+    "a": 1, /* inline */ "b": "x",
+    "c": [1, 2,], // trailing comma in array
+  }`;
+  expect(parseJsonc(text)).toEqual({ a: 1, b: "x", c: [1, 2] });
+});
+
+test("does not corrupt // inside strings", () => {
+  expect(parseJsonc('{"url":"https://openrouter.ai/api"}')).toEqual({
+    url: "https://openrouter.ai/api",
+  });
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/jsonc.test.ts`
+Expected: FAIL — cannot find module `../src/jsonc.ts`.
+
+- [ ] **Step 3: Write `src/types.ts`**
+
+```ts
+export type Upstream = "anthropic" | "openrouter";
+
+export interface ModelRef {
+  upstream: Upstream;
+  slug: string; // concrete slug, or "passthrough" to keep what Claude Code sent
+}
+
+export type WorkType = "background" | "think" | "longContext" | "webSearch";
+
+export interface RouteRule {
+  when: { tag?: string; workType?: WorkType; anySubagent?: boolean };
+  use: string; // an alias key into Config.models
+}
+
+export interface Config {
+  models: Record<string, ModelRef>;
+  default: string; // alias used when no route matches (the orchestrator)
+  routes: RouteRule[];
+  longContextThreshold: number;
+}
+
+export interface Signals {
+  agentId: string | null; // x-claude-code-agent-id (subagent marker)
+  isSubagent: boolean; // agentId !== null
+  xApp: string | null; // "cli" | "cli-bg"
+  requestedModel: string | null; // body.model (NOT used for per-agent routing)
+  systemText: string; // concatenated system-prompt text (for tag matching)
+  tag: string | null; // parsed <<route:ALIAS>>
+  hasThinking: boolean; // body.thinking present
+  tokensIn: number; // rough token estimate of the request
+  hasWebSearch: boolean; // a tool whose type starts with "web_search"
+}
+
+export interface Decision {
+  alias: string;
+  upstream: Upstream;
+  model: string; // resolved slug or "passthrough"
+  matchedRule: string; // "tag:flagship" | "workType:background" | "anySubagent" | "default"
+}
+```
+
+- [ ] **Step 4: Write `src/jsonc.ts`**
+
+```ts
+// Minimal JSONC support (comments + trailing commas), no dependencies.
+// Walks the string so // and /* */ inside string literals are preserved.
+export function parseJsonc(text: string): unknown {
+  let out = "";
+  let inStr = false;
+  let quote = "";
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inStr) {
+      out += c;
+      if (c === "\\") {
+        out += next ?? "";
+        i += 2;
+        continue;
+      }
+      if (c === quote) inStr = false;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      inStr = true;
+      quote = c;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  // remove trailing commas before } or ]
+  out = out.replace(/,\s*([}\]])/g, "$1");
+  return JSON.parse(out);
+}
+```
+
+- [ ] **Step 5: Run the test, verify it passes**
+
+Run: `bun test test/jsonc.test.ts`
+Expected: PASS — 2 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/types.ts src/jsonc.ts test/jsonc.test.ts
+git commit -m "feat: shared types + dependency-free JSONC parser"
+```
+
+---
+
+## Task 3: Config loading + menu resolution + env overrides
+
+**Files:**
+- Create: `routes.jsonc`, `src/config.ts`, `test/config.test.ts`
+
+**Interfaces:**
+- Consumes: `parseJsonc` (Task 2); `Config`, `ModelRef`, `Upstream` (Task 2).
+- Produces:
+  - `function parseModelRef(spec: string): ModelRef` — splits `"openrouter:z-ai/glm-5.2"` → `{upstream:"openrouter", slug:"z-ai/glm-5.2"}`; `"anthropic:passthrough"` → `{upstream:"anthropic", slug:"passthrough"}`.
+  - `function resolveMenu(config: Config, env: Record<string,string|undefined>): Config` — applies `HETERO_MODEL_<ALIAS>` overrides (alias upper-cased, `-` → `_`).
+  - `function loadConfig(path: string, env?: Record<string,string|undefined>): Config` — reads + parses + resolves; defaults `longContextThreshold` to `200000` if absent.
+
+- [ ] **Step 1: Create `routes.jsonc`** (the seed menu + cascade)
+
+```jsonc
+{
+  // Friendly aliases → "<upstream>:<slug>". Swap a model in ONE place.
+  // Override any alias at runtime with HETERO_MODEL_<ALIAS> (e.g. HETERO_MODEL_FLAGSHIP).
+  "models": {
+    "orchestrator": "anthropic:passthrough",          // main chat — keep the model CC picked
+    "flagship": "openrouter:z-ai/glm-5.2",
+    "max": "openrouter:qwen/qwen3.7-max",
+    "reasoner": "openrouter:deepseek/deepseek-v4-pro",
+    "review": "openrouter:minimax/minimax-m3",
+    "cheap": "openrouter:deepseek/deepseek-v4-flash",
+    "claude-review": "anthropic:claude-sonnet-4.6"
+  },
+
+  // Alias used when no route below matches (the orchestrator / main loop).
+  "default": "orchestrator",
+
+  // Tokens above which a request counts as longContext.
+  "longContextThreshold": 200000,
+
+  // First match wins. Order = precedence (most specific first).
+  "routes": [
+    { "when": { "tag": "flagship" }, "use": "flagship" },
+    { "when": { "tag": "max" }, "use": "max" },
+    { "when": { "tag": "reasoner" }, "use": "reasoner" },
+    { "when": { "tag": "review" }, "use": "review" },
+    { "when": { "tag": "claude-review" }, "use": "claude-review" },
+    { "when": { "workType": "background" }, "use": "cheap" },
+    { "when": { "anySubagent": true }, "use": "flagship" }
+  ]
+}
+```
+
+- [ ] **Step 2: Write the failing test** `test/config.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { parseModelRef, resolveMenu, loadConfig } from "../src/config.ts";
+
+test("parseModelRef splits upstream and slug", () => {
+  expect(parseModelRef("openrouter:z-ai/glm-5.2")).toEqual({
+    upstream: "openrouter",
+    slug: "z-ai/glm-5.2",
+  });
+  expect(parseModelRef("anthropic:passthrough")).toEqual({
+    upstream: "anthropic",
+    slug: "passthrough",
+  });
+});
+
+test("parseModelRef rejects unknown upstream", () => {
+  expect(() => parseModelRef("bogus:x")).toThrow();
+});
+
+test("resolveMenu applies HETERO_MODEL_<ALIAS> overrides", () => {
+  const cfg = {
+    models: { flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" } },
+    default: "flagship",
+    routes: [],
+    longContextThreshold: 200000,
+  } as const;
+  const out = resolveMenu(cfg as any, { HETERO_MODEL_FLAGSHIP: "openrouter:z-ai/glm-4.6" });
+  expect(out.models.flagship).toEqual({ upstream: "openrouter", slug: "z-ai/glm-4.6" });
+});
+
+test("loadConfig reads routes.jsonc and defaults the threshold", () => {
+  const cfg = loadConfig("routes.jsonc", {});
+  expect(cfg.models.flagship).toEqual({ upstream: "openrouter", slug: "z-ai/glm-5.2" });
+  expect(cfg.default).toBe("orchestrator");
+  expect(cfg.longContextThreshold).toBe(200000);
+});
+```
+
+- [ ] **Step 3: Run it, verify it fails**
+
+Run: `bun test test/config.test.ts`
+Expected: FAIL — cannot find module `../src/config.ts`.
+
+- [ ] **Step 4: Write `src/config.ts`**
+
+```ts
+import { parseJsonc } from "./jsonc.ts";
+import type { Config, ModelRef, Upstream } from "./types.ts";
+
+const UPSTREAMS: Upstream[] = ["anthropic", "openrouter"];
+
+export function parseModelRef(spec: string): ModelRef {
+  const idx = spec.indexOf(":");
+  if (idx === -1) throw new Error(`bad model spec (need "<upstream>:<slug>"): ${spec}`);
+  const upstream = spec.slice(0, idx) as Upstream;
+  const slug = spec.slice(idx + 1);
+  if (!UPSTREAMS.includes(upstream)) throw new Error(`unknown upstream: ${upstream}`);
+  if (!slug) throw new Error(`empty slug in: ${spec}`);
+  return { upstream, slug };
+}
+
+export function resolveMenu(
+  config: Config,
+  env: Record<string, string | undefined>,
+): Config {
+  const models = { ...config.models };
+  for (const alias of Object.keys(models)) {
+    const key = "HETERO_MODEL_" + alias.toUpperCase().replace(/-/g, "_");
+    const override = env[key];
+    if (override) models[alias] = parseModelRef(override);
+  }
+  return { ...config, models };
+}
+
+interface RawConfig {
+  models: Record<string, string>;
+  default: string;
+  routes: Config["routes"];
+  longContextThreshold?: number;
+}
+
+export function loadConfig(
+  path: string,
+  env: Record<string, string | undefined> = process.env,
+): Config {
+  const raw = parseJsonc(readText(path)) as RawConfig;
+  const models: Record<string, ModelRef> = {};
+  for (const [alias, spec] of Object.entries(raw.models)) {
+    models[alias] = parseModelRef(spec);
+  }
+  const config: Config = {
+    models,
+    default: raw.default,
+    routes: raw.routes ?? [],
+    longContextThreshold: raw.longContextThreshold ?? 200000,
+  };
+  if (!models[config.default]) {
+    throw new Error(`default alias "${config.default}" not in models`);
+  }
+  return resolveMenu(config, env);
+}
+
+function readText(path: string): string {
+  // Bun-native synchronous read keeps config loading simple and testable.
+  return require("node:fs").readFileSync(path, "utf8");
+}
+```
+
+- [ ] **Step 5: Run the test, verify it passes**
+
+Run: `bun test test/config.test.ts`
+Expected: PASS — 4 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add routes.jsonc src/config.ts test/config.test.ts
+git commit -m "feat: routes.jsonc config loader with menu + env overrides"
+```
+
+---
+
+## Task 4: Signal extraction (pure)
+
+**Files:**
+- Create: `src/signals.ts`, `test/signals.test.ts`
+
+**Interfaces:**
+- Consumes: `Signals` (Task 2).
+- Produces: `function extractSignals(headers: Headers, body: any): Signals`. Tag regex: `/<<route:([a-z0-9_-]+)>>/i`. `systemText` is built from `body.system` (string, or array of `{type,text}` blocks). `tokensIn` ≈ `JSON.stringify(body).length / 4`. `hasWebSearch` true if any `body.tools[].type` starts with `"web_search"`.
+
+- [ ] **Step 1: Write the failing test** `test/signals.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { extractSignals } from "../src/signals.ts";
+
+function h(obj: Record<string, string>) {
+  return new Headers(obj);
+}
+
+test("subagent detected via x-claude-code-agent-id", () => {
+  const s = extractSignals(h({ "x-claude-code-agent-id": "abc123", "x-app": "cli" }), {});
+  expect(s.isSubagent).toBe(true);
+  expect(s.agentId).toBe("abc123");
+});
+
+test("orchestrator has no agent id", () => {
+  const s = extractSignals(h({ "x-app": "cli" }), {});
+  expect(s.isSubagent).toBe(false);
+  expect(s.agentId).toBeNull();
+});
+
+test("background flagged via x-app cli-bg", () => {
+  expect(extractSignals(h({ "x-app": "cli-bg" }), {}).xApp).toBe("cli-bg");
+});
+
+test("tag parsed from string system prompt", () => {
+  const s = extractSignals(h({}), { system: "<<route:flagship>>\nYou are a researcher." });
+  expect(s.tag).toBe("flagship");
+});
+
+test("tag parsed from system block array", () => {
+  const body = { system: [{ type: "text", text: "<<route:review>> do stuff" }] };
+  expect(extractSignals(h({}), body).tag).toBe("review");
+});
+
+test("thinking + web_search + token estimate", () => {
+  const body = {
+    thinking: { type: "enabled", budget_tokens: 1024 },
+    tools: [{ type: "web_search_20250305", name: "web_search" }],
+  };
+  const s = extractSignals(h({}), body);
+  expect(s.hasThinking).toBe(true);
+  expect(s.hasWebSearch).toBe(true);
+  expect(s.tokensIn).toBeGreaterThan(0);
+});
+
+test("no tag returns null", () => {
+  expect(extractSignals(h({}), { system: "plain prompt" }).tag).toBeNull();
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/signals.test.ts`
+Expected: FAIL — cannot find module `../src/signals.ts`.
+
+- [ ] **Step 3: Write `src/signals.ts`**
+
+```ts
+import type { Signals } from "./types.ts";
+
+const TAG_RE = /<<route:([a-z0-9_-]+)>>/i;
+
+export function extractSignals(headers: Headers, body: any): Signals {
+  const agentId = headers.get("x-claude-code-agent-id");
+  const xApp = headers.get("x-app");
+  const systemText = systemToText(body?.system);
+  const tagMatch = systemText.match(TAG_RE);
+  const tools: any[] = Array.isArray(body?.tools) ? body.tools : [];
+  return {
+    agentId: agentId ?? null,
+    isSubagent: agentId != null,
+    xApp: xApp ?? null,
+    requestedModel: typeof body?.model === "string" ? body.model : null,
+    systemText,
+    tag: tagMatch ? tagMatch[1].toLowerCase() : null,
+    hasThinking: body?.thinking != null,
+    tokensIn: estimateTokens(body),
+    hasWebSearch: tools.some(
+      (t) => typeof t?.type === "string" && t.type.startsWith("web_search"),
+    ),
+  };
+}
+
+function systemToText(system: unknown): string {
+  if (typeof system === "string") return system;
+  if (Array.isArray(system)) {
+    return system
+      .map((b) => (typeof b?.text === "string" ? b.text : ""))
+      .join("\n");
+  }
+  return "";
+}
+
+function estimateTokens(body: unknown): number {
+  try {
+    return Math.ceil(JSON.stringify(body).length / 4);
+  } catch {
+    return 0;
+  }
+}
+```
+
+- [ ] **Step 4: Run the test, verify it passes**
+
+Run: `bun test test/signals.test.ts`
+Expected: PASS — 7 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/signals.ts test/signals.test.ts
+git commit -m "feat: pure signal extraction from Claude Code requests"
+```
+
+---
+
+## Task 5: The routing cascade (pure — the core)
+
+**Files:**
+- Create: `src/route.ts`, `test/route.test.ts`
+
+**Interfaces:**
+- Consumes: `Signals`, `Config`, `Decision`, `WorkType` (Task 2).
+- Produces: `function route(signals: Signals, config: Config): Decision`. First-match-in-array-order. Work-type matching: `background`→`xApp==="cli-bg"`, `think`→`hasThinking`, `longContext`→`tokensIn > config.longContextThreshold`, `webSearch`→`hasWebSearch`. A rule whose `use` alias is missing from `config.models` throws (config error surfaces loudly). `matchedRule` strings: `tag:<alias>`, `workType:<type>`, `anySubagent`, `default`.
+
+- [ ] **Step 1: Write the failing test** `test/route.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { route } from "../src/route.ts";
+import type { Config, Signals } from "../src/types.ts";
+
+const CONFIG: Config = {
+  models: {
+    orchestrator: { upstream: "anthropic", slug: "passthrough" },
+    flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" },
+    cheap: { upstream: "openrouter", slug: "deepseek/deepseek-v4-flash" },
+  },
+  default: "orchestrator",
+  longContextThreshold: 200000,
+  routes: [
+    { when: { tag: "flagship" }, use: "flagship" },
+    { when: { workType: "background" }, use: "cheap" },
+    { when: { anySubagent: true }, use: "flagship" },
+  ],
+};
+
+function sig(p: Partial<Signals> = {}): Signals {
+  return {
+    agentId: null, isSubagent: false, xApp: "cli", requestedModel: null,
+    systemText: "", tag: null, hasThinking: false, tokensIn: 10,
+    hasWebSearch: false, ...p,
+  };
+}
+
+test("orchestrator (no subagent) → default anthropic passthrough", () => {
+  expect(route(sig(), CONFIG)).toEqual({
+    alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default",
+  });
+});
+
+test("tag wins over any-subagent", () => {
+  const d = route(sig({ isSubagent: true, agentId: "x", tag: "flagship" }), CONFIG);
+  expect(d).toEqual({
+    alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship",
+  });
+});
+
+test("background subagent → cheap before any-subagent", () => {
+  const d = route(sig({ isSubagent: true, agentId: "x", xApp: "cli-bg" }), CONFIG);
+  expect(d.alias).toBe("cheap");
+  expect(d.matchedRule).toBe("workType:background");
+});
+
+test("plain subagent → any-subagent flagship", () => {
+  const d = route(sig({ isSubagent: true, agentId: "x" }), CONFIG);
+  expect(d).toEqual({
+    alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "anySubagent",
+  });
+});
+
+test("unknown alias in a rule throws", () => {
+  const bad = { ...CONFIG, routes: [{ when: { anySubagent: true }, use: "nope" }] };
+  expect(() => route(sig({ isSubagent: true, agentId: "x" }), bad)).toThrow();
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/route.test.ts`
+Expected: FAIL — cannot find module `../src/route.ts`.
+
+- [ ] **Step 3: Write `src/route.ts`**
+
+```ts
+import type { Config, Decision, RouteRule, Signals, WorkType } from "./types.ts";
+
+export function route(signals: Signals, config: Config): Decision {
+  for (const rule of config.routes) {
+    if (matches(rule, signals, config)) {
+      return decide(rule.use, ruleLabel(rule), config);
+    }
+  }
+  return decide(config.default, "default", config);
+}
+
+function matches(rule: RouteRule, s: Signals, config: Config): boolean {
+  const w = rule.when;
+  if (w.tag !== undefined) return s.tag === w.tag;
+  if (w.workType !== undefined) return hasWorkType(s, w.workType, config);
+  if (w.anySubagent === true) return s.isSubagent;
+  return false;
+}
+
+function hasWorkType(s: Signals, t: WorkType, config: Config): boolean {
+  switch (t) {
+    case "background": return s.xApp === "cli-bg";
+    case "think": return s.hasThinking;
+    case "longContext": return s.tokensIn > config.longContextThreshold;
+    case "webSearch": return s.hasWebSearch;
+  }
+}
+
+function ruleLabel(rule: RouteRule): string {
+  const w = rule.when;
+  if (w.tag !== undefined) return `tag:${w.tag}`;
+  if (w.workType !== undefined) return `workType:${w.workType}`;
+  return "anySubagent";
+}
+
+function decide(alias: string, matchedRule: string, config: Config): Decision {
+  const ref = config.models[alias];
+  if (!ref) throw new Error(`route uses unknown alias "${alias}" (not in models)`);
+  return { alias, upstream: ref.upstream, model: ref.slug, matchedRule };
+}
+```
+
+- [ ] **Step 4: Run the test, verify it passes**
+
+Run: `bun test test/route.test.ts`
+Expected: PASS — 5 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/route.ts test/route.test.ts
+git commit -m "feat: pure first-match routing cascade"
+```
+
+---
+
+## Task 6: Upstream registry + header/body rewrite (pure)
+
+**Files:**
+- Create: `src/upstreams.ts`, `test/upstreams.test.ts`
+
+**Interfaces:**
+- Consumes: `Decision`, `Upstream` (Task 2).
+- Produces:
+  - `function forwardUrl(upstream: Upstream, inboundPath: string, inboundSearch: string): string` — anthropic base `https://api.anthropic.com`, openrouter base `https://openrouter.ai/api`; appends the inbound path (`/v1/messages`) + search.
+  - `function rewriteHeaders(decision: Decision, inbound: Headers, env: Record<string,string|undefined>): Headers` — builds a fresh header set. **anthropic leg:** copy inbound `authorization`/`x-api-key` through; if `env.ANTHROPIC_API_KEY` set, prefer it as `x-api-key`; pass `anthropic-beta`/`anthropic-version` unchanged. **openrouter leg:** require `env.OPENROUTER_API_KEY` (throw if missing), set `authorization: Bearer <key>`, strip `anthropic-beta` and any inbound auth. Always drop hop-by-hop headers (`host`, `content-length`, `connection`).
+  - `function rewriteBody(decision: Decision, body: any): any` — if `decision.model !== "passthrough"`, set `body.model = decision.model`; else leave unchanged. Returns the (possibly mutated) body.
+  - `class MissingKeyError extends Error` — thrown by `rewriteHeaders` when an OpenRouter route lacks a key (server maps it to HTTP 400).
+
+- [ ] **Step 1: Write the failing test** `test/upstreams.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { forwardUrl, rewriteHeaders, rewriteBody, MissingKeyError } from "../src/upstreams.ts";
+import type { Decision } from "../src/types.ts";
+
+const toOR: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
+const toAnthropic: Decision = { alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default" };
+
+test("forwardUrl builds upstream URLs", () => {
+  expect(forwardUrl("anthropic", "/v1/messages", "")).toBe("https://api.anthropic.com/v1/messages");
+  expect(forwardUrl("openrouter", "/v1/messages", "?beta=true")).toBe("https://openrouter.ai/api/v1/messages?beta=true");
+});
+
+test("openrouter leg injects Bearer key and strips anthropic-beta", () => {
+  const inbound = new Headers({ authorization: "Bearer dummy", "anthropic-beta": "x", host: "localhost" });
+  const out = rewriteHeaders(toOR, inbound, { OPENROUTER_API_KEY: "sk-or-REAL" });
+  expect(out.get("authorization")).toBe("Bearer sk-or-REAL");
+  expect(out.get("anthropic-beta")).toBeNull();
+  expect(out.get("host")).toBeNull();
+});
+
+test("openrouter leg without key throws MissingKeyError", () => {
+  expect(() => rewriteHeaders(toOR, new Headers(), {})).toThrow(MissingKeyError);
+});
+
+test("anthropic leg passes auth + beta through", () => {
+  const inbound = new Headers({ authorization: "Bearer oauth-tok", "anthropic-beta": "caching" });
+  const out = rewriteHeaders(toAnthropic, inbound, {});
+  expect(out.get("authorization")).toBe("Bearer oauth-tok");
+  expect(out.get("anthropic-beta")).toBe("caching");
+});
+
+test("anthropic leg prefers env ANTHROPIC_API_KEY as x-api-key", () => {
+  const out = rewriteHeaders(toAnthropic, new Headers(), { ANTHROPIC_API_KEY: "sk-ant-X" });
+  expect(out.get("x-api-key")).toBe("sk-ant-X");
+});
+
+test("rewriteBody sets model unless passthrough", () => {
+  expect(rewriteBody(toOR, { model: "claude-sonnet-4-6" }).model).toBe("z-ai/glm-5.2");
+  expect(rewriteBody(toAnthropic, { model: "claude-sonnet-4-6" }).model).toBe("claude-sonnet-4-6");
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/upstreams.test.ts`
+Expected: FAIL — cannot find module `../src/upstreams.ts`.
+
+- [ ] **Step 3: Write `src/upstreams.ts`**
+
+```ts
+import type { Decision, Upstream } from "./types.ts";
+
+const BASE: Record<Upstream, string> = {
+  anthropic: "https://api.anthropic.com",
+  openrouter: "https://openrouter.ai/api",
+};
+
+const HOP_BY_HOP = new Set(["host", "content-length", "connection", "accept-encoding"]);
+
+export class MissingKeyError extends Error {}
+
+export function forwardUrl(upstream: Upstream, inboundPath: string, inboundSearch: string): string {
+  return BASE[upstream] + inboundPath + inboundSearch;
+}
+
+export function rewriteHeaders(
+  decision: Decision,
+  inbound: Headers,
+  env: Record<string, string | undefined>,
+): Headers {
+  const out = new Headers();
+  // Copy inbound headers except hop-by-hop and auth (auth handled per-leg).
+  for (const [k, v] of inbound) {
+    const key = k.toLowerCase();
+    if (HOP_BY_HOP.has(key)) continue;
+    if (key === "authorization" || key === "x-api-key") continue;
+    out.set(k, v);
+  }
+
+  if (decision.upstream === "openrouter") {
+    const key = env.OPENROUTER_API_KEY;
+    if (!key) throw new MissingKeyError("OPENROUTER_API_KEY is not set but a route needs OpenRouter");
+    out.set("authorization", `Bearer ${key}`);
+    out.delete("anthropic-beta"); // OpenRouter's Anthropic endpoint may reject CC betas
+    return out;
+  }
+
+  // anthropic leg: prefer an explicit env key, else pass Claude Code's own auth through.
+  if (env.ANTHROPIC_API_KEY) {
+    out.set("x-api-key", env.ANTHROPIC_API_KEY);
+  } else {
+    const inboundAuth = inbound.get("authorization");
+    const inboundKey = inbound.get("x-api-key");
+    if (inboundAuth) out.set("authorization", inboundAuth);
+    if (inboundKey) out.set("x-api-key", inboundKey);
+  }
+  return out;
+}
+
+export function rewriteBody(decision: Decision, body: any): any {
+  if (decision.model !== "passthrough") body.model = decision.model;
+  return body;
+}
+```
+
+- [ ] **Step 4: Run the test, verify it passes**
+
+Run: `bun test test/upstreams.test.ts`
+Expected: PASS — 6 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/upstreams.ts test/upstreams.test.ts
+git commit -m "feat: upstream registry + pure header/body rewrite"
+```
+
+---
+
+## Task 7: Decision log
+
+**Files:**
+- Create: `src/log.ts`, `test/log.test.ts`
+
+**Interfaces:**
+- Consumes: `Signals`, `Decision` (Task 2).
+- Produces: `function logDecision(path: string, signals: Signals, decision: Decision): void` — appends one JSON line `{ts, sessionId?, agentId, isSubagent, xApp, requestedModel, tokensIn, matchedRule, upstream, resolvedModel}` and echoes a compact line to stderr. `ts` uses `new Date().toISOString()`. `function readDecisions(path: string): any[]` — parses the JSONL file into objects (helper for tests).
+
+- [ ] **Step 1: Write the failing test** `test/log.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { logDecision, readDecisions } from "../src/log.ts";
+import type { Decision, Signals } from "../src/types.ts";
+import { rmSync } from "node:fs";
+
+const TMP = "test/.tmp-decisions.jsonl";
+
+function sig(p: Partial<Signals> = {}): Signals {
+  return {
+    agentId: "a1", isSubagent: true, xApp: "cli", requestedModel: "claude-sonnet-4-6",
+    systemText: "", tag: "flagship", hasThinking: false, tokensIn: 42,
+    hasWebSearch: false, ...p,
+  };
+}
+const dec: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
+
+test("appends a decision record readable back", () => {
+  rmSync(TMP, { force: true });
+  logDecision(TMP, sig(), dec);
+  logDecision(TMP, sig({ agentId: null, isSubagent: false }), { ...dec, upstream: "anthropic", model: "passthrough", matchedRule: "default" });
+  const rows = readDecisions(TMP);
+  expect(rows.length).toBe(2);
+  expect(rows[0].upstream).toBe("openrouter");
+  expect(rows[0].resolvedModel).toBe("z-ai/glm-5.2");
+  expect(rows[1].isSubagent).toBe(false);
+  rmSync(TMP, { force: true });
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/log.test.ts`
+Expected: FAIL — cannot find module `../src/log.ts`.
+
+- [ ] **Step 3: Write `src/log.ts`**
+
+```ts
+import { appendFileSync, readFileSync, existsSync } from "node:fs";
+import type { Decision, Signals } from "./types.ts";
+
+export function logDecision(path: string, signals: Signals, decision: Decision): void {
+  const record = {
+    ts: new Date().toISOString(),
+    agentId: signals.agentId,
+    isSubagent: signals.isSubagent,
+    xApp: signals.xApp,
+    requestedModel: signals.requestedModel,
+    tokensIn: signals.tokensIn,
+    matchedRule: decision.matchedRule,
+    upstream: decision.upstream,
+    resolvedModel: decision.model,
+  };
+  appendFileSync(path, JSON.stringify(record) + "\n");
+  process.stderr.write(
+    `[route] ${decision.matchedRule} -> ${decision.upstream}:${decision.model}` +
+      ` (sub=${signals.isSubagent})\n`,
+  );
+}
+
+export function readDecisions(path: string): any[] {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0)
+    .map((l) => JSON.parse(l));
+}
+```
+
+- [ ] **Step 4: Run the test, verify it passes**
+
+Run: `bun test test/log.test.ts`
+Expected: PASS — 1 test.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/log.ts test/log.test.ts
+git commit -m "feat: JSONL decision log + reader"
+```
+
+---
+
+## Task 8: The server (Bun.serve) + integration tests with fake upstreams
+
+**Files:**
+- Create: `src/server.ts`, `test/integration.test.ts`
+
+**Interfaces:**
+- Consumes: `loadConfig` (Task 3), `extractSignals` (Task 4), `route` (Task 5), `forwardUrl`/`rewriteHeaders`/`rewriteBody`/`MissingKeyError` (Task 6), `logDecision` (Task 7).
+- Produces:
+  - `function buildServer(opts: { config: Config; env: Record<string,string|undefined>; logPath: string; baseOverride?: Partial<Record<Upstream,string>>; port?: number }): Bun.Server` — the testable factory. `baseOverride` lets tests point upstreams at fake servers.
+  - `handle(req, opts)` semantics: buffer JSON body → `extractSignals` → `route` → `rewriteBody` + `rewriteHeaders` → `fetch` upstream (URL from `baseOverride[upstream] ?? forwardUrl`) → `logDecision` → return `new Response(upstream.body, { status, headers })` with `idleTimeout: 0` so quiet SSE survives. `MissingKeyError` → `Response(message, {status:400})`.
+- Note: `src/server.ts` also has a bottom block that calls `buildServer` with real config when run directly (`if (import.meta.main)`).
+
+- [ ] **Step 1: Write the failing integration test** `test/integration.test.ts`
+
+```ts
+import { test, expect, beforeAll, afterAll } from "bun:test";
+import { buildServer } from "../src/server.ts";
+import { readDecisions } from "../src/log.ts";
+import type { Config } from "../src/types.ts";
+import { rmSync } from "node:fs";
+
+const LOG = "test/.tmp-int.jsonl";
+const CONFIG: Config = {
+  models: {
+    orchestrator: { upstream: "anthropic", slug: "passthrough" },
+    flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" },
+  },
+  default: "orchestrator",
+  longContextThreshold: 200000,
+  routes: [
+    { when: { tag: "flagship" }, use: "flagship" },
+    { when: { anySubagent: true }, use: "flagship" },
+  ],
+};
+
+let fakeAnthropic: Bun.Server, fakeOpenRouter: Bun.Server, proxy: Bun.Server;
+
+beforeAll(() => {
+  rmSync(LOG, { force: true });
+  // Fake upstreams echo which one was hit and stream a tiny SSE body.
+  fakeAnthropic = Bun.serve({ port: 0, fetch: () => sse("anthropic") });
+  fakeOpenRouter = Bun.serve({ port: 0, fetch: () => sse("openrouter") });
+  proxy = buildServer({
+    config: CONFIG,
+    env: { OPENROUTER_API_KEY: "sk-or-test" },
+    logPath: LOG,
+    port: 0,
+    baseOverride: {
+      anthropic: fakeAnthropic.url.origin,
+      openrouter: fakeOpenRouter.url.origin,
+    },
+  });
+});
+
+afterAll(() => {
+  fakeAnthropic.stop(true); fakeOpenRouter.stop(true); proxy.stop(true);
+  rmSync(LOG, { force: true });
+});
+
+function sse(which: string) {
+  return new Response(
+    async function* () {
+      yield `data: {"upstream":"${which}"}\n\n`;
+      yield "data: [DONE]\n\n";
+    },
+    { headers: { "content-type": "text/event-stream" } },
+  );
+}
+
+async function post(headers: Record<string, string>, body: unknown) {
+  return fetch(`${proxy.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+test("orchestrator request routes to Anthropic", async () => {
+  const res = await post({ "x-app": "cli" }, { model: "claude-opus-4-8" });
+  expect(await res.text()).toContain('"upstream":"anthropic"');
+  const last = readDecisions(LOG).at(-1)!;
+  expect(last.upstream).toBe("anthropic");
+  expect(last.matchedRule).toBe("default");
+});
+
+test("tagged subagent routes to OpenRouter with model rewritten", async () => {
+  const res = await post(
+    { "x-app": "cli", "x-claude-code-agent-id": "abc" },
+    { model: "claude-sonnet-4-6", system: "<<route:flagship>> research" },
+  );
+  expect(await res.text()).toContain('"upstream":"openrouter"');
+  const last = readDecisions(LOG).at(-1)!;
+  expect(last.upstream).toBe("openrouter");
+  expect(last.resolvedModel).toBe("z-ai/glm-5.2");
+  expect(last.matchedRule).toBe("tag:flagship");
+});
+
+test("plain subagent routes to OpenRouter via anySubagent", async () => {
+  const res = await post({ "x-app": "cli", "x-claude-code-agent-id": "xyz" }, { model: "claude-haiku-4-5" });
+  expect(await res.text()).toContain('"upstream":"openrouter"');
+  expect(readDecisions(LOG).at(-1)!.matchedRule).toBe("anySubagent");
+});
+
+test("missing OpenRouter key fails loud with 400", async () => {
+  const noKey = buildServer({
+    config: CONFIG, env: {}, logPath: LOG, port: 0,
+    baseOverride: { anthropic: fakeAnthropic.url.origin, openrouter: fakeOpenRouter.url.origin },
+  });
+  const res = await fetch(`${noKey.url.origin}/v1/messages`, {
+    method: "POST", headers: { "content-type": "application/json", "x-claude-code-agent-id": "a" },
+    body: JSON.stringify({ model: "x" }),
+  });
+  expect(res.status).toBe(400);
+  noKey.stop(true);
+});
+
+test("quiet SSE stream is not dropped (idleTimeout:0)", async () => {
+  const slow = Bun.serve({
+    port: 0,
+    fetch: () => new Response(
+      async function* () {
+        await Bun.sleep(150);            // quiet gap that the 10s default would survive,
+        yield "data: late\n\n";          // but we assert streaming completes regardless
+        yield "data: [DONE]\n\n";
+      },
+      { headers: { "content-type": "text/event-stream" } },
+    ),
+  });
+  const p = buildServer({
+    config: CONFIG, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0,
+    baseOverride: { anthropic: slow.url.origin, openrouter: slow.url.origin },
+  });
+  const res = await fetch(`${p.url.origin}/v1/messages`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: "x" }),
+  });
+  expect(await res.text()).toContain("[DONE]");
+  p.stop(true); slow.stop(true);
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/integration.test.ts`
+Expected: FAIL — cannot find module `../src/server.ts`.
+
+- [ ] **Step 3: Write `src/server.ts`**
+
+```ts
+import type { Config, Upstream } from "./types.ts";
+import { extractSignals } from "./signals.ts";
+import { route } from "./route.ts";
+import { forwardUrl, rewriteHeaders, rewriteBody, MissingKeyError } from "./upstreams.ts";
+import { logDecision } from "./log.ts";
+import { loadConfig } from "./config.ts";
+
+export interface ServerOpts {
+  config: Config;
+  env: Record<string, string | undefined>;
+  logPath: string;
+  port?: number;
+  baseOverride?: Partial<Record<Upstream, string>>;
+}
+
+export function buildServer(opts: ServerOpts): Bun.Server {
+  return Bun.serve({
+    port: opts.port ?? Number(opts.env.PORT ?? 8787),
+    idleTimeout: 0, // CRITICAL: do not drop quiet SSE streams
+    async fetch(req) {
+      let body: any;
+      try {
+        body = await req.json();
+      } catch {
+        return new Response("expected JSON body", { status: 400 });
+      }
+      const signals = extractSignals(req.headers, body);
+      const decision = route(signals, opts.config);
+
+      let headers: Headers;
+      try {
+        headers = rewriteHeaders(decision, req.headers, opts.env);
+      } catch (e) {
+        if (e instanceof MissingKeyError) return new Response(e.message, { status: 400 });
+        throw e;
+      }
+      rewriteBody(decision, body);
+      logDecision(opts.logPath, signals, decision);
+
+      const url = new URL(req.url);
+      const base = opts.baseOverride?.[decision.upstream];
+      const target = base
+        ? base + url.pathname + url.search
+        : forwardUrl(decision.upstream, url.pathname, url.search);
+
+      const upstream = await fetch(target, {
+        method: req.method,
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          "content-type": upstream.headers.get("content-type") ?? "application/json",
+          "cache-control": "no-cache",
+        },
+      });
+    },
+  });
+}
+
+if (import.meta.main) {
+  const server = buildServer({
+    config: loadConfig("routes.jsonc"),
+    env: process.env,
+    logPath: process.env.HETERO_LOG ?? "decisions.jsonl",
+  });
+  console.log(`hetero-proxy listening on ${server.url.origin}`);
+}
+```
+
+- [ ] **Step 4: Run the test, verify it passes**
+
+Run: `bun test test/integration.test.ts`
+Expected: PASS — 5 tests.
+
+- [ ] **Step 5: Run the whole suite**
+
+Run: `devbox run test`
+Expected: PASS — all unit + integration tests green.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/server.ts test/integration.test.ts
+git commit -m "feat: Bun.serve proxy with hermetic integration tests"
+```
+
+---
+
+## Task 9: Claude Code wiring (settings + agents) + fixture recorder
+
+**Files:**
+- Create: `.claude/settings.json`, `.claude/agents/glm-researcher.md`, `.claude/agents/minimax-reviewer.md`, `.claude/agents/claude-control.md`, `scripts/record-fixtures.ts`
+
+**Interfaces:**
+- Consumes: nothing new (uses the server from Task 8 in record mode).
+- Produces: a `record-fixtures.ts` that boots the proxy in pass-through "record" mode (forwards to the real upstreams) and writes each inbound request (headers + body) to `test/fixtures/<name>.json` for later hermetic replay.
+
+- [ ] **Step 1: Create `.claude/settings.json`** (point CC at the proxy; do NOT set an auth token so CC forwards its own subscription/OAuth — see README fallback if that fails)
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
+  }
+}
+```
+
+- [ ] **Step 2: Create `.claude/agents/glm-researcher.md`** (tagged → GLM)
+
+```markdown
+---
+name: glm-researcher
+description: Use for background research and code exploration tasks that should run on the GLM model. Investigates the codebase and reports findings.
+tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+---
+
+<<route:flagship>>
+
+You are a research subagent. Explore the codebase or question you are given and
+report concise findings. You run on GLM via the hetero-proxy; the `<<route:flagship>>`
+tag on the line above is what routes your requests to OpenRouter.
+```
+
+- [ ] **Step 3: Create `.claude/agents/minimax-reviewer.md`** (tagged → MiniMax)
+
+```markdown
+---
+name: minimax-reviewer
+description: Use for review and investigation tasks that benefit from a multimodal, web-capable model. Reviews changes and investigates context.
+tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+---
+
+<<route:review>>
+
+You are a review/investigation subagent running on MiniMax via the hetero-proxy.
+The `<<route:review>>` tag routes your requests to OpenRouter's MiniMax model.
+```
+
+- [ ] **Step 4: Create `.claude/agents/claude-control.md`** (untagged → stays Claude; proves selectivity)
+
+```markdown
+---
+name: claude-control
+description: Use for a control task that must stay on Claude. Confirms that untagged subagents are NOT routed to OpenRouter.
+tools:
+  - Read
+  - Grep
+---
+
+You are a control subagent with NO route tag. Your requests should remain on
+Claude (the proxy sends untagged subagents per the cascade; with no matching tag
+rule, a plain subagent only diverts if an anySubagent rule exists). Use this agent
+in tests to confirm selectivity behaves as configured.
+```
+
+- [ ] **Step 5: Write `scripts/record-fixtures.ts`**
+
+```ts
+// Record real Claude Code requests for hermetic replay.
+// Usage: bun run scripts/record-fixtures.ts   (then run `claude -p ...` against it)
+import { extractSignals } from "../src/signals.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+
+mkdirSync("test/fixtures", { recursive: true });
+let n = 0;
+
+Bun.serve({
+  port: Number(process.env.PORT ?? 8787),
+  idleTimeout: 0,
+  async fetch(req) {
+    const body = await req.json();
+    const s = extractSignals(req.headers, body);
+    const name = `${String(++n).padStart(2, "0")}-${s.isSubagent ? "sub" : "main"}-${s.tag ?? "none"}`;
+    writeFileSync(
+      `test/fixtures/${name}.json`,
+      JSON.stringify(
+        { headers: Object.fromEntries(req.headers), body },
+        null,
+        2,
+      ),
+    );
+    process.stderr.write(`recorded ${name}\n`);
+    // Forward to real Anthropic so the session keeps working while recording.
+    const url = new URL(req.url);
+    const upstream = await fetch("https://api.anthropic.com" + url.pathname + url.search, {
+      method: req.method,
+      headers: stripHop(req.headers),
+      body: JSON.stringify(body),
+    });
+    return new Response(upstream.body, { status: upstream.status, headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" } });
+  },
+});
+
+function stripHop(h: Headers): Headers {
+  const out = new Headers(h);
+  for (const k of ["host", "content-length", "connection", "accept-encoding"]) out.delete(k);
+  return out;
+}
+
+console.error("recorder on :" + (process.env.PORT ?? 8787));
+```
+
+- [ ] **Step 6: Verify the agents are valid + recorder starts**
+
+Run: `bun run scripts/record-fixtures.ts &` then `sleep 1 && curl -s -X POST localhost:8787/v1/messages -H 'content-type: application/json' -H 'x-claude-code-agent-id: t' -d '{"model":"x","system":"<<route:flagship>>"}' ; kill %1`
+Expected: a file `test/fixtures/01-sub-flagship.json` is created (the upstream call may 401 without real auth — that's fine; we only assert the fixture was written).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add .claude/settings.json .claude/agents/ scripts/record-fixtures.ts
+git commit -m "feat: Claude Code wiring (settings + tagged agents) + fixture recorder"
+```
+
+---
+
+## Task 10: Fixture replay test (hermetic, real-request shapes)
+
+**Files:**
+- Create: `test/fixtures/01-main.json`, `test/fixtures/02-sub-flagship.json`, `test/fixtures/03-sub-none.json` (hand-authored, mirroring recorded shapes), `test/replay.test.ts`
+
+**Interfaces:**
+- Consumes: `buildServer` (Task 8), `readDecisions` (Task 7).
+- Produces: a test that loads each fixture's headers+body, POSTs them through the proxy (with fake upstreams), and asserts the decision log matches the expected upstream/rule. This is the bridge between "recorded real CC requests" and the hermetic suite.
+
+- [ ] **Step 1: Create `test/fixtures/01-main.json`** (orchestrator shape — no agent-id)
+
+```json
+{
+  "headers": { "x-app": "cli", "anthropic-version": "2023-06-01", "authorization": "Bearer oauth-dummy" },
+  "body": { "model": "claude-opus-4-8", "system": "You are Claude Code.", "messages": [] }
+}
+```
+
+- [ ] **Step 2: Create `test/fixtures/02-sub-flagship.json`** (tagged subagent shape)
+
+```json
+{
+  "headers": { "x-app": "cli", "x-claude-code-agent-id": "agent_hash_1", "anthropic-version": "2023-06-01" },
+  "body": { "model": "claude-sonnet-4-6", "system": [{ "type": "text", "text": "<<route:flagship>>\nYou are a research subagent." }], "messages": [] }
+}
+```
+
+- [ ] **Step 3: Create `test/fixtures/03-sub-none.json`** (untagged subagent shape)
+
+```json
+{
+  "headers": { "x-app": "cli", "x-claude-code-agent-id": "agent_hash_2", "anthropic-version": "2023-06-01" },
+  "body": { "model": "claude-sonnet-4-6", "system": "You are a control subagent.", "messages": [] }
+}
+```
+
+- [ ] **Step 4: Write `test/replay.test.ts`**
+
+```ts
+import { test, expect, beforeAll, afterAll } from "bun:test";
+import { buildServer } from "../src/server.ts";
+import { readDecisions } from "../src/log.ts";
+import type { Config } from "../src/types.ts";
+import { readFileSync, rmSync } from "node:fs";
+
+const LOG = "test/.tmp-replay.jsonl";
+const CONFIG: Config = {
+  models: {
+    orchestrator: { upstream: "anthropic", slug: "passthrough" },
+    flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" },
+  },
+  default: "orchestrator",
+  longContextThreshold: 200000,
+  routes: [
+    { when: { tag: "flagship" }, use: "flagship" },
+    { when: { anySubagent: true }, use: "flagship" },
+  ],
+};
+
+let anthropic: Bun.Server, openrouter: Bun.Server, proxy: Bun.Server;
+const ok = (w: string) => () => new Response(`{"upstream":"${w}"}`, { headers: { "content-type": "application/json" } });
+
+beforeAll(() => {
+  rmSync(LOG, { force: true });
+  anthropic = Bun.serve({ port: 0, fetch: ok("anthropic") });
+  openrouter = Bun.serve({ port: 0, fetch: ok("openrouter") });
+  proxy = buildServer({
+    config: CONFIG, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0,
+    baseOverride: { anthropic: anthropic.url.origin, openrouter: openrouter.url.origin },
+  });
+});
+afterAll(() => { anthropic.stop(true); openrouter.stop(true); proxy.stop(true); rmSync(LOG, { force: true }); });
+
+async function replay(file: string) {
+  const fx = JSON.parse(readFileSync(`test/fixtures/${file}`, "utf8"));
+  await fetch(`${proxy.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...fx.headers },
+    body: JSON.stringify(fx.body),
+  });
+  return readDecisions(LOG).at(-1)!;
+}
+
+test("01 main → anthropic/default", async () => {
+  const d = await replay("01-main.json");
+  expect(d.upstream).toBe("anthropic");
+  expect(d.matchedRule).toBe("default");
+});
+
+test("02 tagged subagent → openrouter glm-5.2", async () => {
+  const d = await replay("02-sub-flagship.json");
+  expect(d.upstream).toBe("openrouter");
+  expect(d.resolvedModel).toBe("z-ai/glm-5.2");
+});
+
+test("03 untagged subagent → openrouter via anySubagent", async () => {
+  const d = await replay("03-sub-none.json");
+  expect(d.matchedRule).toBe("anySubagent");
+});
+```
+
+- [ ] **Step 5: Run the test, verify it passes**
+
+Run: `bun test test/replay.test.ts`
+Expected: PASS — 3 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add test/fixtures/ test/replay.test.ts
+git commit -m "test: hermetic replay of recorded Claude Code request shapes"
+```
+
+---
+
+## Task 11: The `hetero` switching CLI
+
+**Files:**
+- Create: `bin/hetero`, `src/cli.ts`, `test/cli.test.ts`
+
+**Interfaces:**
+- Consumes: `parseModelRef`, `loadConfig` (Task 3); `parseJsonc` (Task 2).
+- Produces:
+  - `function setModel(jsoncText: string, alias: string, spec: string): string` — returns updated routes.jsonc text with `models[alias]` set to `spec` (validates `spec` via `parseModelRef`); pure string→string so it's unit-testable without disk.
+  - `function listModels(config: Config): string` — formatted table text.
+  - `bin/hetero` dispatches `models` | `set <alias> <spec>` | `use <agent> <alias>` | `check-latest`.
+
+- [ ] **Step 1: Write the failing test** `test/cli.test.ts`
+
+```ts
+import { test, expect } from "bun:test";
+import { setModel, listModels } from "../src/cli.ts";
+import type { Config } from "../src/types.ts";
+
+test("setModel rewrites an alias in routes text", () => {
+  const text = `{
+    "models": { "flagship": "openrouter:z-ai/glm-5.2" },
+    "default": "flagship", "routes": []
+  }`;
+  const out = setModel(text, "flagship", "openrouter:z-ai/glm-4.6");
+  expect(out).toContain('"flagship": "openrouter:z-ai/glm-4.6"');
+  // still valid + parseable
+  expect(JSON.parse(out.replace(/,(\s*[}\]])/g, "$1")).models.flagship).toBe("openrouter:z-ai/glm-4.6");
+});
+
+test("setModel rejects an invalid spec", () => {
+  expect(() => setModel(`{"models":{"x":"a:b"},"default":"x","routes":[]}`, "x", "bogus:y")).toThrow();
+});
+
+test("listModels renders each alias", () => {
+  const cfg: Config = {
+    models: { flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" } },
+    default: "flagship", routes: [], longContextThreshold: 200000,
+  };
+  expect(listModels(cfg)).toContain("flagship");
+  expect(listModels(cfg)).toContain("z-ai/glm-5.2");
+});
+```
+
+- [ ] **Step 2: Run it, verify it fails**
+
+Run: `bun test test/cli.test.ts`
+Expected: FAIL — cannot find module `../src/cli.ts`.
+
+- [ ] **Step 3: Write `src/cli.ts`**
+
+```ts
+import { parseModelRef } from "./config.ts";
+import type { Config } from "./types.ts";
+
+// Rewrite one alias's value in routes.jsonc text, preserving the rest verbatim.
+export function setModel(jsoncText: string, alias: string, spec: string): string {
+  parseModelRef(spec); // validate (throws on bad upstream/slug)
+  const re = new RegExp(`("${escape(alias)}"\\s*:\\s*)"[^"]*"`);
+  if (!re.test(jsoncText)) throw new Error(`alias "${alias}" not found in models`);
+  return jsoncText.replace(re, `$1"${spec}"`);
+}
+
+export function listModels(config: Config): string {
+  const rows = Object.entries(config.models).map(
+    ([alias, ref]) => `  ${alias.padEnd(16)} ${ref.upstream}:${ref.slug}`,
+  );
+  return ["alias            upstream:slug", ...rows].join("\n");
+}
+
+function escape(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+```
+
+- [ ] **Step 4: Write `bin/hetero`** (executable dispatcher)
+
+```ts
+#!/usr/bin/env bun
+import { readFileSync, writeFileSync } from "node:fs";
+import { loadConfig } from "../src/config.ts";
+import { setModel, listModels } from "../src/cli.ts";
+
+const ROUTES = "routes.jsonc";
+const [cmd, a, b] = process.argv.slice(2);
+
+if (cmd === "models") {
+  console.log(listModels(loadConfig(ROUTES)));
+} else if (cmd === "set") {
+  if (!a || !b) throw new Error("usage: hetero set <alias> <upstream:slug>");
+  writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
+  console.log(`set ${a} -> ${b}`);
+} else if (cmd === "use") {
+  // Rebind an agent file's tag to a different alias by rewriting its <<route:...>>.
+  if (!a || !b) throw new Error("usage: hetero use <agent-name> <alias>");
+  const path = `.claude/agents/${a}.md`;
+  const next = readFileSync(path, "utf8").replace(/<<route:[a-z0-9_-]+>>/i, `<<route:${b}>>`);
+  writeFileSync(path, next);
+  console.log(`agent ${a} now uses <<route:${b}>>`);
+} else if (cmd === "check-latest") {
+  await import("../scripts/check-latest.ts");
+} else {
+  console.log("commands: models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
+}
+```
+
+- [ ] **Step 5: Run the test + try the CLI**
+
+Run: `bun test test/cli.test.ts && chmod +x bin/hetero && devbox run hetero models`
+Expected: tests PASS (3); `hetero models` prints the alias table.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add bin/hetero src/cli.ts test/cli.test.ts
+git commit -m "feat: hetero switching CLI (models/set/use)"
+```
+
+---
+
+## Task 12: Freshness check (`check-latest`)
+
+**Files:**
+- Create: `scripts/check-latest.ts`
+
+**Interfaces:**
+- Consumes: `loadConfig` (Task 3).
+- Produces: a script that, for each OpenRouter alias, fetches `https://openrouter.ai/api/v1/models/<slug>/endpoints` and reports whether the slug still resolves; prints the installed Bun version vs latest. Network-dependent → not part of `bun test`; invoked via `hetero check-latest`.
+
+- [ ] **Step 1: Write `scripts/check-latest.ts`**
+
+```ts
+// Freshness check (always-latest rule). Network-dependent; run via `hetero check-latest`.
+import { loadConfig } from "../src/config.ts";
+
+const cfg = loadConfig("routes.jsonc");
+console.log(`bun installed: ${Bun.version}`);
+
+for (const [alias, ref] of Object.entries(cfg.models)) {
+  if (ref.upstream !== "openrouter") continue;
+  const url = `https://openrouter.ai/api/v1/models/${ref.slug}/endpoints`;
+  try {
+    const res = await fetch(url);
+    const status = res.ok ? "ok" : `HTTP ${res.status}`;
+    console.log(`  ${alias.padEnd(16)} ${ref.slug.padEnd(32)} ${status}`);
+  } catch (e) {
+    console.log(`  ${alias.padEnd(16)} ${ref.slug.padEnd(32)} ERROR ${(e as Error).message}`);
+  }
+}
+console.log("\nTip: browse https://openrouter.ai/models for newer releases, then `hetero set <alias> <slug>`.");
+```
+
+- [ ] **Step 2: Run it (smoke; network)**
+
+Run: `devbox run hetero check-latest`
+Expected: prints the Bun version and one line per OpenRouter alias with `ok` (or an HTTP status if a slug drifted). Non-fatal either way.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/check-latest.ts
+git commit -m "feat: check-latest freshness script for model slugs + bun"
+```
+
+---
+
+## Task 13: Live smoke test (opt-in, real keys)
+
+**Files:**
+- Create: `scripts/live-smoke.ts`
+
+**Interfaces:**
+- Consumes: `buildServer` (Task 8), `loadConfig` (Task 3), `readDecisions` (Task 7).
+- Produces: a script with two scenarios. **`split`** (always runs): boots the real proxy, runs `claude -p` with a prompt that triggers the `glm-researcher` subagent, and asserts the orchestrator turn hit Anthropic AND a subagent turn hit OpenRouter `z-ai/glm-5.2`. **`workflow`** (opt-in): also drives Claude to run a dynamic Workflow that fans out agents, and asserts those workflow-spawned agents reached OpenRouter. The `workflow` scenario is gated behind **either** the `--workflow` CLI flag **or** the `HETERO_LIVE_WORKFLOW=1` env var (off by default — it needs the Workflow tool present in the environment). Exits non-zero on failure; documents the OAuth-passthrough finding.
+
+- [ ] **Step 1: Write `scripts/live-smoke.ts`**
+
+```ts
+// Live smoke test — needs OPENROUTER_API_KEY (and possibly ANTHROPIC_API_KEY).
+// Boots the real proxy, drives `claude -p` to spawn subagents, asserts the split.
+//
+// Scenarios:
+//   split    (always)  orchestrator -> Claude  AND a delegated subagent -> GLM
+//   workflow (opt-in)  also drive a dynamic Workflow that fans out agents,
+//                      and assert those workflow-spawned agents -> OpenRouter.
+//
+// Enable the workflow scenario with EITHER:
+//   --workflow                 (CLI flag)  e.g.  devbox run test:live -- --workflow
+//   HETERO_LIVE_WORKFLOW=1      (env var)   e.g.  HETERO_LIVE_WORKFLOW=1 devbox run test:live
+// The workflow scenario requires the Workflow tool to be available in your
+// Claude Code environment; it is OFF by default so the base test stays portable.
+import { buildServer } from "../src/server.ts";
+import { loadConfig } from "../src/config.ts";
+import { readDecisions } from "../src/log.ts";
+import { rmSync } from "node:fs";
+
+const LOG = "decisions.live.jsonl";
+rmSync(LOG, { force: true });
+
+if (!process.env.OPENROUTER_API_KEY) {
+  console.error("SKIP: OPENROUTER_API_KEY not set");
+  process.exit(2);
+}
+
+const runWorkflow =
+  process.argv.includes("--workflow") || process.env.HETERO_LIVE_WORKFLOW === "1";
+
+const port = Number(process.env.PORT ?? 8787);
+const proxy = buildServer({ config: loadConfig("routes.jsonc"), env: process.env, logPath: LOG, port });
+
+async function drive(prompt: string): Promise<string> {
+  const proc = Bun.spawn(
+    [
+      "claude", "-p", prompt,
+      "--output-format", "json",
+      "--permission-mode", "acceptEdits",
+      "--allowedTools", "Task,Workflow,Bash,Read,Grep,Glob",
+      "--settings", ".claude/settings.json",
+    ],
+    { env: { ...process.env, ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}` }, stdout: "pipe", stderr: "pipe" },
+  );
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  return out;
+}
+
+let failed = false;
+
+// --- Scenario 1: split (always) ---
+await drive("Use the glm-researcher subagent to investigate what files are in the src/ directory and report back.");
+{
+  const rows = readDecisions(LOG);
+  const sawAnthropic = rows.some((r) => r.upstream === "anthropic");
+  const sawGlm = rows.some((r) => r.upstream === "openrouter" && r.resolvedModel === "z-ai/glm-5.2");
+  const oauthForwarded = !process.env.ANTHROPIC_API_KEY && sawAnthropic;
+  console.log(`[split] orchestrator->anthropic: ${sawAnthropic ? "yes" : "NO"}`);
+  console.log(`[split] subagent->openrouter glm-5.2: ${sawGlm ? "yes" : "NO"}`);
+  console.log(`[split] OAuth passthrough worked (no ANTHROPIC_API_KEY needed): ${oauthForwarded ? "yes" : "no/unknown"}`);
+  if (!sawAnthropic || !sawGlm) { console.error("FAIL [split]: heterogeneous split not observed"); failed = true; }
+}
+
+// --- Scenario 2: workflow (opt-in via --workflow or HETERO_LIVE_WORKFLOW=1) ---
+if (runWorkflow) {
+  const before = readDecisions(LOG).length;
+  await drive("Run a dynamic workflow that fans out two parallel agents: one summarizes README.md, one summarizes routes.jsonc. Report both summaries.");
+  const fresh = readDecisions(LOG).slice(before);
+  const onGlm = fresh.filter((r) => r.isSubagent && r.upstream === "openrouter").length;
+  console.log(`[workflow] workflow-spawned subagent requests routed to OpenRouter: ${onGlm}`);
+  if (onGlm < 1) { console.error("FAIL [workflow]: no workflow-spawned agent reached OpenRouter"); failed = true; }
+} else {
+  console.log("[workflow] skipped (enable with --workflow or HETERO_LIVE_WORKFLOW=1)");
+}
+
+proxy.stop(true);
+
+if (failed) { console.error("FAIL: one or more live scenarios failed"); process.exit(1); }
+console.log("PASS: live scenarios verified");
+```
+
+- [ ] **Step 2: Run it (requires keys + auth)**
+
+Run (base split only): `devbox run test:live`
+Run (also the workflow scenario): `devbox run test:live -- --workflow`  _or_  `HETERO_LIVE_WORKFLOW=1 devbox run test:live`
+Expected: prints `[split]` assertions and exits 0 with "PASS" when the orchestrator hit Anthropic and a subagent hit OpenRouter `z-ai/glm-5.2`. With the workflow scenario enabled, also prints `[workflow]` and requires at least one workflow-spawned agent on OpenRouter. If it reports the orchestrator did NOT reach Anthropic, set `ANTHROPIC_API_KEY` in `.env` (the OAuth-passthrough fallback) and re-run.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/live-smoke.ts
+git commit -m "feat: opt-in live smoke test proving the heterogeneous split"
+```
+
+---
+
+## Task 14: CI workflow (hermetic + secret-gated live)
+
+**Files:**
+- Create: `.github/workflows/ci.yml`
+
+**Interfaces:**
+- Consumes: `devbox run test` (hermetic), `devbox run test:live` (live).
+- Produces: three jobs — `gate` (promotes secret presence to an output), `hermetic` (always runs, no secrets), `live` (runs only when the gate output is `true`).
+
+- [ ] **Step 1: Create `.github/workflows/ci.yml`**
+
+```yaml
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Detect secrets
+    runs-on: ubuntu-latest
+    outputs:
+      has_secrets: ${{ steps.check.outputs.has_secrets }}
+    steps:
+      - id: check
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  hermetic:
+    name: Hermetic tests (no secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Devbox
+        uses: jetify-com/devbox-install-action@v0.12.0
+        with:
+          enable-cache: 'true'
+      - name: Unit + integration
+        run: devbox run test
+
+  live:
+    name: Live split test (requires secrets)
+    needs: [gate, hermetic]
+    if: ${{ needs.gate.outputs.has_secrets == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Devbox
+        uses: jetify-com/devbox-install-action@v0.12.0
+        with:
+          enable-cache: 'true'
+      - name: Live smoke
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Set repo variable HETERO_LIVE_WORKFLOW=1 (Settings → Variables) to also
+          # run the opt-in workflow-spawned-agent scenario in CI. Defaults to off.
+          HETERO_LIVE_WORKFLOW: ${{ vars.HETERO_LIVE_WORKFLOW }}
+        run: devbox run test:live
+```
+
+- [ ] **Step 2: Validate YAML locally**
+
+Run: `devbox run -- bun -e "import {parse} from 'yaml'" 2>/dev/null || cat .github/workflows/ci.yml | jq -Rs . >/dev/null && echo "yaml present"`
+Expected: prints `yaml present` (basic existence check; full validation happens when GitHub runs it).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add .github/workflows/ci.yml
+git commit -m "ci: hermetic tests + secret-gated live job (gate-output idiom)"
+```
+
+---
+
+## Task 15: README (the exemplar's front door)
+
+**Files:**
+- Create: `README.md`
+
+**Interfaces:**
+- Consumes: everything. Documents clone→run, the two key-placement options, the model menu, the switching CLI, and the verified caveats.
+
+- [ ] **Step 1: Write `README.md`**
+
+````markdown
+# hetero-agents
+
+A batteries-included template for running **Claude Code with a Claude orchestrator and
+non-Claude subagents**. The main chat stays on Claude; subagents you designate (including
+agents spawned by dynamic Workflows) route to OpenRouter models — GLM-5.2, Qwen, DeepSeek,
+MiniMax — through a small, fully-tested local proxy. No format translation: OpenRouter's
+Anthropic-compatible endpoint speaks the same protocol Claude Code does.
+
+## How it works
+
+```
+Claude Code ──ANTHROPIC_BASE_URL──▶ hetero-proxy (Bun) ──▶ api.anthropic.com  (orchestrator)
+                                          └─────────────▶ openrouter.ai/api  (tagged subagents)
+                  routes per-request on the x-claude-code-agent-id header + a <<route:ALIAS>> tag
+```
+
+## Quick start
+
+1. Install [DevBox](https://www.jetify.com/docs/devbox/installing-devbox): `curl -fsSL https://get.jetify.com/devbox | bash`
+2. Get an [OpenRouter key](https://openrouter.ai/keys) and fund the account (subagent tokens are paid).
+3. Provide the key (pick ONE):
+   - **Repo-local (recommended for clones):** `cp .env.example .env` and put your key in `.env` (gitignored).
+   - **Global shell:** `export OPENROUTER_API_KEY=sk-or-...` in `~/.zshenv` (or `~/.bashrc`). DevBox passes it through.
+4. `devbox run proxy` — starts the proxy on `:8787`.
+5. In another shell, `claude` — `.claude/settings.json` already points it at the proxy.
+6. Ask Claude to "use the glm-researcher subagent to ..." — that subagent runs on GLM; your main chat stays on Claude.
+
+Verify the split: `tail -f decisions.jsonl` shows one line per request with the chosen upstream + model.
+
+## Mix & match models
+
+`routes.jsonc` is the one file you edit. Aliases map to `<upstream>:<slug>`:
+
+| alias | default | role |
+|---|---|---|
+| `orchestrator` | `anthropic:passthrough` | main chat (stays Claude) |
+| `flagship` | `openrouter:z-ai/glm-5.2` | heavy coding subagents |
+| `max` | `openrouter:qwen/qwen3.7-max` | highest-capability generalist |
+| `reasoner` | `openrouter:deepseek/deepseek-v4-pro` | deep reasoning |
+| `review` | `openrouter:minimax/minimax-m3` | multimodal + web research |
+| `cheap` | `openrouter:deepseek/deepseek-v4-flash` | high-volume utility |
+
+Switch live (the proxy hot-reloads):
+```bash
+hetero models                       # list current bindings
+hetero set flagship z-ai/glm-4.6    # repoint an alias
+hetero use glm-researcher reasoner  # rebind an agent's <<route:...>> tag
+hetero check-latest                 # confirm slugs still resolve (always-latest)
+```
+
+Assign a model to a subagent by putting a tag on the first line of its prompt
+(`.claude/agents/<name>.md`): `<<route:flagship>>`. Untagged subagents follow the cascade
+in `routes.jsonc`.
+
+## Testing
+
+- `devbox run test` — hermetic unit + integration tests (no keys, runs anywhere/CI).
+- `devbox run test:live` — opt-in end-to-end: drives real `claude -p`, asserts orchestrator→Claude and subagent→GLM in the decision log.
+  - **Workflow scenario (opt-in):** to also prove that **dynamic Workflow-spawned agents** route to GLM, enable it with either the flag or the env var:
+    ```bash
+    devbox run test:live -- --workflow      # CLI flag
+    HETERO_LIVE_WORKFLOW=1 devbox run test:live   # env var
+    ```
+    Off by default because it requires the Workflow tool in your Claude Code environment. The base `split` scenario always runs.
+
+## Known caveats (verified June 2026)
+
+- **OAuth passthrough:** by default `.claude/settings.json` sets only `ANTHROPIC_BASE_URL`, so Claude Code forwards its own subscription/OAuth auth, which the proxy passes through on the Claude leg. If the live test shows the orchestrator did not reach Claude, set `ANTHROPIC_API_KEY` in `.env` (the proxy will inject it on the Claude leg).
+- **Claude Code bug #43869:** subagent *model-string* routing can silently fall back to the parent model. This template routes by the `x-claude-code-agent-id` header and an explicit prompt tag, which are unaffected.
+- **Bun SSE idle timeout:** the proxy sets `idleTimeout: 0`; without it, quiet streams die at 10s.
+- **Model/price drift:** slugs and prices move — run `hetero check-latest` and re-verify before relying on them.
+````
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: README — quick start, mix-and-match, caveats"
+```
+
+---
+
+## Self-Review (completed during authoring)
+
+- **Spec coverage:** §3 routing (Tasks 5–8) · §5 assignment tiers (Tasks 4–5, routes.jsonc) · §6 model menu (Task 3) · §7 proxy internals incl. auth/beta/SSE (Tasks 6–8) · §8 secrets (Tasks 1, 9, 15) · §9 switching CLI (Tasks 11–12) · §10 DevBox + always-latest (Tasks 1, 12) · §11 testing layers incl. workflow-agent demo (Tasks 8, 10, 13) · §12 repo layout (all) · §13 risks (Tasks 9, 13 + README). The workflow-spawned-agent demo is wired as Task 13's opt-in `workflow` scenario, gated by `--workflow` / `HETERO_LIVE_WORKFLOW=1` (CI via the `vars.HETERO_LIVE_WORKFLOW` repo variable); the always-on `split` scenario covers the core orchestrator-vs-subagent proof.
+- **Type consistency:** `Config`/`Signals`/`Decision`/`ModelRef` defined once in `src/types.ts` (Task 2) and imported everywhere; `buildServer`, `route`, `extractSignals`, `rewriteHeaders`, `rewriteBody`, `forwardUrl`, `logDecision`, `readDecisions`, `parseModelRef`, `loadConfig`, `setModel`, `listModels` signatures match across producer/consumer tasks.
+- **Placeholder scan:** every step has complete code or an exact command + expected output. No TBD/TODO.
+````
