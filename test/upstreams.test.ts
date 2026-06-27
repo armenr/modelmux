@@ -22,6 +22,13 @@ test("openrouter leg without key throws MissingKeyError", () => {
   expect(() => rewriteHeaders(toOR, new Headers(), {})).toThrow(MissingKeyError);
 });
 
+test("openrouter leg does not leak inbound x-api-key", () => {
+  const inbound = new Headers({ "x-api-key": "sk-inbound-DUMMY", "authorization": "Bearer dummy" });
+  const out = rewriteHeaders(toOR, inbound, { OPENROUTER_API_KEY: "sk-or-REAL" });
+  expect(out.get("x-api-key")).toBeNull();
+  expect(out.get("authorization")).toBe("Bearer sk-or-REAL");
+});
+
 test("anthropic leg passes auth + beta through", () => {
   const inbound = new Headers({ "authorization": "Bearer oauth-tok", "anthropic-beta": "caching" });
   const out = rewriteHeaders(toAnthropic, inbound, {});
@@ -32,6 +39,12 @@ test("anthropic leg passes auth + beta through", () => {
 test("anthropic leg prefers env ANTHROPIC_API_KEY as x-api-key", () => {
   const out = rewriteHeaders(toAnthropic, new Headers(), { ANTHROPIC_API_KEY: "sk-ant-X" });
   expect(out.get("x-api-key")).toBe("sk-ant-X");
+});
+
+test("anthropic leg with no env key and no inbound auth returns no auth and does not throw", () => {
+  const out = rewriteHeaders(toAnthropic, new Headers(), {});
+  expect(out.get("authorization")).toBeNull();
+  expect(out.get("x-api-key")).toBeNull();
 });
 
 test("rewriteBody sets model unless passthrough", () => {
