@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    eslint:
+      glob: "*.{ts,md,yml,yaml,json,jsonc,toml}"
+      run: bunx eslint --fix --cache --cache-location .eslintcache {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    test:
+      run: bun test test/

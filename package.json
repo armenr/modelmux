@@ -1,0 +1,17 @@
+{
+  "name": "hetero-agents",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "proxy": "bun run src/server.ts",
+    "test": "bun test test/",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test:live": "bun run scripts/live-smoke.ts"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.1.0",
+    "eslint": "^9.10.0"
+  }
+}

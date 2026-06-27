@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": ["bun@latest", "jq@latest", "lefthook@latest"],
+  "env_from": "./.env",
+  "env": {
+    "PORT": "8787"
+  },
+  "shell": {
+    "init_hook": [
+      "echo \"devbox: bun $(bun --version)\"",
+      "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install >/dev/null 2>&1 || true"
+    ],
+    "scripts": {
+      "proxy": "bun run src/server.ts",
+      "test": "bun test test/",
+      "test:live": "bun run scripts/live-smoke.ts",
+      "lint": "bunx eslint .",
+      "lint:fix": "bunx eslint . --fix",
+      "record": "bun run scripts/record-fixtures.ts",
+      "hetero": "bun run bin/hetero"
+    }
+  }
+}

@@ -17,3 +17,9 @@ proxy/dist/
 
 # --- os ---
 .DS_Store
+
+# SDD scratch (ledger)
+.superpowers/
+
+# ESLint cache
+.eslintcache
