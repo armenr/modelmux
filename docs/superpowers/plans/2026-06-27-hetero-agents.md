@@ -179,7 +179,7 @@ git commit -m "chore: scaffold Bun + DevBox workspace with passing smoke test"
   - `type WorkType = "background" | "think" | "longContext" | "webSearch"`
   - `interface RouteRule { when: { tag?: string; workType?: WorkType; anySubagent?: boolean }; use: string }`
   - `interface Config { models: Record<string, ModelRef>; default: string; routes: RouteRule[]; longContextThreshold: number }`
-  - `interface Signals { agentId: string | null; isSubagent: boolean; xApp: string | null; requestedModel: string | null; systemText: string; tag: string | null; hasThinking: boolean; tokensIn: number; hasWebSearch: boolean }`
+  - `interface Signals { agentId: string | null; sessionId: string | null; isSubagent: boolean; xApp: string | null; requestedModel: string | null; systemText: string; tag: string | null; hasThinking: boolean; tokensIn: number; hasWebSearch: boolean }`
   - `interface Decision { alias: string; upstream: Upstream; model: string; matchedRule: string }`
   - `function parseJsonc(text: string): unknown`
 
@@ -236,6 +236,7 @@ export interface Config {
 
 export interface Signals {
   agentId: string | null; // x-claude-code-agent-id (subagent marker)
+  sessionId: string | null; // x-claude-code-session-id (for log correlation)
   isSubagent: boolean; // agentId !== null
   xApp: string | null; // "cli" | "cli-bg"
   requestedModel: string | null; // body.model (NOT used for per-agent routing)
@@ -328,7 +329,8 @@ git commit -m "feat: shared types + dependency-free JSONC parser"
 - Produces:
   - `function parseModelRef(spec: string): ModelRef` — splits `"openrouter:z-ai/glm-5.2"` → `{upstream:"openrouter", slug:"z-ai/glm-5.2"}`; `"anthropic:passthrough"` → `{upstream:"anthropic", slug:"passthrough"}`.
   - `function resolveMenu(config: Config, env: Record<string,string|undefined>): Config` — applies `HETERO_MODEL_<ALIAS>` overrides (alias upper-cased, `-` → `_`).
-  - `function loadConfig(path: string, env?: Record<string,string|undefined>): Config` — reads + parses + resolves; defaults `longContextThreshold` to `200000` if absent.
+  - `function loadConfig(path: string, env?: Record<string,string|undefined>): Config` — reads + parses + resolves; defaults `longContextThreshold` to `200000` if absent; **validates that `default` and every `routes[].use` alias exist in `models` (throws otherwise — fail loud at load).**
+  - `interface ConfigHolder { current: Config }` and `function watchConfig(path: string, env?): ConfigHolder` — loads once and `fs.watch`es the file, reloading `holder.current` on change (a bad edit is caught and the previous config is kept). This is what makes `hetero set` / live edits apply without a restart.
 
 - [ ] **Step 1: Create `routes.jsonc`** (the seed menu + cascade)
 
@@ -369,7 +371,8 @@ git commit -m "feat: shared types + dependency-free JSONC parser"
 
 ```ts
 import { test, expect } from "bun:test";
-import { parseModelRef, resolveMenu, loadConfig } from "../src/config.ts";
+import { parseModelRef, resolveMenu, loadConfig, watchConfig } from "../src/config.ts";
+import { writeFileSync, rmSync } from "node:fs";
 
 test("parseModelRef splits upstream and slug", () => {
   expect(parseModelRef("openrouter:z-ai/glm-5.2")).toEqual({
@@ -403,6 +406,27 @@ test("loadConfig reads routes.jsonc and defaults the threshold", () => {
   expect(cfg.default).toBe("orchestrator");
   expect(cfg.longContextThreshold).toBe(200000);
 });
+
+test("loadConfig rejects a route using an unknown alias (fail loud)", () => {
+  const tmp = "test/.tmp-bad-routes.jsonc";
+  writeFileSync(tmp, JSON.stringify({
+    models: { a: "openrouter:x/y" }, default: "a",
+    routes: [{ when: { anySubagent: true }, use: "ghost" }],
+  }));
+  expect(() => loadConfig(tmp, {})).toThrow();
+  rmSync(tmp, { force: true });
+});
+
+test("watchConfig reloads holder.current on file change", async () => {
+  const tmp = "test/.tmp-watch.jsonc";
+  writeFileSync(tmp, JSON.stringify({ models: { a: "openrouter:x/y1" }, default: "a", routes: [] }));
+  const holder = watchConfig(tmp, {});
+  expect(holder.current.models.a.slug).toBe("x/y1");
+  writeFileSync(tmp, JSON.stringify({ models: { a: "openrouter:x/y2" }, default: "a", routes: [] }));
+  for (let i = 0; i < 40 && holder.current.models.a.slug !== "x/y2"; i++) await Bun.sleep(50);
+  expect(holder.current.models.a.slug).toBe("x/y2");
+  rmSync(tmp, { force: true });
+});
 ```
 
 - [ ] **Step 3: Run it, verify it fails**
@@ -413,6 +437,7 @@ Expected: FAIL — cannot find module `../src/config.ts`.
 - [ ] **Step 4: Write `src/config.ts`**
 
 ```ts
+import { readFileSync, watch } from "node:fs";
 import { parseJsonc } from "./jsonc.ts";
 import type { Config, ModelRef, Upstream } from "./types.ts";
 
@@ -466,19 +491,47 @@ export function loadConfig(
   if (!models[config.default]) {
     throw new Error(`default alias "${config.default}" not in models`);
   }
+  // Fail loud at load time: every route's target alias must exist.
+  for (const r of config.routes) {
+    if (!models[r.use]) throw new Error(`route uses unknown alias "${r.use}" (not in models)`);
+  }
   return resolveMenu(config, env);
 }
 
 function readText(path: string): string {
-  // Bun-native synchronous read keeps config loading simple and testable.
-  return require("node:fs").readFileSync(path, "utf8");
+  return readFileSync(path, "utf8");
+}
+
+// Live config: a mutable holder reloaded on file change (enables `hetero set` + hot-swap).
+export interface ConfigHolder {
+  current: Config;
+}
+
+export function watchConfig(
+  path: string,
+  env: Record<string, string | undefined> = process.env,
+): ConfigHolder {
+  const holder: ConfigHolder = { current: loadConfig(path, env) };
+  try {
+    watch(path, { persistent: false }, () => {
+      try {
+        holder.current = loadConfig(path, env);
+        process.stderr.write(`[config] reloaded ${path}\n`);
+      } catch (e) {
+        process.stderr.write(`[config] reload failed, keeping previous: ${(e as Error).message}\n`);
+      }
+    });
+  } catch {
+    // fs.watch unsupported on this platform — static config still works.
+  }
+  return holder;
 }
 ```
 
 - [ ] **Step 5: Run the test, verify it passes**
 
 Run: `bun test test/config.test.ts`
-Expected: PASS — 4 tests.
+Expected: PASS — 6 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -508,10 +561,14 @@ function h(obj: Record<string, string>) {
   return new Headers(obj);
 }
 
-test("subagent detected via x-claude-code-agent-id", () => {
-  const s = extractSignals(h({ "x-claude-code-agent-id": "abc123", "x-app": "cli" }), {});
+test("subagent detected via x-claude-code-agent-id, session id captured", () => {
+  const s = extractSignals(
+    h({ "x-claude-code-agent-id": "abc123", "x-claude-code-session-id": "sess-9", "x-app": "cli" }),
+    {},
+  );
   expect(s.isSubagent).toBe(true);
   expect(s.agentId).toBe("abc123");
+  expect(s.sessionId).toBe("sess-9");
 });
 
 test("orchestrator has no agent id", () => {
@@ -564,12 +621,14 @@ const TAG_RE = /<<route:([a-z0-9_-]+)>>/i;
 
 export function extractSignals(headers: Headers, body: any): Signals {
   const agentId = headers.get("x-claude-code-agent-id");
+  const sessionId = headers.get("x-claude-code-session-id");
   const xApp = headers.get("x-app");
   const systemText = systemToText(body?.system);
   const tagMatch = systemText.match(TAG_RE);
   const tools: any[] = Array.isArray(body?.tools) ? body.tools : [];
   return {
     agentId: agentId ?? null,
+    sessionId: sessionId ?? null,
     isSubagent: agentId != null,
     xApp: xApp ?? null,
     requestedModel: typeof body?.model === "string" ? body.model : null,
@@ -649,7 +708,7 @@ const CONFIG: Config = {
 
 function sig(p: Partial<Signals> = {}): Signals {
   return {
-    agentId: null, isSubagent: false, xApp: "cli", requestedModel: null,
+    agentId: null, sessionId: null, isSubagent: false, xApp: "cli", requestedModel: null,
     systemText: "", tag: null, hasThinking: false, tokensIn: 10,
     hasWebSearch: false, ...p,
   };
@@ -893,7 +952,7 @@ git commit -m "feat: upstream registry + pure header/body rewrite"
 
 **Interfaces:**
 - Consumes: `Signals`, `Decision` (Task 2).
-- Produces: `function logDecision(path: string, signals: Signals, decision: Decision): void` — appends one JSON line `{ts, sessionId?, agentId, isSubagent, xApp, requestedModel, tokensIn, matchedRule, upstream, resolvedModel}` and echoes a compact line to stderr. `ts` uses `new Date().toISOString()`. `function readDecisions(path: string): any[]` — parses the JSONL file into objects (helper for tests).
+- Produces: `function logDecision(path: string, signals: Signals, decision: Decision): void` — appends one JSON line `{ts, sessionId, agentId, isSubagent, xApp, requestedModel, tokensIn, matchedRule, upstream, resolvedModel}` and echoes a compact line to stderr. `ts` uses `new Date().toISOString()`. `function logError(path: string, signals: Signals, err: Error): void` — appends `{ts, sessionId, agentId, isSubagent, matchedRule:"error", error}` (the fail-loud seam). `function readDecisions(path: string): any[]` — parses the JSONL file into objects (helper for tests).
 
 - [ ] **Step 1: Write the failing test** `test/log.test.ts`
 
@@ -907,7 +966,7 @@ const TMP = "test/.tmp-decisions.jsonl";
 
 function sig(p: Partial<Signals> = {}): Signals {
   return {
-    agentId: "a1", isSubagent: true, xApp: "cli", requestedModel: "claude-sonnet-4-6",
+    agentId: "a1", sessionId: "sess-1", isSubagent: true, xApp: "cli", requestedModel: "claude-sonnet-4-6",
     systemText: "", tag: "flagship", hasThinking: false, tokensIn: 42,
     hasWebSearch: false, ...p,
   };
@@ -941,6 +1000,7 @@ import type { Decision, Signals } from "./types.ts";
 export function logDecision(path: string, signals: Signals, decision: Decision): void {
   const record = {
     ts: new Date().toISOString(),
+    sessionId: signals.sessionId,
     agentId: signals.agentId,
     isSubagent: signals.isSubagent,
     xApp: signals.xApp,
@@ -955,6 +1015,20 @@ export function logDecision(path: string, signals: Signals, decision: Decision):
     `[route] ${decision.matchedRule} -> ${decision.upstream}:${decision.model}` +
       ` (sub=${signals.isSubagent})\n`,
   );
+}
+
+// Fail-loud companion: record a routing/forwarding error to the same log seam.
+export function logError(path: string, signals: Signals, err: Error): void {
+  const record = {
+    ts: new Date().toISOString(),
+    sessionId: signals.sessionId,
+    agentId: signals.agentId,
+    isSubagent: signals.isSubagent,
+    matchedRule: "error",
+    error: err.message,
+  };
+  appendFileSync(path, JSON.stringify(record) + "\n");
+  process.stderr.write(`[route] ERROR ${err.message}\n`);
 }
 
 export function readDecisions(path: string): any[] {
@@ -986,11 +1060,11 @@ git commit -m "feat: JSONL decision log + reader"
 - Create: `src/server.ts`, `test/integration.test.ts`
 
 **Interfaces:**
-- Consumes: `loadConfig` (Task 3), `extractSignals` (Task 4), `route` (Task 5), `forwardUrl`/`rewriteHeaders`/`rewriteBody`/`MissingKeyError` (Task 6), `logDecision` (Task 7).
+- Consumes: `loadConfig`/`watchConfig`/`ConfigHolder` (Task 3), `extractSignals` (Task 4), `route` (Task 5), `forwardUrl`/`rewriteHeaders`/`rewriteBody`/`MissingKeyError` (Task 6), `logDecision`/`logError` (Task 7).
 - Produces:
-  - `function buildServer(opts: { config: Config; env: Record<string,string|undefined>; logPath: string; baseOverride?: Partial<Record<Upstream,string>>; port?: number }): Bun.Server` — the testable factory. `baseOverride` lets tests point upstreams at fake servers.
-  - `handle(req, opts)` semantics: buffer JSON body → `extractSignals` → `route` → `rewriteBody` + `rewriteHeaders` → `fetch` upstream (URL from `baseOverride[upstream] ?? forwardUrl`) → `logDecision` → return `new Response(upstream.body, { status, headers })` with `idleTimeout: 0` so quiet SSE survives. `MissingKeyError` → `Response(message, {status:400})`.
-- Note: `src/server.ts` also has a bottom block that calls `buildServer` with real config when run directly (`if (import.meta.main)`).
+  - `interface ServerOpts { config?: Config; configHolder?: ConfigHolder; env: Record<string,string|undefined>; logPath: string; port?: number; idleTimeout?: number; baseOverride?: Partial<Record<Upstream,string>> }` and `function buildServer(opts: ServerOpts): Bun.Server` — the testable factory. Config is read **per request** from `configHolder.current` when present, else the static `config` (tests pass `config`; the real server passes a `configHolder` from `watchConfig` for hot-reload). `idleTimeout` defaults to `0`. `baseOverride` points upstreams at fake servers in tests.
+  - `fetch` semantics: buffer JSON body → `extractSignals` → **try** `route` + `rewriteHeaders`; on `MissingKeyError` or unknown-alias error, call `logError` and return HTTP 400 (fail loud + logged) → else `rewriteBody` + `logDecision` → `fetch` upstream (URL from `baseOverride[upstream] ?? forwardUrl`) → return `new Response(upstream.body, { status, headers })`. `Bun.serve` is created with `idleTimeout: opts.idleTimeout ?? 0` so quiet SSE survives.
+- Note: `src/server.ts`'s `if (import.meta.main)` block builds the server from `watchConfig("routes.jsonc")` so live edits / `hetero set` apply without a restart.
 
 - [ ] **Step 1: Write the failing integration test** `test/integration.test.ts`
 
@@ -1083,7 +1157,7 @@ test("plain subagent routes to OpenRouter via anySubagent", async () => {
   expect(readDecisions(LOG).at(-1)!.matchedRule).toBe("anySubagent");
 });
 
-test("missing OpenRouter key fails loud with 400", async () => {
+test("missing OpenRouter key fails loud with 400 AND logs an error record", async () => {
   const noKey = buildServer({
     config: CONFIG, env: {}, logPath: LOG, port: 0,
     baseOverride: { anthropic: fakeAnthropic.url.origin, openrouter: fakeOpenRouter.url.origin },
@@ -1093,31 +1167,66 @@ test("missing OpenRouter key fails loud with 400", async () => {
     body: JSON.stringify({ model: "x" }),
   });
   expect(res.status).toBe(400);
+  expect(readDecisions(LOG).at(-1)!.matchedRule).toBe("error"); // logged, not silent
   noKey.stop(true);
 });
 
-test("quiet SSE stream is not dropped (idleTimeout:0)", async () => {
-  const slow = Bun.serve({
-    port: 0,
+test("live config swap via holder changes routing without restart", async () => {
+  const holder = { current: structuredClone(CONFIG) };
+  const p = buildServer({
+    configHolder: holder, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0,
+    baseOverride: { anthropic: fakeAnthropic.url.origin, openrouter: fakeOpenRouter.url.origin },
+  });
+  const hit = () => fetch(`${p.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-claude-code-agent-id": "a" },
+    body: JSON.stringify({ model: "m", system: "<<route:flagship>>" }),
+  });
+  await hit();
+  expect(readDecisions(LOG).at(-1)!.upstream).toBe("openrouter"); // flagship -> openrouter
+  // hot-swap flagship onto anthropic; no restart
+  holder.current = {
+    ...holder.current,
+    models: { ...holder.current.models, flagship: { upstream: "anthropic", slug: "passthrough" } },
+  };
+  await hit();
+  expect(readDecisions(LOG).at(-1)!.upstream).toBe("anthropic"); // applied live
+  p.stop(true);
+});
+
+// Genuinely exercises the idleTimeout caveat: same 1.5s-quiet upstream, the
+// idleTimeout:0 proxy survives to [DONE] while a 1s-timeout proxy drops it first.
+test("idleTimeout:0 keeps a quiet SSE stream alive; a short timeout drops it", async () => {
+  const up = Bun.serve({
+    port: 0, idleTimeout: 0, // upstream must not drop first
     fetch: () => new Response(
       async function* () {
-        await Bun.sleep(150);            // quiet gap that the 10s default would survive,
-        yield "data: late\n\n";          // but we assert streaming completes regardless
+        await Bun.sleep(1500);
+        yield "data: late\n\n";
         yield "data: [DONE]\n\n";
       },
       { headers: { "content-type": "text/event-stream" } },
     ),
   });
-  const p = buildServer({
-    config: CONFIG, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0,
-    baseOverride: { anthropic: slow.url.origin, openrouter: slow.url.origin },
-  });
-  const res = await fetch(`${p.url.origin}/v1/messages`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: "x" }),
-  });
-  expect(await res.text()).toContain("[DONE]");
-  p.stop(true); slow.stop(true);
+  const body = JSON.stringify({ model: "x" });
+  const ovr = { anthropic: up.url.origin, openrouter: up.url.origin };
+
+  const keep = buildServer({ config: CONFIG, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0, idleTimeout: 0, baseOverride: ovr });
+  const okRes = await fetch(`${keep.url.origin}/v1/messages`, { method: "POST", headers: { "content-type": "application/json" }, body });
+  expect(await okRes.text()).toContain("[DONE]");
+  keep.stop(true);
+
+  const drop = buildServer({ config: CONFIG, env: { OPENROUTER_API_KEY: "k" }, logPath: LOG, port: 0, idleTimeout: 1, baseOverride: ovr });
+  let dropped = false;
+  try {
+    const r = await fetch(`${drop.url.origin}/v1/messages`, { method: "POST", headers: { "content-type": "application/json" }, body });
+    dropped = !(await r.text()).includes("[DONE]");
+  } catch {
+    dropped = true; // connection closed by the 1s idle timeout
+  }
+  expect(dropped).toBe(true);
+  drop.stop(true);
+  up.stop(true);
 });
 ```
 
@@ -1129,25 +1238,27 @@ Expected: FAIL — cannot find module `../src/server.ts`.
 - [ ] **Step 3: Write `src/server.ts`**
 
 ```ts
-import type { Config, Upstream } from "./types.ts";
+import type { Config, Decision, Upstream } from "./types.ts";
 import { extractSignals } from "./signals.ts";
 import { route } from "./route.ts";
-import { forwardUrl, rewriteHeaders, rewriteBody, MissingKeyError } from "./upstreams.ts";
-import { logDecision } from "./log.ts";
-import { loadConfig } from "./config.ts";
+import { forwardUrl, rewriteHeaders, rewriteBody } from "./upstreams.ts";
+import { logDecision, logError } from "./log.ts";
+import { watchConfig, type ConfigHolder } from "./config.ts";
 
 export interface ServerOpts {
-  config: Config;
+  config?: Config; // static config (tests); ignored if configHolder is set
+  configHolder?: ConfigHolder; // live config read per-request (hot-reload)
   env: Record<string, string | undefined>;
   logPath: string;
   port?: number;
+  idleTimeout?: number; // seconds; default 0 = never drop quiet SSE
   baseOverride?: Partial<Record<Upstream, string>>;
 }
 
 export function buildServer(opts: ServerOpts): Bun.Server {
   return Bun.serve({
     port: opts.port ?? Number(opts.env.PORT ?? 8787),
-    idleTimeout: 0, // CRITICAL: do not drop quiet SSE streams
+    idleTimeout: opts.idleTimeout ?? 0, // CRITICAL: 0 = do not drop quiet SSE streams
     async fetch(req) {
       let body: any;
       try {
@@ -1156,15 +1267,22 @@ export function buildServer(opts: ServerOpts): Bun.Server {
         return new Response("expected JSON body", { status: 400 });
       }
       const signals = extractSignals(req.headers, body);
-      const decision = route(signals, opts.config);
+      const config = opts.configHolder?.current ?? opts.config;
+      if (!config) return new Response("server has no config", { status: 500 });
 
+      // Routing + auth rewrite can throw (unknown alias, missing key).
+      // Fail loud: log the error to the same seam and return 400 — never silently mis-route.
+      // (MissingKeyError and unknown-alias are both client/config-fixable → 400.)
+      let decision: Decision;
       let headers: Headers;
       try {
+        decision = route(signals, config);
         headers = rewriteHeaders(decision, req.headers, opts.env);
       } catch (e) {
-        if (e instanceof MissingKeyError) return new Response(e.message, { status: 400 });
-        throw e;
+        logError(opts.logPath, signals, e as Error);
+        return new Response((e as Error).message, { status: 400 });
       }
+
       rewriteBody(decision, body);
       logDecision(opts.logPath, signals, decision);
 
@@ -1192,8 +1310,9 @@ export function buildServer(opts: ServerOpts): Bun.Server {
 }
 
 if (import.meta.main) {
+  // watchConfig enables `hetero set` / live routes.jsonc edits without a restart.
   const server = buildServer({
-    config: loadConfig("routes.jsonc"),
+    configHolder: watchConfig("routes.jsonc"),
     env: process.env,
     logPath: process.env.HETERO_LOG ?? "decisions.jsonl",
   });
@@ -1204,7 +1323,7 @@ if (import.meta.main) {
 - [ ] **Step 4: Run the test, verify it passes**
 
 Run: `bun test test/integration.test.ts`
-Expected: PASS — 5 tests.
+Expected: PASS — 6 tests (orchestrator, tagged subagent, plain subagent, missing-key 400+logged, live config swap, idleTimeout negative-control).
 
 - [ ] **Step 5: Run the whole suite**
 
@@ -1681,30 +1800,40 @@ const runWorkflow =
 const port = Number(process.env.PORT ?? 8787);
 const proxy = buildServer({ config: loadConfig("routes.jsonc"), env: process.env, logPath: LOG, port });
 
-async function drive(prompt: string): Promise<string> {
+// We also set ANTHROPIC_BASE_URL in the spawn env (it is in .claude/settings.json too)
+// so the proxy is used no matter how settings resolve in headless mode.
+async function drive(
+  prompt: string,
+  extraTools: string[] = [],
+): Promise<{ ok: boolean; code: number; out: string; err: string }> {
+  const allowed = ["Task", "Bash", "Read", "Grep", "Glob", ...extraTools].join(",");
   const proc = Bun.spawn(
     [
       "claude", "-p", prompt,
       "--output-format", "json",
       "--permission-mode", "acceptEdits",
-      "--allowedTools", "Task,Workflow,Bash,Read,Grep,Glob",
+      "--allowedTools", allowed,
       "--settings", ".claude/settings.json",
     ],
     { env: { ...process.env, ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}` }, stdout: "pipe", stderr: "pipe" },
   );
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  return out;
+  const [out, err] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  const code = await proc.exited;
+  return { ok: code === 0, code, out, err };
 }
 
 let failed = false;
 
 // --- Scenario 1: split (always) ---
-await drive("Use the glm-researcher subagent to investigate what files are in the src/ directory and report back.");
 {
+  const r = await drive("Use the glm-researcher subagent to investigate what files are in the src/ directory and report back.");
+  if (!r.ok) console.error(`[split] claude exited ${r.code}: ${r.err.slice(0, 300)}`);
   const rows = readDecisions(LOG);
-  const sawAnthropic = rows.some((r) => r.upstream === "anthropic");
-  const sawGlm = rows.some((r) => r.upstream === "openrouter" && r.resolvedModel === "z-ai/glm-5.2");
+  const sawAnthropic = rows.some((x) => x.upstream === "anthropic");
+  const sawGlm = rows.some((x) => x.upstream === "openrouter" && x.resolvedModel === "z-ai/glm-5.2");
   const oauthForwarded = !process.env.ANTHROPIC_API_KEY && sawAnthropic;
   console.log(`[split] orchestrator->anthropic: ${sawAnthropic ? "yes" : "NO"}`);
   console.log(`[split] subagent->openrouter glm-5.2: ${sawGlm ? "yes" : "NO"}`);
@@ -1715,11 +1844,20 @@ await drive("Use the glm-researcher subagent to investigate what files are in th
 // --- Scenario 2: workflow (opt-in via --workflow or HETERO_LIVE_WORKFLOW=1) ---
 if (runWorkflow) {
   const before = readDecisions(LOG).length;
-  await drive("Run a dynamic workflow that fans out two parallel agents: one summarizes README.md, one summarizes routes.jsonc. Report both summaries.");
-  const fresh = readDecisions(LOG).slice(before);
-  const onGlm = fresh.filter((r) => r.isSubagent && r.upstream === "openrouter").length;
-  console.log(`[workflow] workflow-spawned subagent requests routed to OpenRouter: ${onGlm}`);
-  if (onGlm < 1) { console.error("FAIL [workflow]: no workflow-spawned agent reached OpenRouter"); failed = true; }
+  const r = await drive(
+    "Run a dynamic workflow that fans out two parallel agents: one summarizes README.md, one summarizes routes.jsonc. Report both summaries.",
+    ["Workflow"],
+  );
+  if (!r.ok) {
+    console.error(`[workflow] claude exited ${r.code} — the Workflow tool may be unavailable in this Claude Code environment.`);
+    console.error(`[workflow] stderr: ${r.err.slice(0, 300)}`);
+    failed = true;
+  } else {
+    const fresh = readDecisions(LOG).slice(before);
+    const onGlm = fresh.filter((x) => x.isSubagent && x.upstream === "openrouter").length;
+    console.log(`[workflow] workflow-spawned subagent requests routed to OpenRouter: ${onGlm}`);
+    if (onGlm < 1) { console.error("FAIL [workflow]: no workflow-spawned agent reached OpenRouter"); failed = true; }
+  }
 } else {
   console.log("[workflow] skipped (enable with --workflow or HETERO_LIVE_WORKFLOW=1)");
 }
@@ -1929,4 +2067,4 @@ git commit -m "docs: README — quick start, mix-and-match, caveats"
 - **Spec coverage:** §3 routing (Tasks 5–8) · §5 assignment tiers (Tasks 4–5, routes.jsonc) · §6 model menu (Task 3) · §7 proxy internals incl. auth/beta/SSE (Tasks 6–8) · §8 secrets (Tasks 1, 9, 15) · §9 switching CLI (Tasks 11–12) · §10 DevBox + always-latest (Tasks 1, 12) · §11 testing layers incl. workflow-agent demo (Tasks 8, 10, 13) · §12 repo layout (all) · §13 risks (Tasks 9, 13 + README). The workflow-spawned-agent demo is wired as Task 13's opt-in `workflow` scenario, gated by `--workflow` / `HETERO_LIVE_WORKFLOW=1` (CI via the `vars.HETERO_LIVE_WORKFLOW` repo variable); the always-on `split` scenario covers the core orchestrator-vs-subagent proof.
 - **Type consistency:** `Config`/`Signals`/`Decision`/`ModelRef` defined once in `src/types.ts` (Task 2) and imported everywhere; `buildServer`, `route`, `extractSignals`, `rewriteHeaders`, `rewriteBody`, `forwardUrl`, `logDecision`, `readDecisions`, `parseModelRef`, `loadConfig`, `setModel`, `listModels` signatures match across producer/consumer tasks.
 - **Placeholder scan:** every step has complete code or an exact command + expected output. No TBD/TODO.
-````
+- **Adversarial review applied (3 reviewers):** fixed a CRITICAL gap — hot-reload was promised but unimplemented (now `watchConfig`/`ConfigHolder` in Task 3, `buildServer` reads `configHolder.current` per request in Task 8, with a deterministic live-swap test + an `fs.watch` reload test). Fixed MAJOR issues — the quiet-SSE test was a false positive (replaced with an `idleTimeout`-configurable negative-control test proving a 1s-timeout proxy drops a 1.5s-quiet stream while `idleTimeout:0` survives); error handling now meets fail-loud-and-logged (`loadConfig` validates every `routes[].use` alias; `server.ts` wraps `route`+`rewriteHeaders`, calls `logError`, returns 400; integration test asserts the logged error record); the `--workflow` scenario degrades gracefully with a clear message when the Workflow tool is absent (and `Workflow` is no longer in the default allowed-tools). Fixed MINOR issues — `sessionId` captured from `x-claude-code-session-id` and logged; live-smoke parses exit code + surfaces stderr; spec §7 beta wording and §12 layout reconciled with the implementation. Remaining acknowledged simplification: v1 strips `anthropic-beta` wholesale on the non-Anthropic leg (allow-list is future work), stated in spec §7.

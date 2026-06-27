@@ -118,7 +118,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 - **Cascade:** first-match-in-array-order (transparent over implicit specificity); shipped default ordered tag → workType → anySubagent → default.
 - **Auth swap:** Claude leg = pass through Claude Code's own auth (subscription/OAuth) unchanged; OpenRouter leg = inject `OPENROUTER_API_KEY` as `Authorization: Bearer`.
 - **Model swap:** rewrite `body.model` to resolved slug; `"passthrough"` keeps what CC sent (Claude legs).
-- **Beta headers:** Claude leg = pass `anthropic-beta` unchanged (preserves caching); non-Anthropic leg = strip to a configurable allow-list (avoids context-management/effort/task-budgets 400s).
+- **Beta headers:** Claude leg = pass `anthropic-beta` unchanged (preserves caching); non-Anthropic leg = **strip `anthropic-beta` entirely (v1)** to avoid context-management/effort/task-budgets 400s. A configurable allow-list is noted as future hardening, not built in v1.
 - **Streaming:** both upstreams emit Anthropic SSE → return `new Response(upstream.body, …)` to pipe the web `ReadableStream` straight through, no parsing. Set `idleTimeout: 0` so quiet streams aren't dropped.
 - **Decision log** (the test seam):
   ```jsonc
@@ -126,7 +126,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
     "requestedModel":"claude-sonnet-4-6","tokensIn":1234,"matchedRule":"tag:flagship",
     "upstream":"openrouter","resolvedModel":"z-ai/glm-5.2" }
   ```
-- **Error handling — fail loud:** upstream 4xx/5xx passed through + logged; matched a GLM route but key missing / alias unknown → 400 with clear message + logged (never silently fall back to Claude); optional one-shot beta-strip retry on non-Anthropic leg.
+- **Error handling — fail loud:** upstream 4xx/5xx passed through + logged; matched a GLM route but key missing / alias unknown → 400 with clear message + logged via `logError` (never silently fall back to Claude). v1 strips `anthropic-beta` entirely on the non-Anthropic leg, so no beta-retry is needed.
 - **Hot-reload:** `config.ts` watches `routes.jsonc`; swaps in-memory snapshot live → enables `hetero set`.
 
 ## 8. Secrets & environment
@@ -161,19 +161,19 @@ Layered — hermetic CI without secrets, full proof opt-in.
 ```
 hetero-agents/
 ├── devbox.json / devbox.lock
+├── package.json / tsconfig.json  # Bun, ESM, native TS (no build)
 ├── .env.example                  # OPENROUTER_API_KEY, optional ANTHROPIC_API_KEY, PORT
 ├── .gitignore
 ├── README.md                     # setup (global env OR repo .env), clone instructions
 ├── routes.jsonc                  # the model menu + cascade (operator-edited)
-├── proxy/
-│   ├── src/{config,signals,route,server,log}.ts
-│   └── tests/{route,signals,integration}.test.ts  + fixtures/
+├── src/{types,jsonc,config,signals,route,upstreams,log,server}.ts
+├── test/{jsonc,config,signals,route,upstreams,log,integration,replay,cli}.test.ts + fixtures/
 ├── .claude/
-│   ├── settings.json             # ANTHROPIC_BASE_URL → proxy, dummy AUTH_TOKEN
+│   ├── settings.json             # ANTHROPIC_BASE_URL → proxy
 │   └── agents/{glm-researcher,minimax-reviewer,claude-control}.md
-├── scripts/{record-fixtures,live-smoke,check-latest}.{sh,mjs}
+├── scripts/{record-fixtures,live-smoke,check-latest}.ts
 ├── bin/hetero                    # the switching CLI
-└── .github/workflows/ci.yml      # devbox + unit + integration (no secrets); live job gated on secrets
+└── .github/workflows/ci.yml      # gate + hermetic (no secrets) + live (secret-gated)
 ```
 
 ## 13. Risks / to verify during implementation
