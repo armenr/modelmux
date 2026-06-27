@@ -23,3 +23,7 @@ proxy/dist/
 
 # ESLint cache
 .eslintcache
+
+# Claude Code: active routing config is opt-in (copy from .example); local is personal
+.claude/settings.json
+.claude/settings.local.json
