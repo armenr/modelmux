@@ -56,3 +56,37 @@ test("watchConfig reloads holder.current on file change", async () => {
   expect(holder.current.models.a.slug).toBe("x/y2");
   rmSync(tmp, { force: true });
 });
+
+test("watchConfig keeps previous config when a reload fails, then recovers", async () => {
+  const tmp = "test/.tmp-watch-bad.jsonc";
+  writeFileSync(tmp, JSON.stringify({ models: { a: "openrouter:x/y1" }, default: "a", routes: [] }));
+  const holder = watchConfig(tmp, {});
+  expect(holder.current.models.a.slug).toBe("x/y1");
+  // unparseable edit: must be caught, previous kept, no crash
+  writeFileSync(tmp, "{ this is not valid json");
+  await Bun.sleep(300);
+  expect(holder.current.models.a.slug).toBe("x/y1");
+  // recovery: a subsequent valid edit still reloads
+  writeFileSync(tmp, JSON.stringify({ models: { a: "openrouter:x/y3" }, default: "a", routes: [] }));
+  for (let i = 0; i < 40 && holder.current.models.a.slug !== "x/y3"; i++) await Bun.sleep(50);
+  expect(holder.current.models.a.slug).toBe("x/y3");
+  rmSync(tmp, { force: true });
+});
+
+test("loadConfig throws when default alias is absent from models (fail loud)", () => {
+  const tmp = "test/.tmp-bad-default.jsonc";
+  writeFileSync(tmp, JSON.stringify({ models: { a: "openrouter:x/y" }, default: "ghost", routes: [] }));
+  expect(() => loadConfig(tmp, {})).toThrow();
+  rmSync(tmp, { force: true });
+});
+
+test("resolveMenu maps a hyphenated alias to the HETERO_MODEL_ underscore form", () => {
+  const cfg = {
+    models: { "claude-review": { upstream: "anthropic", slug: "claude-sonnet-4.6" } },
+    default: "claude-review",
+    routes: [],
+    longContextThreshold: 200000,
+  } as any;
+  const out = resolveMenu(cfg, { HETERO_MODEL_CLAUDE_REVIEW: "openrouter:z-ai/glm-5.2" });
+  expect(out.models["claude-review"]).toEqual({ upstream: "openrouter", slug: "z-ai/glm-5.2" });
+});
