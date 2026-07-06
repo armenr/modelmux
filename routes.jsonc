@@ -24,6 +24,9 @@
     { "when": { "tag": "reasoner" }, "use": "reasoner" },
     { "when": { "tag": "review" }, "use": "review" },
     { "when": { "tag": "claude-review" }, "use": "claude-review" },
+    // A tagged control/setup agent stays on Claude (passthrough) even though the
+    // anySubagent rule below would otherwise divert untagged subagents.
+    { "when": { "tag": "control" }, "use": "orchestrator" },
     { "when": { "workType": "background" }, "use": "cheap" },
     { "when": { "anySubagent": true }, "use": "flagship" }
   ]

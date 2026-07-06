@@ -12,6 +12,7 @@ const CONFIG: Config = {
   longContextThreshold: 200000,
   routes: [
     { when: { tag: "flagship" }, use: "flagship" },
+    { when: { tag: "control" }, use: "orchestrator" },
     { when: { workType: "background" }, use: "cheap" },
     { when: { anySubagent: true }, use: "flagship" },
   ],
@@ -49,6 +50,16 @@ test("tag wins over any-subagent", () => {
     upstream: "openrouter",
     model: "z-ai/glm-5.2",
     matchedRule: "tag:flagship",
+  });
+});
+
+test("control tag pins a subagent back to Claude, ahead of any-subagent", () => {
+  const d = route(sig({ isSubagent: true, agentId: "x", tag: "control" }), CONFIG);
+  expect(d).toEqual({
+    alias: "orchestrator",
+    upstream: "anthropic",
+    model: "passthrough",
+    matchedRule: "tag:control",
   });
 });
 
