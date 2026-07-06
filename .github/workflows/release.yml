@@ -11,8 +11,11 @@ jobs:
   binaries:
     name: build + publish single-file binaries
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -27,7 +30,9 @@ jobs:
             bun build --compile --minify --target="$target" src/main.ts --outfile "$out"
           done
           ls -lh dist
+      - name: checksums
+        run: cd dist && sha256sum modelmux-* > SHA256SUMS && cat SHA256SUMS
       - name: publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/modelmux-* --generate-notes --title "${{ github.ref_name }}"
+        run: gh release create "${{ github.ref_name }}" dist/modelmux-* dist/SHA256SUMS --generate-notes --title "${{ github.ref_name }}"

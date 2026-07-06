@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # Keep GitHub Actions current (this is what let checkout drift to Node 20).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Keep Bun devDependencies (eslint, typescript, @types/bun) current.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      dev-deps:
+        patterns: ["*"]
