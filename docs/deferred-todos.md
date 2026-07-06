@@ -5,7 +5,7 @@ once the first wave is done, tested, and verified working. None are blockers.
 
 ## 1. Last-known-good config fallback
 
-**Goal:** a bad/unparseable `routes.jsonc` (bad hand-edit, or a bad `hetero set`)
+**Goal:** a bad/unparseable `routes.jsonc` (bad hand-edit, or a bad `mux set`)
 should never brick the proxy — it should fall back to the last config that loaded
 and validated successfully.
 

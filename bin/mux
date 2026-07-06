@@ -11,14 +11,14 @@ if (cmd === "models") {
 }
 else if (cmd === "set") {
   if (!a || !b)
-    throw new Error("usage: hetero set <alias> <upstream:slug>");
+    throw new Error("usage: mux set <alias> <upstream:slug>");
   writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
   console.log(`set ${a} -> ${b}`);
 }
 else if (cmd === "use") {
   // Rebind an agent file's tag to a different alias by rewriting its <<route:...>>.
   if (!a || !b)
-    throw new Error("usage: hetero use <agent-name> <alias>");
+    throw new Error("usage: mux use <agent-name> <alias>");
   const path = `.claude/agents/${a}.md`;
   const next = readFileSync(path, "utf8").replace(/<<route:[a-z0-9_-]+>>/i, `<<route:${b}>>`);
   writeFileSync(path, next);

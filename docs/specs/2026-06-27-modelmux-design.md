@@ -1,4 +1,4 @@
-# hetero-agents — Design Spec
+# modelmux — Design Spec
 
 **Date:** 2026-06-27
 **Status:** Approved for planning
@@ -39,7 +39,7 @@ Chosen over claude-code-router and LiteLLM because objectives #1 (exemplar/trans
 
 ```
                           ┌─────────────────────────────────────┐
-  Claude Code  ──────────▶│  hetero-proxy (Bun/TS, ~150 LOC)     │
+  Claude Code  ──────────▶│  modelmux (Bun/TS, ~150 LOC)     │
   ANTHROPIC_BASE_URL      │  signals → route() → rewrite → fwd    │
   → 127.0.0.1:PORT        │                                       │
    orchestrator turn ─────┼──▶ no agent-id header ────────────────┼──▶ api.anthropic.com   (Claude; auth passthrough)
@@ -127,7 +127,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
     "upstream":"openrouter","resolvedModel":"z-ai/glm-5.2" }
   ```
 - **Error handling — fail loud:** upstream 4xx/5xx passed through + logged; matched a GLM route but key missing / alias unknown → 400 with clear message + logged via `logError` (never silently fall back to Claude). v1 strips `anthropic-beta` entirely on the non-Anthropic leg, so no beta-retry is needed.
-- **Hot-reload:** `config.ts` watches `routes.jsonc`; swaps in-memory snapshot live → enables `hetero set`.
+- **Hot-reload:** `config.ts` watches `routes.jsonc`; swaps in-memory snapshot live → enables `mux set`.
 
 ## 8. Secrets & environment
 
@@ -139,8 +139,8 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 
 - **Named menu aliases** — change one slug, everything updates.
 - **Hot-reload** — edit `routes.jsonc`, save, applied live (no restart).
-- **`hetero` CLI:** `hetero models` (list bindings + ping OpenRouter for newer releases = freshness/always-latest), `hetero set <alias> <slug>`, `hetero use <agent> <alias>`.
-- **Env overrides** — `HETERO_MODEL_FLAGSHIP=…` beats the file (CI matrices, zero-edit experiments).
+- **`mux` CLI:** `mux models` (list bindings + ping OpenRouter for newer releases = freshness/always-latest), `mux set <alias> <slug>`, `mux use <agent> <alias>`.
+- **Env overrides** — `MUX_MODEL_FLAGSHIP=…` beats the file (CI matrices, zero-edit experiments).
 
 ## 10. Reproducibility (DevBox) + always-latest
 
@@ -160,7 +160,7 @@ Layered — hermetic CI without secrets, full proof opt-in.
 ## 12. Repo layout
 
 ```
-hetero-agents/
+modelmux/
 ├── devbox.json / devbox.lock
 ├── package.json / tsconfig.json  # Bun, ESM, native TS (no build)
 ├── eslint.config.mjs             # Antfu flat config — lint+format all, no prettier
@@ -175,7 +175,7 @@ hetero-agents/
 │   ├── settings.json             # ANTHROPIC_BASE_URL → proxy
 │   └── agents/{glm-researcher,minimax-reviewer,claude-control}.md
 ├── scripts/{record-fixtures,live-smoke,check-latest}.ts
-├── bin/hetero                    # the switching CLI
+├── bin/mux                    # the switching CLI
 └── .github/workflows/ci.yml      # gate + hermetic (no secrets) + live (secret-gated)
 ```
 

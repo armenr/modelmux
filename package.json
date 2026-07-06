@@ -1,18 +1,18 @@
 {
-  "name": "hetero-agents",
+  "name": "modelmux",
   "type": "module",
   "version": "0.1.0",
   "private": true,
   "description": "A batteries-included template for heterogeneous agent routing in Claude Code — keep the orchestrator on Claude, route chosen subagents to OpenRouter models via a small owned proxy.",
   "author": "Armen Rostamian",
   "license": "MIT",
-  "homepage": "https://github.com/armenr/hetero-agents#readme",
+  "homepage": "https://github.com/armenr/modelmux#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/armenr/hetero-agents.git"
+    "url": "git+https://github.com/armenr/modelmux.git"
   },
   "bugs": {
-    "url": "https://github.com/armenr/hetero-agents/issues"
+    "url": "https://github.com/armenr/modelmux/issues"
   },
   "keywords": [
     "claude-code",
@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "proxy": "bun run src/server.ts",
-    "hetero": "bun run bin/hetero",
+    "mux": "bun run bin/mux",
     "test": "bun test test/",
     "test:live": "bun run scripts/live-smoke.ts",
     "lint": "eslint .",

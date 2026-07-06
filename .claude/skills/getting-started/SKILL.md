@@ -1,9 +1,9 @@
 ---
 name: getting-started
-description: Use when someone has just cloned hetero-agents and wants to plug in OpenRouter and see heterogeneous routing working. Walks clone → install → key → run → verify, checking each step.
+description: Use when someone has just cloned modelmux and wants to plug in OpenRouter and see heterogeneous routing working. Walks clone → install → key → run → verify, checking each step.
 ---
 
-# Getting started with hetero-agents
+# Getting started with modelmux
 
 Walk the user through these steps in order. Run the checks yourself where you
 can, and confirm each step before moving on. Never print the value of an API key.
@@ -41,7 +41,7 @@ cp .env.example .env
 bun run proxy
 ```
 
-You should see `hetero-proxy listening on http://localhost:8787`. Leave it
+You should see `modelmux listening on http://localhost:8787`. Leave it
 running in its own terminal.
 
 ## 4. Opt Claude Code into the proxy
@@ -76,7 +76,7 @@ You want to see the subagent land on OpenRouter and the main loop stay on Claude
 ## 6. (Optional) confirm the model slugs are live
 
 ```bash
-bin/hetero check-latest
+bin/mux check-latest
 ```
 
 ## Shortcut

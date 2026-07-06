@@ -13,7 +13,7 @@ and disclosure timeline with you.
 
 ## Handling your API keys
 
-hetero-agents is a **local reverse proxy**. It reads your `OPENROUTER_API_KEY`
+modelmux is a **local reverse proxy**. It reads your `OPENROUTER_API_KEY`
 (and optionally `ANTHROPIC_API_KEY`) from the environment and injects it into
 outbound requests. A few rules keep that safe:
 

@@ -17,14 +17,14 @@ test("parseModelRef rejects unknown upstream", () => {
   expect(() => parseModelRef("bogus:x")).toThrow();
 });
 
-test("resolveMenu applies HETERO_MODEL_<ALIAS> overrides", () => {
+test("resolveMenu applies MUX_MODEL_<ALIAS> overrides", () => {
   const cfg = {
     models: { flagship: { upstream: "openrouter", slug: "z-ai/glm-5.2" } },
     default: "flagship",
     routes: [],
     longContextThreshold: 200000,
   } as const;
-  const out = resolveMenu(cfg as any, { HETERO_MODEL_FLAGSHIP: "openrouter:z-ai/glm-4.6" });
+  const out = resolveMenu(cfg as any, { MUX_MODEL_FLAGSHIP: "openrouter:z-ai/glm-4.6" });
   expect(out.models.flagship).toEqual({ upstream: "openrouter", slug: "z-ai/glm-4.6" });
 });
 
@@ -80,13 +80,13 @@ test("loadConfig throws when default alias is absent from models (fail loud)", (
   rmSync(tmp, { force: true });
 });
 
-test("resolveMenu maps a hyphenated alias to the HETERO_MODEL_ underscore form", () => {
+test("resolveMenu maps a hyphenated alias to the MUX_MODEL_ underscore form", () => {
   const cfg = {
     models: { "claude-review": { upstream: "anthropic", slug: "claude-sonnet-4.6" } },
     default: "claude-review",
     routes: [],
     longContextThreshold: 200000,
   } as any;
-  const out = resolveMenu(cfg, { HETERO_MODEL_CLAUDE_REVIEW: "openrouter:z-ai/glm-5.2" });
+  const out = resolveMenu(cfg, { MUX_MODEL_CLAUDE_REVIEW: "openrouter:z-ai/glm-5.2" });
   expect(out.models["claude-review"]).toEqual({ upstream: "openrouter", slug: "z-ai/glm-5.2" });
 });

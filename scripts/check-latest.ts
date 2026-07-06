@@ -1,4 +1,4 @@
-// `hetero check-latest` — compare the OpenRouter slugs in routes.jsonc against
+// `mux check-latest` — compare the OpenRouter slugs in routes.jsonc against
 // OpenRouter's live model catalog, so you notice when a configured model has
 // been renamed, removed, or superseded by a newer version.
 //
@@ -87,7 +87,7 @@ export async function run(routesPath = "routes.jsonc"): Promise<number> {
     }
   }
   if (stale > 0) {
-    console.log(`\n${stale} slug(s) look stale. Update one with:  hetero set <alias> openrouter:<slug>`);
+    console.log(`\n${stale} slug(s) look stale. Update one with:  mux set <alias> openrouter:<slug>`);
   }
   else {
     console.log("\nAll configured OpenRouter slugs exist in the live catalog.");

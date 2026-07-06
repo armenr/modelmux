@@ -20,17 +20,17 @@ routing in Claude Code.
 - **Config-driven routing** (`routes.jsonc`): a friendly alias → model menu and
   a first-match cascade over request signals (route tags, work-type, subagent).
   Hot-reloads on edit; keeps the last good config if an edit is invalid.
-- **`hetero` CLI** (`bin/hetero`): `models`, `set`, `use`, and `check-latest`
+- **`mux` CLI** (`bin/mux`): `models`, `set`, `use`, and `check-latest`
   for swapping models and rebinding agents without hand-editing JSON.
 - **Tooling scripts**: `scripts/check-latest.ts` (compare configured OpenRouter
   slugs against the live catalog) and `scripts/live-smoke.ts` (opt-in real
   end-to-end routing check).
-- **Onboarding skills/agents** (`.claude/`): `getting-started`, `explain-hetero`,
+- **Onboarding skills/agents** (`.claude/`): `getting-started`, `explain-modelmux`,
   `switch-models` skills, and an interactive `setup-assistant` agent.
 - **Reproducible toolchain**: DevBox + Bun, ESLint (Antfu config, no Prettier),
   lefthook git hooks, and a hermetic `bun test` suite.
 - **CI**: lint · typecheck · test gate on every push/PR, plus an opt-in live
   smoke job on manual dispatch.
 
-[Unreleased]: https://github.com/armenr/hetero-agents/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/armenr/hetero-agents/releases/tag/v0.1.0
+[Unreleased]: https://github.com/armenr/modelmux/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/armenr/modelmux/releases/tag/v0.1.0

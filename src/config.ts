@@ -24,7 +24,7 @@ export function resolveMenu(
 ): Config {
   const models = { ...config.models };
   for (const alias of Object.keys(models)) {
-    const key = `HETERO_MODEL_${alias.toUpperCase().replace(/-/g, "_")}`;
+    const key = `MUX_MODEL_${alias.toUpperCase().replace(/-/g, "_")}`;
     const override = env[key];
     if (override)
       models[alias] = parseModelRef(override);
@@ -69,7 +69,7 @@ function readText(path: string): string {
   return readFileSync(path, "utf8");
 }
 
-// Live config: a mutable holder reloaded on file change (enables `hetero set` + hot-swap).
+// Live config: a mutable holder reloaded on file change (enables `mux set` + hot-swap).
 export interface ConfigHolder {
   current: Config;
 }

@@ -1,9 +1,9 @@
 ---
-name: explain-hetero
-description: Use when someone wants to understand how hetero-agents works — why a proxy is needed, what signals it routes on, and how the cascade keeps the orchestrator on Claude while diverting chosen subagents.
+name: explain-modelmux
+description: Use when someone wants to understand how modelmux works — why a proxy is needed, what signals it routes on, and how the cascade keeps the orchestrator on Claude while diverting chosen subagents.
 ---
 
-# How hetero-agents works
+# How modelmux works
 
 Explain the mental model, adapting depth to the audience. The whole system is
 small and readable — point people at the actual files.
@@ -58,7 +58,7 @@ smart orchestrator on Claude, chosen subagents on cheaper/other models.
 
 `routes.jsonc` maps friendly **aliases** (`flagship`, `cheap`, …) to
 `<upstream>:<slug>`. Swap a model in one place, or override at runtime with
-`HETERO_MODEL_<ALIAS>`. See the `switch-models` skill for day-to-day changes.
+`MUX_MODEL_<ALIAS>`. See the `switch-models` skill for day-to-day changes.
 
 ## Verifying it
 

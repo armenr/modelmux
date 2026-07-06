@@ -18,7 +18,7 @@
       "lint:fix": "bunx eslint . --fix",
       "typecheck": "bunx tsc --noEmit",
       "record": "bun run scripts/record-fixtures.ts",
-      "hetero": "bun run bin/hetero"
+      "mux": "bun run bin/mux"
     }
   }
 }

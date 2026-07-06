@@ -1,6 +1,6 @@
 {
   // Friendly aliases → "<upstream>:<slug>". Swap a model in ONE place.
-  // Override any alias at runtime with HETERO_MODEL_<ALIAS> (e.g. HETERO_MODEL_FLAGSHIP).
+  // Override any alias at runtime with MUX_MODEL_<ALIAS> (e.g. MUX_MODEL_FLAGSHIP).
   "models": {
     "orchestrator": "anthropic:passthrough", // main chat — keep the model CC picked
     "flagship": "openrouter:z-ai/glm-5.2",

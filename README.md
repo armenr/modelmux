@@ -1,6 +1,6 @@
-# hetero-agents
+# modelmux
 
-[![CI](https://github.com/armenr/hetero-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/armenr/hetero-agents/actions/workflows/ci.yml)
+[![CI](https://github.com/armenr/modelmux/actions/workflows/ci.yml/badge.svg)](https://github.com/armenr/modelmux/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000.svg)](https://bun.sh)
 
@@ -20,7 +20,7 @@ OpenRouter key, and you have a working heterogeneous-routing setup you can shape
 ## Architecture
 
 ```text
-   Claude Code  ──ANTHROPIC_BASE_URL──▶  hetero-proxy (:8787, Bun.serve)
+   Claude Code  ──ANTHROPIC_BASE_URL──▶  modelmux (:8787, Bun.serve)
                                               │
                        signals: agent-id?  x-app?  <<route:tag>>?
                                               │
@@ -43,7 +43,7 @@ no request translation is needed.
 ```bash
 bun install                                  # dev deps (or: devbox shell)
 cp .env.example .env                         # set OPENROUTER_API_KEY (openrouter.ai/keys)
-bun run proxy                                # → hetero-proxy listening on http://localhost:8787
+bun run proxy                                # → modelmux listening on http://localhost:8787
 cp .claude/settings.json.example .claude/settings.json   # opt Claude Code into the proxy
 # ...then RESTART Claude Code (ANTHROPIC_BASE_URL is read at startup)
 ```
@@ -85,7 +85,7 @@ parent's). The key signals (`src/signals.ts`):
 
 The main loop carries no `x-claude-code-agent-id`, so it never matches a subagent
 rule — it falls to the default and **stays on Claude**. Want the full mental
-model? Run the **`/explain-hetero`** skill.
+model? Run the **`/explain-modelmux`** skill.
 
 ## The model menu
 
@@ -104,29 +104,29 @@ in a single place:
 }
 ```
 
-> The slugs above are illustrative — run `bin/hetero check-latest` to see which
-> models actually exist on OpenRouter right now, and `hetero set` to update one.
+> The slugs above are illustrative — run `bin/mux check-latest` to see which
+> models actually exist on OpenRouter right now, and `mux set` to update one.
 
 The proxy **hot-reloads** `routes.jsonc` on save (and keeps the last good config
 if an edit is invalid). Full switching guide: the **`/switch-models`** skill.
 
-## The `hetero` CLI
+## The `mux` CLI
 
 ```bash
-bin/hetero models                              # list aliases → upstream:slug
-bin/hetero set flagship openrouter:z-ai/glm-6  # repoint an alias
-bin/hetero use glm-researcher reasoner         # retarget an agent's <<route:>> tag
-bin/hetero check-latest                        # verify configured slugs exist on OpenRouter
+bin/mux models                              # list aliases → upstream:slug
+bin/mux set flagship openrouter:z-ai/glm-6  # repoint an alias
+bin/mux use glm-researcher reasoner         # retarget an agent's <<route:>> tag
+bin/mux check-latest                        # verify configured slugs exist on OpenRouter
 ```
 
 Or override an alias for one run without editing files:
-`HETERO_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max bun run proxy`.
+`MUX_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max bun run proxy`.
 
 ## Project layout
 
 ```text
 src/            proxy core — signals, route, upstreams, server, config, log, jsonc, types, cli
-bin/hetero      the switching CLI
+bin/mux      the switching CLI
 scripts/        check-latest (catalog diff) · live-smoke (real e2e) · record-fixtures
 routes.jsonc    the model menu + routing cascade
 test/           hermetic bun:test suite (+ recorded request fixtures)
@@ -164,7 +164,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and conventions.
 These ship in `.claude/` so a fresh clone can use them immediately:
 
 - **`/getting-started`** — clone → install → key → run → verify.
-- **`/explain-hetero`** — the mental model: why a proxy, the signals, the cascade.
+- **`/explain-modelmux`** — the mental model: why a proxy, the signals, the cascade.
 - **`/switch-models`** — swap models, retarget agents, override at runtime.
 - **`setup-assistant`** (agent) — checks Bun, your key, config, and the proxy,
   and reports what's left. Pinned to Claude via `<<route:control>>`.

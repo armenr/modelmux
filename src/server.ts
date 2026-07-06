@@ -78,11 +78,11 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
 }
 
 if (import.meta.main) {
-  // watchConfig enables `hetero set` / live routes.jsonc edits without a restart.
+  // watchConfig enables `mux set` / live routes.jsonc edits without a restart.
   const server = buildServer({
     configHolder: watchConfig("routes.jsonc"),
     env: process.env,
-    logPath: process.env.HETERO_LOG ?? "decisions.jsonl",
+    logPath: process.env.MUX_LOG ?? "decisions.jsonl",
   });
-  console.log(`hetero-proxy listening on ${server.url.origin}`);
+  console.log(`modelmux listening on ${server.url.origin}`);
 }

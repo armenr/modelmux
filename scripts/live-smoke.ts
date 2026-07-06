@@ -6,7 +6,7 @@
 //
 // If the configured flagship slug is stale, override it with the same env knob
 // the proxy already understands:
-//   HETERO_MODEL_FLAGSHIP=openrouter:<real-slug> bun run scripts/live-smoke.ts
+//   MUX_MODEL_FLAGSHIP=openrouter:<real-slug> bun run scripts/live-smoke.ts
 import process from "node:process";
 import { loadConfig } from "../src/config.ts";
 import { buildServer } from "../src/server.ts";
@@ -44,7 +44,7 @@ export async function run(): Promise<number> {
   const server = buildServer({
     config: loadConfig("routes.jsonc"),
     env: process.env,
-    logPath: process.env.HETERO_LOG ?? "decisions.jsonl",
+    logPath: process.env.MUX_LOG ?? "decisions.jsonl",
     port: 0, // ephemeral
   });
 
@@ -62,8 +62,8 @@ export async function run(): Promise<number> {
       console.error(text.slice(0, 400));
       console.error(
         "\nHint: the flagship slug may not exist on OpenRouter yet.\n"
-        + "  • see what's live:  hetero check-latest\n"
-        + "  • or override:      HETERO_MODEL_FLAGSHIP=openrouter:<real-slug> bun run scripts/live-smoke.ts",
+        + "  • see what's live:  mux check-latest\n"
+        + "  • or override:      MUX_MODEL_FLAGSHIP=openrouter:<real-slug> bun run scripts/live-smoke.ts",
       );
       return 1;
     }

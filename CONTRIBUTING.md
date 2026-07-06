@@ -1,4 +1,4 @@
-# Contributing to hetero-agents
+# Contributing to modelmux
 
 Thanks for your interest! This repo is an **exemplar template**, so the bar is
 less "ship features fast" and more "keep it clean, small, and verifiable."
@@ -54,9 +54,9 @@ Don't disable hooks or skip tests to get green — fix the root cause.
 ## Changing routing or models
 
 - **Swap a model:** edit `routes.jsonc`, or use the CLI:
-  `bin/hetero set flagship openrouter:<vendor>/<slug>`.
-- **Check your slugs are still live:** `bin/hetero check-latest`.
-- **Point an agent at a different alias:** `bin/hetero use <agent> <alias>`
+  `bin/mux set flagship openrouter:<vendor>/<slug>`.
+- **Check your slugs are still live:** `bin/mux check-latest`.
+- **Point an agent at a different alias:** `bin/mux use <agent> <alias>`
   (rewrites the agent's `<<route:alias>>` tag).
 - **Add a routing signal:** extend `extractSignals` in `src/signals.ts` and the
   cascade in `src/route.ts`, with tests in `test/signals.test.ts` /
