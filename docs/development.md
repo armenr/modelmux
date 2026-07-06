@@ -185,8 +185,9 @@ It boots the proxy in-process, sends a `flagship`-tagged subagent request, and
 expects HTTP 200 from OpenRouter. It skips with exit 0 if `OPENROUTER_API_KEY`
 is unset.
 
-The `lefthook` hooks run a subset automatically: pre-commit runs `eslint --fix`
-on staged files (staging the fixes back); pre-push runs `bun test test/`.
+The `lefthook` hooks run automatically: `commit-msg` runs commitlint
+(Conventional Commits); `pre-commit` runs `eslint --fix` on staged files
+(staging the fixes back); `pre-push` runs `bun test test/`.
 
 ## Building the binary
 
@@ -200,12 +201,14 @@ in and `routes.toml` embedded at compile time. The binary needs no Bun, Node,
 DevBox, or Docker to run; see [using-the-binary.md](using-the-binary.md) for its
 behavior.
 
-CI cross-compiles every platform on a `v*` tag via
-[.github/workflows/release.yml](../.github/workflows/release.yml). The workflow
-builds `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
-`bun-darwin-arm64`, and `bun-windows-x64` targets into `dist/modelmux-*` (with
-`.exe` for Windows) and publishes them to a GitHub release with `gh release
-create`.
+Releases are automated by
+[release-please](https://github.com/googleapis/release-please): conventional
+commits on `main` open a release PR, and merging it tags the release. The same
+[.github/workflows/release.yml](../.github/workflows/release.yml) run then
+cross-compiles `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
+`bun-darwin-arm64`, and `bun-windows-x64` into `dist/modelmux-*` (with `.exe`
+for Windows), writes `SHA256SUMS`, and uploads them to the release. Releases
+are never tagged by hand.
 
 ## Pointing Claude Code at the source-run proxy
 

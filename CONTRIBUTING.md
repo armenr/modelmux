@@ -34,9 +34,15 @@ Don't disable hooks or skip tests to get green — fix the root cause.
 ## Binary build & release
 
 `bun run build` compiles the vended single binary to `dist/modelmux` (Bun
-runtime and `routes.toml` embedded). Pushing a `v*` tag runs
-`.github/workflows/release.yml`, which cross-compiles the linux/darwin
-(x64 + arm64) and windows binaries and publishes them to the GitHub release.
+runtime and `routes.toml` embedded) for local use.
+
+Releases are automated by
+[release-please](https://github.com/googleapis/release-please). Conventional
+commits on `main` let it open a release PR that bumps the version and updates
+the changelog; merging that PR tags the release, and
+`.github/workflows/release.yml` then cross-compiles the linux/darwin
+(x64 + arm64) and windows binaries — plus a `SHA256SUMS` file — and attaches
+them to it. Don't tag releases by hand.
 
 ## Changing routing or models
 
@@ -55,8 +61,10 @@ If you change behavior or config, update the relevant onboarding skill in
 ## Commit & PR conventions
 
 - **Branches:** work on a feature branch, never on `main`.
-- **Commits:** short imperative subject with a type prefix, matching history:
-  `feat:`, `fix:`, `test:`, `docs:`, `chore:`. Keep commits focused.
+- **Commits:** [Conventional Commits](https://www.conventionalcommits.org) —
+  a type prefix (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `ci:`, …) and a
+  short imperative subject. A `commit-msg` hook runs commitlint to enforce it,
+  and release-please reads these types to drive versioning. Keep commits focused.
 - **PRs:** fill in the template (what/why + the gate checklist). CI runs
   lint · typecheck · test on every PR and must pass.
 

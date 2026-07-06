@@ -1,26 +1,40 @@
 name: Release
 
+# release-please watches conventional commits on main. When release-worthy
+# changes land it opens a release PR (version bump + changelog); merging that PR
+# creates the tag + GitHub release, and the steps below build and attach the
+# binaries in the same run (gated on release_created).
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  binaries:
-    name: build + publish single-file binaries
+  release:
+    name: release-please + binaries
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          release-type: node
+
       - uses: actions/checkout@v7
+        if: ${{ steps.release.outputs.release_created }}
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
+        if: ${{ steps.release.outputs.release_created }}
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+        if: ${{ steps.release.outputs.release_created }}
       - name: cross-compile
+        if: ${{ steps.release.outputs.release_created }}
         run: |
           mkdir -p dist
           for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64 bun-windows-x64; do
@@ -31,8 +45,10 @@ jobs:
           done
           ls -lh dist
       - name: checksums
+        if: ${{ steps.release.outputs.release_created }}
         run: cd dist && sha256sum modelmux-* > SHA256SUMS && cat SHA256SUMS
-      - name: publish release
+      - name: attach binaries to the release
+        if: ${{ steps.release.outputs.release_created }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/modelmux-* dist/SHA256SUMS --generate-notes --title "${{ github.ref_name }}"
+        run: gh release upload "${{ steps.release.outputs.tag_name }}" dist/modelmux-* dist/SHA256SUMS

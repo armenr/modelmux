@@ -6,6 +6,11 @@ pre-commit:
       run: bunx eslint --fix --cache --cache-location .eslintcache {staged_files}
       stage_fixed: true
 
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}
+
 pre-push:
   commands:
     test:
