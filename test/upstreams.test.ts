@@ -1,6 +1,6 @@
 import type { Decision } from "../src/types.ts";
 import { expect, test } from "bun:test";
-import { forwardUrl, MissingKeyError, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
+import { forwardUrl, MissingKeyError, passthroughHeaders, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
 
 const toOR: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
 const toAnthropic: Decision = { alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default" };
@@ -50,4 +50,34 @@ test("anthropic leg with no env key and no inbound auth returns no auth and does
 test("rewriteBody sets model unless passthrough", () => {
   expect(rewriteBody(toOR, { model: "claude-sonnet-4-6" }).model).toBe("z-ai/glm-5.2");
   expect(rewriteBody(toAnthropic, { model: "claude-sonnet-4-6" }).model).toBe("claude-sonnet-4-6");
+});
+
+test("passthroughHeaders keeps rate-limit/retry-after/request-id, drops framing, forces no-cache", () => {
+  const up = new Headers({
+    "content-type": "text/event-stream",
+    "retry-after": "30",
+    "anthropic-ratelimit-requests-remaining": "42",
+    "request-id": "req_123",
+    "content-length": "999",
+    "content-encoding": "gzip",
+    "transfer-encoding": "chunked",
+    "connection": "keep-alive",
+  });
+  const out = passthroughHeaders(up);
+  expect(out.get("retry-after")).toBe("30");
+  expect(out.get("anthropic-ratelimit-requests-remaining")).toBe("42");
+  expect(out.get("request-id")).toBe("req_123");
+  expect(out.get("content-type")).toBe("text/event-stream");
+  expect(out.get("cache-control")).toBe("no-cache");
+  // framing headers stripped — Bun already decoded the body and re-frames our reply
+  expect(out.get("content-length")).toBeNull();
+  expect(out.get("content-encoding")).toBeNull();
+  expect(out.get("transfer-encoding")).toBeNull();
+  expect(out.get("connection")).toBeNull();
+});
+
+test("passthroughHeaders defaults content-type when the upstream omits it", () => {
+  const out = passthroughHeaders(new Headers());
+  expect(out.get("content-type")).toBe("application/json");
+  expect(out.get("cache-control")).toBe("no-cache");
 });

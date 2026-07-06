@@ -107,6 +107,27 @@ test("missing OpenRouter key fails loud with 400 AND logs an error record", asyn
   noKey.stop(true);
 });
 
+test("unreachable upstream fails loud: 502 + a logged error record", async () => {
+  const dead = Bun.serve({ port: 0, fetch: () => new Response("x") });
+  const deadOrigin = dead.url.origin;
+  dead.stop(true); // nothing is listening on that port now → connection refused
+  const p = buildServer({
+    config: CONFIG,
+    env: { OPENROUTER_API_KEY: "k" },
+    logPath: LOG,
+    port: 0,
+    baseOverride: { anthropic: deadOrigin, openrouter: deadOrigin },
+  });
+  const res = await fetch(`${p.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-app": "cli" },
+    body: JSON.stringify({ model: "claude-x" }),
+  });
+  expect(res.status).toBe(502);
+  expect(readDecisions(LOG).at(-1)!.matchedRule).toBe("error"); // forward failure logged, not a silent 500
+  p.stop(true);
+});
+
 test("live config swap via holder changes routing without restart", async () => {
   const holder = { current: structuredClone(CONFIG) };
   const p = buildServer({

@@ -5,7 +5,7 @@ import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
-import { forwardUrl, rewriteBody, rewriteHeaders } from "./upstreams.ts";
+import { forwardUrl, passthroughHeaders, rewriteBody, rewriteHeaders } from "./upstreams.ts";
 
 export interface ServerOpts {
   config?: Config; // static config (tests); ignored if configHolder is set
@@ -60,18 +60,27 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         ? base + url.pathname + url.search
         : forwardUrl(decision.upstream, url.pathname, url.search);
 
-      const upstream = await fetch(target, {
-        method: req.method,
-        headers,
-        body: JSON.stringify(body),
-      });
+      let upstream: Response;
+      try {
+        upstream = await fetch(target, {
+          method: req.method,
+          headers,
+          body: JSON.stringify(body),
+          signal: req.signal, // propagate client cancellation so we don't keep billing
+        });
+      }
+      catch (e) {
+        // Client hung up before the upstream answered — nothing left to reply to.
+        if ((e as Error).name === "AbortError")
+          return new Response(null, { status: 499 });
+        // Upstream unreachable (DNS/refused/TLS/offline): fail loud + log, never a silent 500.
+        logError(opts.logPath, signals, e as Error);
+        return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
+      }
 
       return new Response(upstream.body, {
         status: upstream.status,
-        headers: {
-          "content-type": upstream.headers.get("content-type") ?? "application/json",
-          "cache-control": "no-cache",
-        },
+        headers: passthroughHeaders(upstream.headers),
       });
     },
   });

@@ -61,7 +61,7 @@ export async function runCli(argv: string[]): Promise<number> {
     }
     if (cmd === "check-latest") {
       const { run } = await import("../scripts/check-latest.ts");
-      return run();
+      return run(ROUTES); // honor MUX_ROUTES like every other command
     }
     console.log("commands: serve | models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
     return 0;

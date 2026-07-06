@@ -58,3 +58,28 @@ export function rewriteBody(decision: Decision, body: any): any {
     body.model = decision.model;
   return body;
 }
+
+// Framing headers that describe the *upstream* transfer — Bun's fetch already
+// decoded the body and will re-frame our streamed Response, so copying these
+// would double-decode or mis-length the reply.
+const STRIP_RESPONSE = new Set(["content-length", "content-encoding", "transfer-encoding", "connection"]);
+
+// Build downstream response headers from the upstream ones, so rate-limit /
+// retry-after / request-id survive (Claude Code honors them for backoff), while
+// stale framing headers are dropped and caching is disabled. Multi-value
+// set-cookie is preserved.
+export function passthroughHeaders(upstream: Headers): Headers {
+  const out = new Headers();
+  for (const [k, v] of upstream) {
+    const key = k.toLowerCase();
+    if (STRIP_RESPONSE.has(key) || key === "set-cookie")
+      continue;
+    out.set(k, v);
+  }
+  for (const c of upstream.getSetCookie?.() ?? [])
+    out.append("set-cookie", c);
+  if (!out.has("content-type"))
+    out.set("content-type", "application/json");
+  out.set("cache-control", "no-cache");
+  return out;
+}
