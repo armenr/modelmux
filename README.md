@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/armenr/modelmux/actions/workflows/ci.yml/badge.svg)](https://github.com/armenr/modelmux/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000.svg)](https://bun.sh)
+[![Release](https://img.shields.io/github/v/release/armenr/modelmux)](https://github.com/armenr/modelmux/releases/latest)
 
 > **Stop paying Claude rates for your grep-the-repo subagents.**
 
@@ -13,6 +13,7 @@ front of it and reroutes the subagents *you choose* to cheaper or specialized mo
 
 **One proxy, one config file, no magic:**
 
+- 📦 **Ships as one binary** — download a single file and run it. No Bun, Docker, or toolchain.
 - 🧠 **Orchestrator stays Claude** — the main loop never leaves Anthropic.
 - 🔀 **Subagents go where you point them** — by a route tag, work-type, or "any subagent."
 - 📄 **One file runs it** — [`routes.toml`](routes.toml): friendly aliases → models, hot-reloaded on save.
@@ -34,51 +35,33 @@ Requests flow through three pure steps — `extractSignals` (`src/signals.ts`) �
 pass straight through untouched. OpenRouter's Anthropic-compatible endpoint means
 no request translation is needed.
 
-## Install
-
-**Option A — prebuilt binary (no toolchain).** A single self-contained executable
-(the Bun runtime is baked in) from
-[Releases](https://github.com/armenr/modelmux/releases/latest) — no Bun, DevBox,
-or Docker required:
-
-```bash
-# Swap the suffix for your platform: modelmux-linux-x64 · -linux-arm64 ·
-# -darwin-x64 · -darwin-arm64 · -windows-x64.exe
-curl -fsSL https://github.com/armenr/modelmux/releases/latest/download/modelmux-darwin-arm64 -o modelmux
-chmod +x modelmux
-OPENROUTER_API_KEY=sk-or-... ./modelmux           # runs the proxy on :8787
-```
-
-On first run the binary writes a default `routes.toml` beside itself (edit it to
-swap models — hot-reloaded). `./modelmux models` / `set` / `check-latest` manage
-the config; `./modelmux` with no args runs the proxy. Full binary usage:
-[docs/using-the-binary.md](docs/using-the-binary.md).
-
-**Option B — from a checkout** (Bun, or DevBox for a pinned toolchain): the
-[Quickstart](#quickstart) below, or [docs/development.md](docs/development.md)
-for the full from-source workflow.
-
-Either way, point Claude Code at it: copy `.claude/settings.json.example` →
-`.claude/settings.json` (`ANTHROPIC_BASE_URL=http://127.0.0.1:8787`) and restart
-Claude Code.
-
 ## Quickstart
 
-From a checkout (needs Bun):
+Download the binary, run it, point Claude Code at it. The Bun runtime is baked in,
+so there's no toolchain to install.
 
 ```bash
-bun install                                  # dev deps (or: devbox shell)
-cp .env.example .env                         # set OPENROUTER_API_KEY (openrouter.ai/keys)
-bun run proxy                                # → modelmux listening on http://localhost:8787
-cp .claude/settings.json.example .claude/settings.json   # opt Claude Code into the proxy
-# ...then RESTART Claude Code (ANTHROPIC_BASE_URL is read at startup)
+# 1. Grab the binary for your platform — swap the suffix: modelmux-linux-x64 ·
+#    -linux-arm64 · -darwin-x64 · -darwin-arm64 · -windows-x64.exe
+curl -fsSL https://github.com/armenr/modelmux/releases/latest/download/modelmux-darwin-arm64 -o modelmux
+chmod +x modelmux
+
+# 2. Run it — writes a default routes.toml on first run, listens on :8787
+OPENROUTER_API_KEY=sk-or-... ./modelmux
+
+# 3. Point Claude Code at it (set this where Claude Code starts), then RESTART it
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8787
 ```
 
 That's the whole setup. Dispatch a subagent and it routes to OpenRouter while your
-main loop stays on Claude — the **Worked example** below shows exactly what you'll see.
+main loop stays on Claude — the [**Worked example**](#worked-example--put-your-research-agent-on-glm)
+below shows exactly what you'll see. Full binary usage — subcommands, env vars,
+checksums, upgrading — is in **[docs/using-the-binary.md](docs/using-the-binary.md)**.
 
-New here? Run the **`/getting-started`** skill, or dispatch the
-**`setup-assistant`** agent — both walk you through this and verify each step.
+> **Running from a checkout** (from source, or hacking on modelmux)? →
+> **[docs/development.md](docs/development.md)**. New here? Run the
+> **`/getting-started`** skill or dispatch the **`setup-assistant`** agent — both
+> walk the setup and verify each step.
 
 ## How routing works
 
@@ -144,7 +127,7 @@ The research ran on GLM; your main loop never left Claude. Prefer Qwen for it
 instead? No file editing required:
 
 ```bash
-bin/mux use glm-researcher max     # point that agent at the `max` alias (qwen)
+modelmux use glm-researcher max     # point that agent at the `max` alias (qwen)
 ```
 
 ## The model menu
@@ -163,76 +146,28 @@ cheap = "openrouter:deepseek/deepseek-v4-flash"
 claude-review = "anthropic:claude-sonnet-5"
 ```
 
-> The slugs above are illustrative — run `bin/mux check-latest` to see which
-> models actually exist on OpenRouter right now, and `mux set` to update one.
+> The slugs above are illustrative — run `modelmux check-latest` to see which
+> models actually exist on OpenRouter right now, and `modelmux set` to update one.
 
 The proxy **hot-reloads** `routes.toml` on save (and keeps the last good config
 if an edit is invalid). Full switching guide: the **`/switch-models`** skill.
 
-## The `mux` CLI
+## The CLI
+
+`modelmux` with no arguments runs the proxy; the subcommands manage `routes.toml`:
 
 ```bash
-bin/mux models                              # list aliases → upstream:slug
-bin/mux set flagship openrouter:z-ai/glm-6  # repoint an alias
-bin/mux use glm-researcher reasoner         # retarget an agent's <<route:>> tag
-bin/mux check-latest                        # verify configured slugs exist on OpenRouter
+modelmux models                              # list aliases → upstream:slug
+modelmux set flagship openrouter:z-ai/glm-6  # repoint an alias
+modelmux use glm-researcher reasoner         # retarget an agent's <<route:>> tag
+modelmux check-latest                        # verify configured slugs exist on OpenRouter
 ```
 
-Or override an alias for one run without editing files:
-`MUX_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max bun run proxy`.
+Or override an alias for a single run without editing files:
+`MUX_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max modelmux`.
 
-## Project layout
-
-```text
-src/            proxy core — signals, route, upstreams, server, config, log, types, cli
-bin/mux         the switching CLI
-scripts/        check-latest (catalog diff) · live-smoke (real e2e) · record-fixtures
-routes.toml     the model menu + routing cascade
-test/           hermetic bun:test suite (+ recorded request fixtures)
-.claude/        agents + onboarding skills that ship with the template
-docs/           design spec + implementation plan (see docs/README.md)
-```
-
-## Development
-
-Requires [Bun](https://bun.sh). Two setups:
-
-- **DevBox** (Nix-backed, reproducible): `devbox shell` provisions Bun, jq, and
-  lefthook, loads `.env`, and installs git hooks.
-- **Bun-direct**: `bun install`, then `lefthook install`.
-
-The gates — all three must pass, and a `pre-commit` hook auto-fixes lint while
-`pre-push` runs the tests:
-
-```bash
-bun run lint        # ESLint (Antfu config — also formats; no Prettier)
-bun run typecheck   # tsc --noEmit
-bun test test/      # hermetic (no network)
-```
-
-Real end-to-end check (opt-in; needs `OPENROUTER_API_KEY`, makes a billable call):
-
-```bash
-bun run test:live
-```
-
-Build the vended single binary for your platform: `bun run build` → `dist/modelmux`.
-CI cross-compiles all platforms on a `v*` tag (see `.github/workflows/release.yml`).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and conventions.
-
-## Onboarding skills & agents
-
-These ship in `.claude/` so a fresh clone can use them immediately:
-
-- **`/getting-started`** — clone → install → key → run → verify.
-- **`/explain-modelmux`** — the mental model: why a proxy, the signals, the cascade.
-- **`/switch-models`** — swap models, retarget agents, override at runtime.
-- **`setup-assistant`** (agent) — checks Bun, your key, config, and the proxy,
-  and reports what's left. Pinned to Claude via `<<route:control>>`.
-
-Example subagents `glm-researcher` (`<<route:flagship>>`) and `minimax-reviewer`
-(`<<route:review>>`) show how tagging routes work.
+From a checkout, the same commands are `bin/mux <cmd>` (and `bun run proxy` to
+serve) — see [docs/development.md](docs/development.md).
 
 ## Security & scope — what this is (and isn't)
 
@@ -245,6 +180,28 @@ official client, nor for pooling multiple subscriptions — those rely on
 reverse-engineered first-party impersonation that violates provider terms and
 risks account bans. Keep your keys in the environment; never commit them. See
 [SECURITY.md](.github/SECURITY.md).
+
+## Develop / from source
+
+Prefer to run the proxy from source or hack on modelmux?
+**[docs/development.md](docs/development.md)** covers Bun/DevBox setup, the
+`bin/mux` CLI, the test/lint gates, and building the binary. Contributions
+welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+```text
+src/         proxy core — signals · route · upstreams · server · config · log · cli
+routes.toml  the model menu + routing cascade
+scripts/     check-latest · live-smoke · record-fixtures
+test/        hermetic bun:test suite (+ recorded request fixtures)
+.claude/     agents + onboarding skills that ship with the template
+docs/        how-to guides + design history (see docs/README.md)
+```
+
+The bundled skills — **`/getting-started`**, **`/explain-modelmux`**,
+**`/switch-models`** — and the **`setup-assistant`** agent ship in `.claude/` so a
+fresh clone can use them immediately. Example subagents `glm-researcher`
+(`<<route:flagship>>`) and `minimax-reviewer` (`<<route:review>>`) show how tag
+routing works.
 
 ## License
 
