@@ -1,9 +1,9 @@
 # Developing modelmux from source
 
 Run the proxy from a git checkout, run the gates, and build the binary. If you
-only want to download and run the compiled binary, see
-[using-the-binary.md](using-the-binary.md) instead. For branching, commits, and
-PR conventions, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+only want to download and run the compiled binary, the [README](../README.md)
+covers that. For branching, commits, and PR conventions, see
+[CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Prerequisites
 
@@ -198,8 +198,7 @@ bun run build
 This runs `bun build --compile --minify src/main.ts --outfile dist/modelmux`,
 producing a self-contained `dist/modelmux` (~63 MB) with the Bun runtime baked
 in and `routes.toml` embedded at compile time. The binary needs no Bun, Node,
-DevBox, or Docker to run; see [using-the-binary.md](using-the-binary.md) for its
-behavior.
+DevBox, or Docker to run; see the [README](../README.md) for how to use it.
 
 Releases are automated by
 [release-please](https://github.com/googleapis/release-please): conventional

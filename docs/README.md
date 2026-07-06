@@ -1,9 +1,9 @@
 # Docs
 
-## How-to guides
+Just want to download and run the released binary? That's the
+[README](../README.md). This folder is for building from source and design
+background.
 
-- [`using-the-binary.md`](using-the-binary.md) — run the prebuilt `modelmux`
-  binary: install, serve, manage `routes.toml`, and point Claude Code at it.
 - [`development.md`](development.md) — work from a checkout: Bun/DevBox setup,
   the `bin/mux` CLI, the gates, and building the binary.
 

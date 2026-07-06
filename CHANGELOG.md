@@ -49,8 +49,8 @@ routing in Claude Code.
   end-to-end routing check).
 - **Onboarding skills/agents** (`.claude/`): `getting-started`, `explain-modelmux`,
   `switch-models` skills, and an interactive `setup-assistant` agent.
-- **Docs**: [`docs/using-the-binary.md`](docs/using-the-binary.md) (binary
-  users) and [`docs/development.md`](docs/development.md) (from-source workflow).
+- **Docs**: the [README](README.md) (binary users) and
+  [`docs/development.md`](docs/development.md) (from-source workflow).
 - **Reproducible toolchain**: DevBox + Bun, ESLint (Antfu config, no Prettier),
   lefthook git hooks, and a hermetic `bun test` suite.
 - **CI**: lint · typecheck · test gate on every push/PR, plus an opt-in live

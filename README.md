@@ -6,110 +6,77 @@
 
 > **Stop paying Claude rates for your grep-the-repo subagents.**
 
-**The stupid-simple way to run Claude Code subagents on other models.** Claude Code
-picks its model from one global env var, so `modelmux` is a tiny proxy that sits in
-front of it and reroutes the subagents *you choose* to cheaper or specialized models
-(GLM, Qwen, DeepSeek, MiniMax via OpenRouter) — while your orchestrator stays on Claude.
+modelmux is a tiny proxy you run in front of Claude Code. It keeps your
+orchestrator on Claude and reroutes the subagents *you choose* to cheaper or
+specialized models — GLM, Qwen, DeepSeek, MiniMax via OpenRouter. It ships as a
+single self-contained binary: download one file and run it, no Bun, Docker, or
+toolchain.
 
-**One proxy, one config file, no magic:**
+- **Orchestrator stays Claude** — the main loop never leaves Anthropic.
+- **Subagents go where you point them** — by a route tag, a work-type, or "any subagent."
+- **One file runs it** — [`routes.toml`](routes.toml) maps friendly aliases to models, hot-reloaded on save.
+- **Your keys, the sanctioned way** — your OpenRouter key plus Claude Code's own auth passed through. No impersonation.
 
-- 📦 **Ships as one binary** — download a single file and run it. No Bun, Docker, or toolchain.
-- 🧠 **Orchestrator stays Claude** — the main loop never leaves Anthropic.
-- 🔀 **Subagents go where you point them** — by a route tag, work-type, or "any subagent."
-- 📄 **One file runs it** — [`routes.toml`](routes.toml): friendly aliases → models, hot-reloaded on save.
-- 🔑 **Your keys, the sanctioned way** — your OpenRouter key + Claude Code passthrough. No impersonation.
+## Install
 
-## Architecture
+Download the binary for your platform from the
+[latest release](https://github.com/armenr/modelmux/releases/latest) — the Bun
+runtime is baked in, so there's nothing else to install:
 
-```mermaid
-flowchart TD
-    CC["Claude Code request"] -->|"ANTHROPIC_BASE_URL to 127.0.0.1:8787"| MUX["modelmux proxy"]
-    MUX --> SIG["extract signals<br/>agent-id? · x-app? · route tag?"]
-    SIG --> Q{"first-match cascade"}
-    Q -->|"main loop · control tag"| CLAUDE["api.anthropic.com<br/>passthrough — stays Claude"]
-    Q -->|"tagged · background · any subagent"| OUT["openrouter.ai/api<br/>GLM · Qwen · DeepSeek · MiniMax"]
-```
-
-Requests flow through three pure steps — `extractSignals` (`src/signals.ts`) →
-`route` (`src/route.ts`) → auth rewrite (`src/upstreams.ts`) — and SSE streams
-pass straight through untouched. OpenRouter's Anthropic-compatible endpoint means
-no request translation is needed.
-
-## Quickstart
-
-Download the binary, run it, point Claude Code at it. The Bun runtime is baked in,
-so there's no toolchain to install.
+| Platform | Asset |
+|----------|-------|
+| Linux x64 | `modelmux-linux-x64` |
+| Linux arm64 | `modelmux-linux-arm64` |
+| macOS x64 | `modelmux-darwin-x64` |
+| macOS arm64 | `modelmux-darwin-arm64` |
+| Windows x64 | `modelmux-windows-x64.exe` |
 
 ```bash
-# 1. Grab the binary for your platform — swap the suffix: modelmux-linux-x64 ·
-#    -linux-arm64 · -darwin-x64 · -darwin-arm64 · -windows-x64.exe
+# macOS arm64 shown — swap the suffix for your platform
 curl -fsSL https://github.com/armenr/modelmux/releases/latest/download/modelmux-darwin-arm64 -o modelmux
 chmod +x modelmux
+```
 
-# 2. Run it — writes a default routes.toml on first run, listens on :8787
+Each release also ships a `SHA256SUMS` file if you want to verify the download
+(`shasum -a 256 -c SHA256SUMS`).
+
+## Run it
+
+```bash
 OPENROUTER_API_KEY=sk-or-... ./modelmux
+```
 
-# 3. Point Claude Code at it (set this where Claude Code starts), then RESTART it
+On first run it writes a default `routes.toml` next to itself and starts serving:
+
+```text
+[modelmux] wrote default routes.toml (edit it to change models)
+modelmux listening on http://localhost:8787
+```
+
+That's the proxy. It watches `routes.toml` and applies edits live (keeping the
+last good config if you save something invalid). `./modelmux` and
+`./modelmux serve` do the same thing.
+
+## Point Claude Code at it
+
+Claude Code talks to modelmux when `ANTHROPIC_BASE_URL` points at the proxy. Set
+it where Claude Code starts, then **restart Claude Code** — it reads that value
+once at startup:
+
+```bash
 export ANTHROPIC_BASE_URL=http://127.0.0.1:8787
 ```
 
-That's the whole setup. Dispatch a subagent and it routes to OpenRouter while your
-main loop stays on Claude — the [**Worked example**](#worked-example--put-your-research-agent-on-glm)
-below shows exactly what you'll see. Full binary usage — subcommands, env vars,
-checksums, upgrading — is in **[docs/using-the-binary.md](docs/using-the-binary.md)**.
+modelmux doesn't read `ANTHROPIC_BASE_URL`; Claude Code does. That's the whole
+setup — dispatch a subagent and watch it route.
 
-> **Running from a checkout** (from source, or hacking on modelmux)? →
-> **[docs/development.md](docs/development.md)**. New here? Run the
-> **`/getting-started`** skill or dispatch the **`setup-assistant`** agent — both
-> walk the setup and verify each step.
+## See it route
 
-## How routing works
-
-The proxy routes on **request signals**, not the requested model string (which
-sidesteps a Claude Code bug where a subagent's model can fall back to the
-parent's). The key signals (`src/signals.ts`):
-
-- `x-claude-code-agent-id` — present **only** on subagent requests (`isSubagent`).
-- `x-app` — `cli` (foreground) vs `cli-bg` (background work).
-- `<<route:alias>>` — an explicit tag in an agent's system prompt.
-
-`route()` walks `routes.toml` top-to-bottom, **first match wins**:
-
-| Order | When | Routes to | Upstream |
-| ----- | ---- | --------- | -------- |
-| 1 | `<<route:flagship\|max\|reasoner\|review\|claude-review>>` | that alias | OpenRouter / Anthropic |
-| 2 | `<<route:control>>` | `orchestrator` | Anthropic (passthrough) |
-| 3 | `workType: background` (`x-app: cli-bg`) | `cheap` | OpenRouter |
-| 4 | any other subagent (`anySubagent`) | `flagship` | OpenRouter |
-| 5 | default (the main loop) | `orchestrator` | Anthropic (passthrough) |
-
-The main loop carries no `x-claude-code-agent-id`, so it never matches a subagent
-rule — it falls to the default and **stays on Claude**. Want the full mental
-model? Run the **`/explain-modelmux`** skill.
-
-### Work-type routing (beyond tags)
-
-Row 3 above matches a **work type** — a property of the request itself, so you
-don't have to tag every agent. The proxy derives four:
-
-- `background` — `x-app: cli-bg` (a background/side task)
-- `longContext` — estimated input tokens exceed `longContextThreshold`
-- `think` — the request carries an extended-thinking block
-- `webSearch` — the request includes a web-search tool
-
-**Only `background` is wired up by default.** `routes.toml` ships the others as
-commented-out examples — uncomment one to route, e.g., big-context requests to a
-roomier model. (That's the sole purpose of `longContextThreshold`: it's the
-cutoff for the `longContext` type, and it does nothing until a `longContext`
-rule exists.)
-
-## Worked example — put your research agent on GLM
-
-The bundled `glm-researcher` agent starts with a route tag, so the proxy sends that
-one subagent to OpenRouter while everything else stays on Claude:
+The bundled `glm-researcher` agent starts with a route tag, so the proxy sends
+that one subagent to OpenRouter while everything else stays on Claude:
 
 ```text
-.claude/agents/glm-researcher.md  →  <<route:flagship>>  →  openrouter:z-ai/glm-5.2
+.claude/agents/glm-researcher.md  ->  <<route:flagship>>  ->  openrouter:z-ai/glm-5.2
 ```
 
 Dispatch it from a Claude Code session, then read the decision log:
@@ -123,17 +90,52 @@ tail -n 2 decisions.jsonl
 { "isSubagent": false, "matchedRule": "default",      "upstream": "anthropic",  "resolvedModel": "passthrough" }
 ```
 
-The research ran on GLM; your main loop never left Claude. Prefer Qwen for it
-instead? No file editing required:
+The research ran on GLM; your main loop never left Claude.
 
-```bash
-modelmux use glm-researcher max     # point that agent at the `max` alias (qwen)
+## How routing works
+
+The proxy routes on **request signals**, not the requested model string (which
+sidesteps a Claude Code bug where a subagent's model can fall back to the
+parent's). The key signals:
+
+- `x-claude-code-agent-id` — present **only** on subagent requests.
+- `x-app` — `cli` (foreground) vs `cli-bg` (background work).
+- `<<route:alias>>` — an explicit tag in an agent's system prompt.
+
+```mermaid
+flowchart TD
+    CC["Claude Code request"] -->|"ANTHROPIC_BASE_URL to 127.0.0.1:8787"| MUX["modelmux proxy"]
+    MUX --> SIG["extract signals<br/>agent-id? · x-app? · route tag?"]
+    SIG --> Q{"first-match cascade"}
+    Q -->|"main loop · control tag"| CLAUDE["api.anthropic.com<br/>passthrough — stays Claude"]
+    Q -->|"tagged · background · any subagent"| OUT["openrouter.ai/api<br/>GLM · Qwen · DeepSeek · MiniMax"]
 ```
+
+The cascade in `routes.toml` is walked top to bottom, **first match wins**:
+
+| Order | When | Routes to | Upstream |
+| ----- | ---- | --------- | -------- |
+| 1 | `<<route:flagship\|max\|reasoner\|review\|claude-review>>` | that alias | OpenRouter / Anthropic |
+| 2 | `<<route:control>>` | `orchestrator` | Anthropic (passthrough) |
+| 3 | `workType: background` (`x-app: cli-bg`) | `cheap` | OpenRouter |
+| 4 | any other subagent | `flagship` | OpenRouter |
+| 5 | default (the main loop) | `orchestrator` | Anthropic (passthrough) |
+
+The main loop carries no `x-claude-code-agent-id`, so it never matches a subagent
+rule — it falls to the default and stays on Claude.
+
+### Work-type routing (beyond tags)
+
+Row 3 matches a **work type** — a property of the request itself, so you don't
+have to tag every agent. The proxy derives four: `background` (`x-app: cli-bg`),
+`longContext` (estimated input tokens over `longContextThreshold`), `think` (an
+extended-thinking block), and `webSearch` (a web-search tool). Only `background`
+is wired up by default; `routes.toml` ships the others as commented-out examples.
 
 ## The model menu
 
-Models live behind friendly aliases in [`routes.toml`](routes.toml) — swap one
-in a single place:
+Models live behind friendly aliases in [`routes.toml`](routes.toml), so you swap
+one in a single place:
 
 ```toml
 [models]
@@ -146,33 +148,64 @@ cheap = "openrouter:deepseek/deepseek-v4-flash"
 claude-review = "anthropic:claude-sonnet-5"
 ```
 
-> The slugs above are illustrative — run `modelmux check-latest` to see which
-> models actually exist on OpenRouter right now, and `modelmux set` to update one.
+The slugs above are illustrative — run `modelmux check-latest` to see which
+models actually exist on OpenRouter right now.
 
-The proxy **hot-reloads** `routes.toml` on save (and keeps the last good config
-if an edit is invalid). Full switching guide: the **`/switch-models`** skill.
-
-## The CLI
+## Managing config from the CLI
 
 `modelmux` with no arguments runs the proxy; the subcommands manage `routes.toml`:
 
 ```bash
-modelmux models                              # list aliases → upstream:slug
+modelmux models                              # list aliases -> upstream:slug
 modelmux set flagship openrouter:z-ai/glm-6  # repoint an alias
 modelmux use glm-researcher reasoner         # retarget an agent's <<route:>> tag
 modelmux check-latest                        # verify configured slugs exist on OpenRouter
 ```
 
-Or override an alias for a single run without editing files:
-`MUX_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max modelmux`.
+`modelmux models` prints the current menu:
 
-From a checkout, the same commands are `bin/mux <cmd>` (and `bun run proxy` to
-serve) — see [docs/development.md](docs/development.md).
+```text
+alias            upstream:slug
+  orchestrator     anthropic:passthrough
+  flagship         openrouter:z-ai/glm-5.2
+  ...
+```
+
+`use` rewrites the `<<route:>>` tag inside `.claude/agents/<name>.md`, so it needs
+a project with a `.claude/agents/` directory; `models` and `set` work anywhere.
+
+## Configuration
+
+Everything is controlled by `routes.toml` and a few environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `OPENROUTER_API_KEY` | unset | Required for any `openrouter:` route. If a request routes to OpenRouter while it's unset, that request fails with HTTP 400. |
+| `PORT` | `8787` | Listen port. |
+| `MUX_ROUTES` | `./routes.toml` | Path to the routes config (also the first-run bootstrap target). |
+| `MUX_LOG` | `./decisions.jsonl` | Path to the JSONL decision log — one line per proxied request. |
+| `MUX_MODEL_<ALIAS>` | unset | Override one alias for a single run, e.g. `MUX_MODEL_FLAGSHIP=openrouter:qwen/qwen3.7-max ./modelmux`. Uppercase the alias, hyphens become underscores. |
+
+## Troubleshooting
+
+- **HTTP 400, `OPENROUTER_API_KEY is not set but a route needs OpenRouter`** — a
+  request routed to OpenRouter but the key is unset where modelmux runs. Set it
+  and restart the binary.
+- **Claude Code reports connection refused** — modelmux isn't running, or it's on
+  a different port than `ANTHROPIC_BASE_URL`. Start it and check the listening
+  line matches.
+- **A subagent is still answered by Claude** — Claude Code wasn't restarted after
+  `ANTHROPIC_BASE_URL` was set. That variable is read once at startup.
+
+## Upgrading
+
+Download the newer asset, mark it executable, and replace the old file. Your
+`routes.toml` and `decisions.jsonl` are separate files and aren't touched.
 
 ## Security & scope — what this is (and isn't)
 
-This template authenticates the **sanctioned** way: your own **OpenRouter API
-key** for non-Claude routes, and **passthrough of Claude Code's own auth** for
+modelmux authenticates the **sanctioned** way: your own **OpenRouter API key**
+for non-Claude routes, and **passthrough of Claude Code's own auth** for
 Anthropic. It impersonates nothing.
 
 It is **not** a tool for using a Claude/ChatGPT *subscription* outside its
@@ -181,27 +214,25 @@ reverse-engineered first-party impersonation that violates provider terms and
 risks account bans. Keep your keys in the environment; never commit them. See
 [SECURITY.md](.github/SECURITY.md).
 
-## Develop / from source
+## Build from source / contribute
 
-Prefer to run the proxy from source or hack on modelmux?
-**[docs/development.md](docs/development.md)** covers Bun/DevBox setup, the
-`bin/mux` CLI, the test/lint gates, and building the binary. Contributions
+Prefer to run the proxy from a checkout, hack on it, or build the binary
+yourself? **[docs/development.md](docs/development.md)** covers Bun/DevBox setup,
+the `bin/mux` CLI, the test/lint gates, and the release build. Contributions
 welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```text
 src/         proxy core — signals · route · upstreams · server · config · log · cli
 routes.toml  the model menu + routing cascade
 scripts/     check-latest · live-smoke · record-fixtures
-test/        hermetic bun:test suite (+ recorded request fixtures)
+test/        hermetic bun:test suite
 .claude/     agents + onboarding skills that ship with the template
-docs/        how-to guides + design history (see docs/README.md)
+docs/        development guide + design history (see docs/README.md)
 ```
 
-The bundled skills — **`/getting-started`**, **`/explain-modelmux`**,
-**`/switch-models`** — and the **`setup-assistant`** agent ship in `.claude/` so a
-fresh clone can use them immediately. Example subagents `glm-researcher`
-(`<<route:flagship>>`) and `minimax-reviewer` (`<<route:review>>`) show how tag
-routing works.
+Inside a Claude Code session, the bundled skills — **`/getting-started`**,
+**`/explain-modelmux`**, **`/switch-models`** — and the **`setup-assistant`**
+agent walk you through setup and model switching.
 
 ## License
 
