@@ -1,0 +1,11 @@
+# Normalize line endings to LF across platforms.
+* text=auto eol=lf
+
+# Generated / vendored — collapse in diffs and exclude from language stats.
+bun.lock linguist-generated=true -diff
+test/fixtures/** linguist-generated=true
+
+# Treat common binaries as binary.
+*.png binary
+*.jpg binary
+*.gif binary
