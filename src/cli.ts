@@ -15,6 +15,15 @@ export function setModel(tomlText: string, alias: string, spec: string): string 
   return tomlText.replace(re, `$1"${spec}"`);
 }
 
+// Rewrite the first <<route:alias>> tag in an agent file's text. Throws if there
+// is no tag to retarget, so `use` can't report a false success on a tagless file.
+export function retargetAgentTag(text: string, alias: string): string {
+  const re = /<<route:[\w-]+>>/i;
+  if (!re.test(text))
+    throw new Error("no <<route:...>> tag found to retarget");
+  return text.replace(re, `<<route:${alias}>>`);
+}
+
 export function listModels(config: Config): string {
   const rows = Object.entries(config.models).map(
     ([alias, ref]) => `  ${alias.padEnd(16)} ${ref.upstream}:${ref.slug}`,
@@ -26,35 +35,41 @@ export function listModels(config: Config): string {
 // the dev CLI (bin/mux) and the compiled binary (src/main.ts) can share it.
 export async function runCli(argv: string[]): Promise<number> {
   const [cmd, a, b] = argv;
-  if (cmd === "models") {
-    console.log(listModels(loadConfig(ROUTES)));
-    return 0;
-  }
-  if (cmd === "set") {
-    if (!a || !b) {
-      console.error("usage: modelmux set <alias> <upstream:slug>");
-      return 1;
+  try {
+    if (cmd === "models") {
+      console.log(listModels(loadConfig(ROUTES)));
+      return 0;
     }
-    writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
-    console.log(`set ${a} -> ${b}`);
-    return 0;
-  }
-  if (cmd === "use") {
-    if (!a || !b) {
-      console.error("usage: modelmux use <agent-name> <alias>");
-      return 1;
+    if (cmd === "set") {
+      if (!a || !b) {
+        console.error("usage: modelmux set <alias> <upstream:slug>");
+        return 1;
+      }
+      writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
+      console.log(`set ${a} -> ${b}`);
+      return 0;
     }
-    const path = `.claude/agents/${a}.md`;
-    writeFileSync(path, readFileSync(path, "utf8").replace(/<<route:[\w-]+>>/i, `<<route:${b}>>`));
-    console.log(`agent ${a} now uses <<route:${b}>>`);
+    if (cmd === "use") {
+      if (!a || !b) {
+        console.error("usage: modelmux use <agent-name> <alias>");
+        return 1;
+      }
+      const path = `.claude/agents/${a}.md`;
+      writeFileSync(path, retargetAgentTag(readFileSync(path, "utf8"), b));
+      console.log(`agent ${a} now uses <<route:${b}>>`);
+      return 0;
+    }
+    if (cmd === "check-latest") {
+      const { run } = await import("../scripts/check-latest.ts");
+      return run();
+    }
+    console.log("commands: serve | models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
     return 0;
   }
-  if (cmd === "check-latest") {
-    const { run } = await import("../scripts/check-latest.ts");
-    return run();
+  catch (e) {
+    console.error(`error: ${(e as Error).message}`);
+    return 1;
   }
-  console.log("commands: serve | models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
-  return 0;
 }
 
 function escape(s: string): string {
