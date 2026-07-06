@@ -6,20 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-
-- **Vended single binary**: `bun run build` compiles a self-contained
-  `dist/modelmux` (Bun runtime and `routes.toml` embedded at compile time) that
-  runs the proxy with no Bun, Node, DevBox, or Docker. `modelmux` (no args) or
-  `modelmux serve` starts it; on first run it writes a default `routes.toml` if
-  none exists. See [docs/using-the-binary.md](docs/using-the-binary.md).
-- **Release workflow** (`.github/workflows/release.yml`): a `v*` tag
-  cross-compiles the linux and darwin (x64 + arm64) and windows binaries and
-  publishes them to the GitHub release.
-- **Docs**: [docs/using-the-binary.md](docs/using-the-binary.md) (binary users)
-  and [docs/development.md](docs/development.md) (from-source workflow).
-
-## [0.1.0] - 2026-06-28
+## [0.1.0] - 2026-07-07
 
 Initial release — a batteries-included template for heterogeneous agent
 routing in Claude Code.
@@ -35,11 +22,21 @@ routing in Claude Code.
   Hot-reloads on edit; keeps the last good config if an edit is invalid.
 - **`mux` CLI** (`bin/mux`): `models`, `set`, `use`, and `check-latest`
   for swapping models and rebinding agents without hand-editing JSON.
+- **Vended single binary**: `bun run build` compiles a self-contained
+  `dist/modelmux` (Bun runtime and `routes.toml` embedded at compile time) that
+  runs the proxy with no Bun, Node, DevBox, or Docker. `modelmux` (no args) or
+  `modelmux serve` starts it; on first run it writes a default `routes.toml` if
+  none exists.
+- **Release workflow** (`.github/workflows/release.yml`): a `v*` tag
+  cross-compiles the linux and darwin (x64 + arm64) and windows binaries and
+  publishes them to the GitHub release.
 - **Tooling scripts**: `scripts/check-latest.ts` (compare configured OpenRouter
   slugs against the live catalog) and `scripts/live-smoke.ts` (opt-in real
   end-to-end routing check).
 - **Onboarding skills/agents** (`.claude/`): `getting-started`, `explain-modelmux`,
   `switch-models` skills, and an interactive `setup-assistant` agent.
+- **Docs**: [`docs/using-the-binary.md`](docs/using-the-binary.md) (binary
+  users) and [`docs/development.md`](docs/development.md) (from-source workflow).
 - **Reproducible toolchain**: DevBox + Bun, ESLint (Antfu config, no Prettier),
   lefthook git hooks, and a hermetic `bun test` suite.
 - **CI**: lint · typecheck · test gate on every push/PR, plus an opt-in live
