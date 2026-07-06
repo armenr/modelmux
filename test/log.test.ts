@@ -1,5 +1,5 @@
 import type { Decision, Signals } from "../src/types.ts";
-import { rmSync } from "node:fs";
+import { appendFileSync, rmSync } from "node:fs";
 import { expect, test } from "bun:test";
 import { logDecision, readDecisions } from "../src/log.ts";
 
@@ -32,4 +32,19 @@ test("appends a decision record readable back", () => {
   expect(rows[0].resolvedModel).toBe("z-ai/glm-5.2");
   expect(rows[1].isSubagent).toBe(false);
   rmSync(TMP, { force: true });
+});
+
+test("readDecisions skips a truncated final line instead of losing every record", () => {
+  rmSync(TMP, { force: true });
+  logDecision(TMP, sig(), dec);
+  appendFileSync(TMP, "{ \"partial\": tru"); // a record cut off mid-write (proxy killed / ENOSPC)
+  const rows = readDecisions(TMP);
+  expect(rows.length).toBe(1);
+  expect(rows[0].upstream).toBe("openrouter");
+  rmSync(TMP, { force: true });
+});
+
+test("logDecision does not throw when the log path is unwritable", () => {
+  // "test" is a directory → appendFileSync throws EISDIR, which must be swallowed.
+  expect(() => logDecision("test", sig(), dec)).not.toThrow();
 });
