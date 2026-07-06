@@ -4,7 +4,9 @@
 # Alias used when no route below matches (the orchestrator / main loop).
 default = "orchestrator"
 
-# Tokens above which a request counts as longContext.
+# Cutoff for the "longContext" work type (see the routes below). Has NO effect
+# until a `workType = "longContext"` route exists — it's a knob for optional
+# size-based routing, off by default.
 longContextThreshold = 200000
 
 # First match wins. Order = precedence (most specific first).
@@ -16,6 +18,15 @@ routes = [
   { when = { tag = "claude-review" }, use = "claude-review" },
   # A tagged control/setup agent stays on Claude (passthrough) even under anySubagent.
   { when = { tag = "control" }, use = "orchestrator" },
+  # Work-type rules (optional): match a request's WORK TYPE instead of a tag, so
+  # you don't have to tag every agent. Types: background (x-app: cli-bg),
+  # longContext (est. tokens > longContextThreshold), think (extended-thinking),
+  # webSearch (request carries a web_search tool). Only `background` is wired up
+  # by default — uncomment any of these (before the anySubagent catch-all) to
+  # enable size-/type-based routing:
+  #   { when = { workType = "longContext" }, use = "max" },
+  #   { when = { workType = "think" }, use = "reasoner" },
+  #   { when = { workType = "webSearch" }, use = "review" },
   { when = { workType = "background" }, use = "cheap" },
   { when = { anySubagent = true }, use = "flagship" },
 ]
@@ -27,4 +38,4 @@ max = "openrouter:qwen/qwen3.7-max"
 reasoner = "openrouter:deepseek/deepseek-v4-pro"
 review = "openrouter:minimax/minimax-m3"
 cheap = "openrouter:deepseek/deepseek-v4-flash"
-claude-review = "anthropic:claude-sonnet-4.6"
+claude-review = "anthropic:claude-sonnet-5"

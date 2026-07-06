@@ -93,7 +93,7 @@ test("loadConfig throws when default alias is absent from models (fail loud)", (
 
 test("resolveMenu maps a hyphenated alias to the MUX_MODEL_ underscore form", () => {
   const cfg = {
-    models: { "claude-review": { upstream: "anthropic", slug: "claude-sonnet-4.6" } },
+    models: { "claude-review": { upstream: "anthropic", slug: "claude-sonnet-5" } },
     default: "claude-review",
     routes: [],
     longContextThreshold: 200000,

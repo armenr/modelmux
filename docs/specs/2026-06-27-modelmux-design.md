@@ -75,7 +75,7 @@ Per-agent-type "by name" is **not** auto-detectable (no name signal); Tier 3 (ex
     "reasoner":     "openrouter:deepseek/deepseek-v4-pro",
     "review":       "openrouter:minimax/minimax-m3",
     "cheap":        "openrouter:deepseek/deepseek-v4-flash",
-    "claude-review":"anthropic:claude-sonnet-4.6"
+    "claude-review":"anthropic:claude-sonnet-5"
   },
   "default": "orchestrator",
   "routes": [
@@ -99,7 +99,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 | reasoner | `deepseek/deepseek-v4-pro` | 1M | 0.435 / 0.87 | deep reasoning, cheap |
 | review | `minimax/minimax-m3` | 1M* | 0.30 / 1.20† | multimodal + web research |
 | cheap | `deepseek/deepseek-v4-flash` | 1M | 0.09 / 0.18 | high-volume utility |
-| claude-review | `anthropic:claude-sonnet-4.6` | 1M | 3 / 15 | selectivity control |
+| claude-review | `anthropic:claude-sonnet-5` | 1M | 3 / 15 | selectivity control |
 
 \* MiniMax context varies by endpoint (512K first-party → 1.05M Parasail). † promo price; standard 0.60/2.40, doubles above 512K ctx.
 

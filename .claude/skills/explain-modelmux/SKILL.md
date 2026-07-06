@@ -38,7 +38,9 @@ From each request (`src/signals.ts`):
   bug where a subagent's requested model can silently fall back to the parent's.
 - **`x-app`** — `cli` for foreground, `cli-bg` for background work.
 - **`<<route:alias>>`** — an explicit tag placed in an agent's system prompt.
-- Plus `thinking`, a token estimate, and web-search tool detection.
+- **Work-type** signals derived from the request: `background` (`x-app: cli-bg`),
+  `longContext` (estimated tokens > `longContextThreshold`), `think` (an
+  extended-thinking block), `webSearch` (a web-search tool).
 
 ## The cascade
 
@@ -49,6 +51,13 @@ From each request (`src/signals.ts`):
 2. **`workType: background`** → the `cheap` model.
 3. **`anySubagent`** → the `flagship` model (any *untagged* subagent).
 4. **Default** → `orchestrator` (Anthropic passthrough).
+
+All four work types (`background`, `longContext`, `think`, `webSearch`) are
+implemented in `route.ts`, but only `background` is enabled in the shipped
+`routes.toml` — the others are commented-out examples an operator can turn on
+(e.g. send big-context requests to a roomier model). That's what
+`longContextThreshold` configures; it does nothing until a `longContext` rule
+exists.
 
 The **main loop has no `x-claude-code-agent-id`**, so it never matches a subagent
 rule — it falls to the default and **stays on Claude**. That's the core promise:

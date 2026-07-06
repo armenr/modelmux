@@ -75,6 +75,22 @@ The main loop carries no `x-claude-code-agent-id`, so it never matches a subagen
 rule — it falls to the default and **stays on Claude**. Want the full mental
 model? Run the **`/explain-modelmux`** skill.
 
+### Work-type routing (beyond tags)
+
+Row 3 above matches a **work type** — a property of the request itself, so you
+don't have to tag every agent. The proxy derives four:
+
+- `background` — `x-app: cli-bg` (a background/side task)
+- `longContext` — estimated input tokens exceed `longContextThreshold`
+- `think` — the request carries an extended-thinking block
+- `webSearch` — the request includes a web-search tool
+
+**Only `background` is wired up by default.** `routes.toml` ships the others as
+commented-out examples — uncomment one to route, e.g., big-context requests to a
+roomier model. (That's the sole purpose of `longContextThreshold`: it's the
+cutoff for the `longContext` type, and it does nothing until a `longContext`
+rule exists.)
+
 ## Worked example — put your research agent on GLM
 
 The bundled `glm-researcher` agent starts with a route tag, so the proxy sends that
@@ -115,7 +131,7 @@ max = "openrouter:qwen/qwen3.7-max"
 reasoner = "openrouter:deepseek/deepseek-v4-pro"
 review = "openrouter:minimax/minimax-m3"
 cheap = "openrouter:deepseek/deepseek-v4-flash"
-claude-review = "anthropic:claude-sonnet-4.6"
+claude-review = "anthropic:claude-sonnet-5"
 ```
 
 > The slugs above are illustrative — run `bin/mux check-latest` to see which

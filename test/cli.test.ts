@@ -7,7 +7,7 @@ default = "flagship"
 
 [models]
 flagship = "openrouter:z-ai/glm-5.2" # keep this comment
-claude-review = "anthropic:claude-sonnet-4.6"
+claude-review = "anthropic:claude-sonnet-5"
 `;
 
 test("setModel rewrites an alias in TOML text and it re-parses", () => {
@@ -20,7 +20,7 @@ test("setModel preserves surrounding lines and comments", () => {
   const out = setModel(ROUTES, "flagship", "openrouter:z-ai/glm-4.6");
   expect(out).toContain("# keep this comment");
   expect(out).toContain("# menu");
-  expect((Bun.TOML.parse(out) as any).models["claude-review"]).toBe("anthropic:claude-sonnet-4.6");
+  expect((Bun.TOML.parse(out) as any).models["claude-review"]).toBe("anthropic:claude-sonnet-5");
 });
 
 test("setModel handles a hyphenated alias without clobbering others", () => {
