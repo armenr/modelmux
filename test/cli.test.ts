@@ -1,6 +1,6 @@
 import type { Config } from "../src/types.ts";
 import { expect, test } from "bun:test";
-import { listModels, setModel } from "../src/cli.ts";
+import { listModels, retargetAgentTag, runCli, setModel } from "../src/cli.ts";
 
 const ROUTES = `# menu
 default = "flagship"
@@ -46,4 +46,17 @@ test("listModels renders each alias", () => {
   };
   expect(listModels(cfg)).toContain("flagship");
   expect(listModels(cfg)).toContain("z-ai/glm-5.2");
+});
+
+test("retargetAgentTag swaps the first route tag", () => {
+  expect(retargetAgentTag("intro <<route:flagship>> rest", "max")).toContain("<<route:max>>");
+});
+
+test("retargetAgentTag throws instead of a false success when there is no tag", () => {
+  expect(() => retargetAgentTag("an agent with no route tag", "max")).toThrow(/no <<route/);
+});
+
+test("runCli returns a clean exit code 1 (no stack trace) on a bad set spec", async () => {
+  // parseModelRef rejects a colon-less spec before any write, so routes.toml is untouched.
+  expect(await runCli(["set", "flagship", "bogus-no-colon"])).toBe(1);
 });
