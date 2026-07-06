@@ -11,7 +11,7 @@ decisions*.jsonl
 
 # --- deps / build ---
 node_modules/
-proxy/dist/
+dist/
 .devbox/
 .direnv/
 

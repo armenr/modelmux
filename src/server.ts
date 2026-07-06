@@ -77,12 +77,17 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
   });
 }
 
-if (import.meta.main) {
-  // watchConfig enables `mux set` / live routes.toml edits without a restart.
+// Boot the proxy from a routes file (used by `bun run proxy` and the compiled
+// binary). watchConfig enables `mux set` / live routes.toml edits without a restart.
+export function startProxy(routesPath = process.env.MUX_ROUTES ?? "routes.toml"): Bun.Server<never> {
   const server = buildServer({
-    configHolder: watchConfig("routes.toml"),
+    configHolder: watchConfig(routesPath),
     env: process.env,
     logPath: process.env.MUX_LOG ?? "decisions.jsonl",
   });
   console.log(`modelmux listening on ${server.url.origin}`);
+  return server;
 }
+
+if (import.meta.main)
+  startProxy();

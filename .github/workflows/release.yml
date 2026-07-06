@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: build + publish single-file binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: cross-compile
+        run: |
+          mkdir -p dist
+          for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64 bun-windows-x64; do
+            out="dist/modelmux-${target#bun-}"
+            [ "$target" = "bun-windows-x64" ] && out="$out.exe"
+            echo "building $out"
+            bun build --compile --minify --target="$target" src/main.ts --outfile "$out"
+          done
+          ls -lh dist
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/modelmux-* --generate-notes --title "${{ github.ref_name }}"

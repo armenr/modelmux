@@ -1,33 +1,7 @@
 #!/usr/bin/env bun
-import { readFileSync, writeFileSync } from "node:fs";
-import { loadConfig } from "../src/config.ts";
-import { setModel, listModels } from "../src/cli.ts";
+// Dev CLI alias. The compiled binary (src/main.ts) is the shipped entrypoint;
+// this just forwards to the same dispatcher for use from a checkout.
+import process from "node:process";
+import { runCli } from "../src/cli.ts";
 
-const ROUTES = "routes.toml";
-const [cmd, a, b] = process.argv.slice(2);
-
-if (cmd === "models") {
-  console.log(listModels(loadConfig(ROUTES)));
-}
-else if (cmd === "set") {
-  if (!a || !b)
-    throw new Error("usage: mux set <alias> <upstream:slug>");
-  writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
-  console.log(`set ${a} -> ${b}`);
-}
-else if (cmd === "use") {
-  // Rebind an agent file's tag to a different alias by rewriting its <<route:...>>.
-  if (!a || !b)
-    throw new Error("usage: mux use <agent-name> <alias>");
-  const path = `.claude/agents/${a}.md`;
-  const next = readFileSync(path, "utf8").replace(/<<route:[a-z0-9_-]+>>/i, `<<route:${b}>>`);
-  writeFileSync(path, next);
-  console.log(`agent ${a} now uses <<route:${b}>>`);
-}
-else if (cmd === "check-latest") {
-  const { run } = await import("../scripts/check-latest.ts");
-  process.exit(await run());
-}
-else {
-  console.log("commands: models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
-}
+process.exit(await runCli(process.argv.slice(2)));

@@ -1,5 +1,9 @@
 import type { Config } from "./types.ts";
-import { parseModelRef } from "./config.ts";
+import { readFileSync, writeFileSync } from "node:fs";
+import process from "node:process";
+import { loadConfig, parseModelRef } from "./config.ts";
+
+const ROUTES = process.env.MUX_ROUTES ?? "routes.toml";
 
 // Rewrite one alias's value in routes.toml text, preserving the rest verbatim.
 // Matches a TOML `alias = "..."` line under [models] (leading whitespace tolerated).
@@ -16,6 +20,41 @@ export function listModels(config: Config): string {
     ([alias, ref]) => `  ${alias.padEnd(16)} ${ref.upstream}:${ref.slug}`,
   );
   return ["alias            upstream:slug", ...rows].join("\n");
+}
+
+// Dispatch a `modelmux` / `mux` subcommand. Returns a process exit code so both
+// the dev CLI (bin/mux) and the compiled binary (src/main.ts) can share it.
+export async function runCli(argv: string[]): Promise<number> {
+  const [cmd, a, b] = argv;
+  if (cmd === "models") {
+    console.log(listModels(loadConfig(ROUTES)));
+    return 0;
+  }
+  if (cmd === "set") {
+    if (!a || !b) {
+      console.error("usage: modelmux set <alias> <upstream:slug>");
+      return 1;
+    }
+    writeFileSync(ROUTES, setModel(readFileSync(ROUTES, "utf8"), a, b));
+    console.log(`set ${a} -> ${b}`);
+    return 0;
+  }
+  if (cmd === "use") {
+    if (!a || !b) {
+      console.error("usage: modelmux use <agent-name> <alias>");
+      return 1;
+    }
+    const path = `.claude/agents/${a}.md`;
+    writeFileSync(path, readFileSync(path, "utf8").replace(/<<route:[\w-]+>>/i, `<<route:${b}>>`));
+    console.log(`agent ${a} now uses <<route:${b}>>`);
+    return 0;
+  }
+  if (cmd === "check-latest") {
+    const { run } = await import("../scripts/check-latest.ts");
+    return run();
+  }
+  console.log("commands: serve | models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
+  return 0;
 }
 
 function escape(s: string): string {

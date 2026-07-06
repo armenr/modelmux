@@ -33,7 +33,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "check": "bun run lint && bun run typecheck && bun test test/"
+    "check": "bun run lint && bun run typecheck && bun test test/",
+    "build": "bun build --compile --minify src/main.ts --outfile dist/modelmux"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.1.0",
