@@ -4,33 +4,30 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000.svg)](https://bun.sh)
 
-**Keep the Claude Code orchestrator on Claude, and route chosen subagents to
-other models (GLM, Qwen, DeepSeek, MiniMax, …) via OpenRouter — through a small
-proxy you own.**
+> **Stop paying Claude rates for your grep-the-repo subagents.**
 
-Claude Code chooses its upstream from a single global env var
-(`ANTHROPIC_BASE_URL`); there's no per-subagent model switch on the client. So
-this template points Claude Code at a tiny local reverse proxy that inspects
-each request and forwards it to the right place: your **main loop stays on
-Claude**, while the **subagents you tag** run on cheaper or specialized models.
+**The stupid-simple way to run Claude Code subagents on other models.** Claude Code
+picks its model from one global env var, so `modelmux` is a tiny proxy that sits in
+front of it and reroutes the subagents *you choose* to cheaper or specialized models
+(GLM, Qwen, DeepSeek, MiniMax via OpenRouter) — while your orchestrator stays on Claude.
 
-It's a **batteries-included, test-driven template** — clone it, plug in an
-OpenRouter key, and you have a working heterogeneous-routing setup you can shape.
+**One proxy, one config file, no magic:**
+
+- 🧠 **Orchestrator stays Claude** — the main loop never leaves Anthropic.
+- 🔀 **Subagents go where you point them** — by a route tag, work-type, or "any subagent."
+- 📄 **One file runs it** — [`routes.jsonc`](routes.jsonc): friendly aliases → models, hot-reloaded on save.
+- 🔑 **Your keys, the sanctioned way** — your OpenRouter key + Claude Code passthrough. No impersonation.
+- ✅ **Actually verified** — 53 hermetic tests plus lint + typecheck gates, on every push.
 
 ## Architecture
 
-```text
-   Claude Code  ──ANTHROPIC_BASE_URL──▶  modelmux (:8787, Bun.serve)
-                                              │
-                       signals: agent-id?  x-app?  <<route:tag>>?
-                                              │
-                 ┌────────────────────────────┴────────────────────────────┐
-                 ▼                                                          ▼
-       main loop  ·  <<route:control>>                       tagged  ·  or any subagent
-                 │                                                          │
-                 ▼                                                          ▼
-          api.anthropic.com                                        openrouter.ai/api
-        (passthrough = stays Claude)                     (GLM · Qwen · DeepSeek · MiniMax)
+```mermaid
+flowchart TD
+    CC["Claude Code request"] -->|"ANTHROPIC_BASE_URL to 127.0.0.1:8787"| MUX["modelmux proxy"]
+    MUX --> SIG["extract signals<br/>agent-id? · x-app? · route tag?"]
+    SIG --> Q{"first-match cascade"}
+    Q -->|"main loop · control tag"| CLAUDE["api.anthropic.com<br/>passthrough — stays Claude"]
+    Q -->|"tagged · background · any subagent"| OUT["openrouter.ai/api<br/>GLM · Qwen · DeepSeek · MiniMax"]
 ```
 
 Requests flow through three pure steps — `extractSignals` (`src/signals.ts`) →
@@ -48,17 +45,8 @@ cp .claude/settings.json.example .claude/settings.json   # opt Claude Code into 
 # ...then RESTART Claude Code (ANTHROPIC_BASE_URL is read at startup)
 ```
 
-Now dispatch a subagent and watch it land on OpenRouter while the main loop stays
-on Claude:
-
-```bash
-tail -n 5 decisions.jsonl
-```
-
-```text
-{ "isSubagent": true,  "matchedRule": "tag:flagship", "upstream": "openrouter", "resolvedModel": "z-ai/glm-5.2" }
-{ "isSubagent": false, "matchedRule": "default",      "upstream": "anthropic",  "resolvedModel": "passthrough" }
-```
+That's the whole setup. Dispatch a subagent and it routes to OpenRouter while your
+main loop stays on Claude — the **Worked example** below shows exactly what you'll see.
 
 New here? Run the **`/getting-started`** skill, or dispatch the
 **`setup-assistant`** agent — both walk you through this and verify each step.
@@ -86,6 +74,33 @@ parent's). The key signals (`src/signals.ts`):
 The main loop carries no `x-claude-code-agent-id`, so it never matches a subagent
 rule — it falls to the default and **stays on Claude**. Want the full mental
 model? Run the **`/explain-modelmux`** skill.
+
+## Worked example — put your research agent on GLM
+
+The bundled `glm-researcher` agent starts with a route tag, so the proxy sends that
+one subagent to OpenRouter while everything else stays on Claude:
+
+```text
+.claude/agents/glm-researcher.md  →  <<route:flagship>>  →  openrouter:z-ai/glm-5.2
+```
+
+Dispatch it from a Claude Code session, then read the decision log:
+
+```bash
+tail -n 2 decisions.jsonl
+```
+
+```text
+{ "isSubagent": true,  "matchedRule": "tag:flagship", "upstream": "openrouter", "resolvedModel": "z-ai/glm-5.2" }
+{ "isSubagent": false, "matchedRule": "default",      "upstream": "anthropic",  "resolvedModel": "passthrough" }
+```
+
+The research ran on GLM; your main loop never left Claude. Prefer Qwen for it
+instead? No file editing required:
+
+```bash
+bin/mux use glm-researcher max     # point that agent at the `max` alias (qwen)
+```
 
 ## The model menu
 
@@ -126,7 +141,7 @@ Or override an alias for one run without editing files:
 
 ```text
 src/            proxy core — signals, route, upstreams, server, config, log, jsonc, types, cli
-bin/mux      the switching CLI
+bin/mux         the switching CLI
 scripts/        check-latest (catalog diff) · live-smoke (real e2e) · record-fixtures
 routes.jsonc    the model menu + routing cascade
 test/           hermetic bun:test suite (+ recorded request fixtures)
