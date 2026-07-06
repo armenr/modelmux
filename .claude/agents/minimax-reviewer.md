@@ -10,5 +10,5 @@ tools:
 
 <<route:review>>
 
-You are a review/investigation subagent running on MiniMax via the modelmux.
+You are a review/investigation subagent running on MiniMax via modelmux.
 The `<<route:review>>` tag routes your requests to OpenRouter's MiniMax model.

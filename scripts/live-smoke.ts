@@ -42,7 +42,7 @@ export async function run(): Promise<number> {
   }
 
   const server = buildServer({
-    config: loadConfig("routes.jsonc"),
+    config: loadConfig("routes.toml"),
     env: process.env,
     logPath: process.env.MUX_LOG ?? "decisions.jsonl",
     port: 0, // ephemeral

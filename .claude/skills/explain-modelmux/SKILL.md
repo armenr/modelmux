@@ -21,7 +21,7 @@ flows through.
 `src/server.ts` is a `Bun.serve` reverse proxy. For each request it:
 
 1. Extracts routing **signals** (`src/signals.ts`).
-2. Picks a target via a first-match **cascade** (`src/route.ts` + `routes.jsonc`).
+2. Picks a target via a first-match **cascade** (`src/route.ts` + `routes.toml`).
 3. Rewrites auth for the chosen upstream (`src/upstreams.ts`) and forwards it.
    SSE streams pass straight through.
 
@@ -42,7 +42,7 @@ From each request (`src/signals.ts`):
 
 ## The cascade
 
-`route()` walks `routes.jsonc`'s `routes` top-to-bottom, first match wins:
+`route()` walks `routes.toml`'s `routes` top-to-bottom, first match wins:
 
 1. **Tag rules** — `<<route:flagship|max|reasoner|review|claude-review>>` →
    that model. `<<route:control>>` → `orchestrator` (stays on Claude).
@@ -56,7 +56,7 @@ smart orchestrator on Claude, chosen subagents on cheaper/other models.
 
 ## The menu
 
-`routes.jsonc` maps friendly **aliases** (`flagship`, `cheap`, …) to
+`routes.toml` maps friendly **aliases** (`flagship`, `cheap`, …) to
 `<upstream>:<slug>`. Swap a model in one place, or override at runtime with
 `MUX_MODEL_<ALIAS>`. See the `switch-models` skill for day-to-day changes.
 

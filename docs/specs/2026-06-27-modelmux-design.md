@@ -51,7 +51,7 @@ Chosen over claude-code-router and LiteLLM because objectives #1 (exemplar/trans
 
 ## 5. Model assignment (the "mix & match" model)
 
-Two layers in `routes.jsonc`: a **named `models` menu** (alias → `upstream:slug`) and an ordered **`routes` cascade** (first match wins). The operator edits one file; aliases are referenced everywhere so swapping a model is a one-line change.
+Two layers in `routes.toml`: a **named `models` menu** (alias → `upstream:slug`) and an ordered **`routes` cascade** (first match wins). The operator edits one file; aliases are referenced everywhere so swapping a model is a one-line change.
 
 ### Granularity tiers (honest reliability)
 | Tier | Match on | Mechanism | Ship |
@@ -65,7 +65,7 @@ Two layers in `routes.jsonc`: a **named `models` menu** (alias → `upstream:slu
 
 Per-agent-type "by name" is **not** auto-detectable (no name signal); Tier 3 (explicit tag) is the robust path and doubles as the selectivity control (untagged agents fall through to the cascade / Claude).
 
-### `routes.jsonc` shape
+### `routes.toml` shape
 ```jsonc
 {
   "models": {
@@ -109,7 +109,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 
 | File | Responsibility | Pure? |
 |---|---|---|
-| `config.ts` | load `routes.jsonc` + env overrides; resolve menu; hot-reload on file change | impure |
+| `config.ts` | load `routes.toml` + env overrides; resolve menu; hot-reload on file change | impure |
 | `signals.ts` | extract `{agentId, xApp, requestedModel, systemHead, hasThinking, tokensIn, hasWebSearch, tag}` from a request | **pure** |
 | `route.ts` | `route(signals, config) → {alias, upstream, model, matchedRule}` cascade | **pure** |
 | `server.ts` | receive → signals → route → rewrite (auth/model/betas) → forward (SSE passthrough) → log | impure |
@@ -127,7 +127,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
     "upstream":"openrouter","resolvedModel":"z-ai/glm-5.2" }
   ```
 - **Error handling — fail loud:** upstream 4xx/5xx passed through + logged; matched a GLM route but key missing / alias unknown → 400 with clear message + logged via `logError` (never silently fall back to Claude). v1 strips `anthropic-beta` entirely on the non-Anthropic leg, so no beta-retry is needed.
-- **Hot-reload:** `config.ts` watches `routes.jsonc`; swaps in-memory snapshot live → enables `mux set`.
+- **Hot-reload:** `config.ts` watches `routes.toml`; swaps in-memory snapshot live → enables `mux set`.
 
 ## 8. Secrets & environment
 
@@ -138,7 +138,7 @@ All slugs resolve live on OpenRouter and support tool-calling. Prices = USD/1M (
 ## 9. Easy switching mechanism
 
 - **Named menu aliases** — change one slug, everything updates.
-- **Hot-reload** — edit `routes.jsonc`, save, applied live (no restart).
+- **Hot-reload** — edit `routes.toml`, save, applied live (no restart).
 - **`mux` CLI:** `mux models` (list bindings + ping OpenRouter for newer releases = freshness/always-latest), `mux set <alias> <slug>`, `mux use <agent> <alias>`.
 - **Env overrides** — `MUX_MODEL_FLAGSHIP=…` beats the file (CI matrices, zero-edit experiments).
 
@@ -168,7 +168,7 @@ modelmux/
 ├── .env.example                  # OPENROUTER_API_KEY, optional ANTHROPIC_API_KEY, PORT
 ├── .gitignore
 ├── README.md                     # setup (global env OR repo .env), clone instructions
-├── routes.jsonc                  # the model menu + cascade (operator-edited)
+├── routes.toml                  # the model menu + cascade (operator-edited)
 ├── src/{types,jsonc,config,signals,route,upstreams,log,server}.ts
 ├── test/{jsonc,config,signals,route,upstreams,log,integration,replay,cli}.test.ts + fixtures/
 ├── .claude/

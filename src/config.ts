@@ -1,7 +1,6 @@
 import type { Config, ModelRef, Upstream } from "./types.ts";
 import { readFileSync, watch } from "node:fs";
 import process from "node:process";
-import { parseJsonc } from "./jsonc.ts";
 
 const UPSTREAMS: Upstream[] = ["anthropic", "openrouter"];
 
@@ -43,7 +42,7 @@ export function loadConfig(
   path: string,
   env: Record<string, string | undefined> = process.env,
 ): Config {
-  const raw = parseJsonc(readText(path)) as RawConfig;
+  const raw = Bun.TOML.parse(readText(path)) as unknown as RawConfig;
   const models: Record<string, ModelRef> = {};
   for (const [alias, spec] of Object.entries(raw.models)) {
     models[alias] = parseModelRef(spec);

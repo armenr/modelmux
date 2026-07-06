@@ -1,4 +1,4 @@
-// `mux check-latest` — compare the OpenRouter slugs in routes.jsonc against
+// `mux check-latest` — compare the OpenRouter slugs in routes.toml against
 // OpenRouter's live model catalog, so you notice when a configured model has
 // been renamed, removed, or superseded by a newer version.
 //
@@ -52,14 +52,14 @@ export async function fetchModelIds(
     .filter((id): id is string => typeof id === "string");
 }
 
-export async function run(routesPath = "routes.jsonc"): Promise<number> {
+export async function run(routesPath = "routes.toml"): Promise<number> {
   const config = loadConfig(routesPath);
   const configured = Object.entries(config.models)
     .filter(([, ref]) => ref.upstream === "openrouter")
     .map(([alias, ref]) => ({ alias, slug: ref.slug }));
 
   if (configured.length === 0) {
-    console.log("No OpenRouter models configured in routes.jsonc — nothing to check.");
+    console.log("No OpenRouter models configured in routes.toml — nothing to check.");
     return 0;
   }
 

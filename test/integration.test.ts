@@ -1,6 +1,7 @@
 import type { Config } from "../src/types.ts";
 import { rmSync } from "node:fs";
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { loadConfig } from "../src/config.ts";
 import { readDecisions } from "../src/log.ts";
 import { buildServer } from "../src/server.ts";
 
@@ -163,4 +164,38 @@ test("idleTimeout:0 streams a quiet SSE response through to completion", async (
 
   keep.stop(true);
   up.stop(true);
+});
+
+// End-to-end over the REAL routes.toml (not an inline config): proves the TOML
+// config loads and the shipped cascade routes correctly through the server.
+test("real routes.toml routes a flagship subagent to OpenRouter and a control tag to Claude", async () => {
+  const realCfg = loadConfig("routes.toml", {});
+  const p = buildServer({
+    config: realCfg,
+    env: { OPENROUTER_API_KEY: "sk-or-test" },
+    logPath: LOG,
+    port: 0,
+    baseOverride: { anthropic: fakeAnthropic.url.origin, openrouter: fakeOpenRouter.url.origin },
+  });
+
+  const hit = (headers: Record<string, string>, body: unknown) =>
+    fetch(`${p.url.origin}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    });
+
+  // flagship-tagged subagent → OpenRouter, model rewritten to the real slug
+  const a = await hit({ "x-claude-code-agent-id": "a" }, { model: "claude-x", system: "<<route:flagship>>" });
+  expect(await a.text()).toContain("\"upstream\":\"openrouter\"");
+  const la = readDecisions(LOG).at(-1)!;
+  expect(la.upstream).toBe("openrouter");
+  expect(la.resolvedModel).toBe("z-ai/glm-5.2");
+
+  // control-tagged subagent → stays on Claude (passthrough), ahead of anySubagent
+  const b = await hit({ "x-claude-code-agent-id": "b" }, { model: "claude-x", system: "<<route:control>>" });
+  expect(await b.text()).toContain("\"upstream\":\"anthropic\"");
+  expect(readDecisions(LOG).at(-1)!.matchedRule).toBe("tag:control");
+
+  p.stop(true);
 });

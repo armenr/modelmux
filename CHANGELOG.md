@@ -17,7 +17,7 @@ routing in Claude Code.
   Code orchestrator on Anthropic while routing chosen subagents to non-Claude
   models via OpenRouter's Anthropic-compatible endpoint. SSE streams pass
   through untouched.
-- **Config-driven routing** (`routes.jsonc`): a friendly alias → model menu and
+- **Config-driven routing** (`routes.toml`): a friendly alias → model menu and
   a first-match cascade over request signals (route tags, work-type, subagent).
   Hot-reloads on edit; keeps the last good config if an edit is invalid.
 - **`mux` CLI** (`bin/mux`): `models`, `set`, `use`, and `check-latest`

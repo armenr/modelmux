@@ -5,7 +5,7 @@ once the first wave is done, tested, and verified working. None are blockers.
 
 ## 1. Last-known-good config fallback
 
-**Goal:** a bad/unparseable `routes.jsonc` (bad hand-edit, or a bad `mux set`)
+**Goal:** a bad/unparseable `routes.toml` (bad hand-edit, or a bad `mux set`)
 should never brick the proxy — it should fall back to the last config that loaded
 and validated successfully.
 
@@ -19,11 +19,11 @@ adopts a broken config and keeps serving the previous one (covered by the
 **Proposed design (straightforward + robust):**
 - On every *successful* `loadConfig`, write a normalized snapshot to
   `routes.last-good.json` (gitignored).
-- On *startup*, if `routes.jsonc` fails to parse/validate, load the snapshot
+- On *startup*, if `routes.toml` fails to parse/validate, load the snapshot
   instead and log a loud warning (instead of refusing to start).
 - The running-process case is already covered by the in-memory keep-previous.
 
-**UX caveat to honor:** do NOT auto-overwrite the user's `routes.jsonc` on a bad
+**UX caveat to honor:** do NOT auto-overwrite the user's `routes.toml` on a bad
 edit (that would clobber an edit-in-progress). Keep running on last-good in memory,
 warn, and only *fall back* to the snapshot at startup.
 

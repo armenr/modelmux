@@ -1,6 +1,6 @@
 ---
 name: setup-assistant
-description: Interactive setup checker for modelmux. Verifies Bun, your OpenRouter key, routes.jsonc validity, and the proxy, then reports what's left to plug in. Designed to run before (or while) the proxy is enabled.
+description: Interactive setup checker for modelmux. Verifies Bun, your OpenRouter key, routes.toml validity, and the proxy, then reports what's left to plug in. Designed to run before (or while) the proxy is enabled.
 tools:
   - Bash
   - Read
@@ -27,7 +27,7 @@ next actions:
    `test -f .env && grep -q '^OPENROUTER_API_KEY=' .env && echo present || echo missing`
    (also consider a `$OPENROUTER_API_KEY` exported in the shell).
 4. **Config valid** — `bin/mux models` should print the alias table (this
-   loads and validates `routes.jsonc`; it fails loud on a bad config).
+   loads and validates `routes.toml`; it fails loud on a bad config).
 5. **Slugs live (optional)** — `bin/mux check-latest`.
 6. **Proxy running** — `lsof -nP -iTCP:8787 -sTCP:LISTEN` (use the configured
    `PORT` if changed). If not listening, tell them to run `bun run proxy`.

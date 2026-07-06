@@ -15,7 +15,7 @@ front of it and reroutes the subagents *you choose* to cheaper or specialized mo
 
 - 🧠 **Orchestrator stays Claude** — the main loop never leaves Anthropic.
 - 🔀 **Subagents go where you point them** — by a route tag, work-type, or "any subagent."
-- 📄 **One file runs it** — [`routes.jsonc`](routes.jsonc): friendly aliases → models, hot-reloaded on save.
+- 📄 **One file runs it** — [`routes.toml`](routes.toml): friendly aliases → models, hot-reloaded on save.
 - 🔑 **Your keys, the sanctioned way** — your OpenRouter key + Claude Code passthrough. No impersonation.
 - ✅ **Actually verified** — 53 hermetic tests plus lint + typecheck gates, on every push.
 
@@ -61,7 +61,7 @@ parent's). The key signals (`src/signals.ts`):
 - `x-app` — `cli` (foreground) vs `cli-bg` (background work).
 - `<<route:alias>>` — an explicit tag in an agent's system prompt.
 
-`route()` walks `routes.jsonc` top-to-bottom, **first match wins**:
+`route()` walks `routes.toml` top-to-bottom, **first match wins**:
 
 | Order | When | Routes to | Upstream |
 | ----- | ---- | --------- | -------- |
@@ -104,25 +104,24 @@ bin/mux use glm-researcher max     # point that agent at the `max` alias (qwen)
 
 ## The model menu
 
-Models live behind friendly aliases in [`routes.jsonc`](routes.jsonc) — swap one
+Models live behind friendly aliases in [`routes.toml`](routes.toml) — swap one
 in a single place:
 
-```text
-"models": {
-  "orchestrator": "anthropic:passthrough",       // main loop — keep Claude's choice
-  "flagship":     "openrouter:z-ai/glm-5.2",
-  "max":          "openrouter:qwen/qwen3.7-max",
-  "reasoner":     "openrouter:deepseek/deepseek-v4-pro",
-  "review":       "openrouter:minimax/minimax-m3",
-  "cheap":        "openrouter:deepseek/deepseek-v4-flash",
-  "claude-review":"anthropic:claude-sonnet-4.6"
-}
+```toml
+[models]
+orchestrator = "anthropic:passthrough" # main loop — keep Claude's choice
+flagship = "openrouter:z-ai/glm-5.2"
+max = "openrouter:qwen/qwen3.7-max"
+reasoner = "openrouter:deepseek/deepseek-v4-pro"
+review = "openrouter:minimax/minimax-m3"
+cheap = "openrouter:deepseek/deepseek-v4-flash"
+claude-review = "anthropic:claude-sonnet-4.6"
 ```
 
 > The slugs above are illustrative — run `bin/mux check-latest` to see which
 > models actually exist on OpenRouter right now, and `mux set` to update one.
 
-The proxy **hot-reloads** `routes.jsonc` on save (and keeps the last good config
+The proxy **hot-reloads** `routes.toml` on save (and keeps the last good config
 if an edit is invalid). Full switching guide: the **`/switch-models`** skill.
 
 ## The `mux` CLI
@@ -140,10 +139,10 @@ Or override an alias for one run without editing files:
 ## Project layout
 
 ```text
-src/            proxy core — signals, route, upstreams, server, config, log, jsonc, types, cli
+src/            proxy core — signals, route, upstreams, server, config, log, types, cli
 bin/mux         the switching CLI
 scripts/        check-latest (catalog diff) · live-smoke (real e2e) · record-fixtures
-routes.jsonc    the model menu + routing cascade
+routes.toml     the model menu + routing cascade
 test/           hermetic bun:test suite (+ recorded request fixtures)
 .claude/        agents + onboarding skills that ship with the template
 docs/           design spec + implementation plan (see docs/README.md)

@@ -19,7 +19,7 @@ outbound requests. A few rules keep that safe:
 
 - **Never commit keys.** `.env`, `*.env`, and `openrouter-key.env` are
   gitignored. `.env.example` ships with placeholders only.
-- **Keys live in the environment**, not in `routes.jsonc` or any tracked file.
+- **Keys live in the environment**, not in `routes.toml` or any tracked file.
 - **The decision log (`decisions.jsonl`) never contains keys** — it logs
   routing metadata only. Still, redact before sharing it in an issue.
 - **If a key leaks, rotate it immediately** at your provider

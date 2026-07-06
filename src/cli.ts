@@ -1,13 +1,14 @@
 import type { Config } from "./types.ts";
 import { parseModelRef } from "./config.ts";
 
-// Rewrite one alias's value in routes.jsonc text, preserving the rest verbatim.
-export function setModel(jsoncText: string, alias: string, spec: string): string {
+// Rewrite one alias's value in routes.toml text, preserving the rest verbatim.
+// Matches a TOML `alias = "..."` line under [models] (leading whitespace tolerated).
+export function setModel(tomlText: string, alias: string, spec: string): string {
   parseModelRef(spec); // validate (throws on bad upstream/slug)
-  const re = new RegExp(`("${escape(alias)}"\\s*:\\s*)"[^"]*"`);
-  if (!re.test(jsoncText))
+  const re = new RegExp(`^(\\s*${escape(alias)}\\s*=\\s*)"[^"]*"`, "m");
+  if (!re.test(tomlText))
     throw new Error(`alias "${alias}" not found in models`);
-  return jsoncText.replace(re, `$1"${spec}"`);
+  return tomlText.replace(re, `$1"${spec}"`);
 }
 
 export function listModels(config: Config): string {

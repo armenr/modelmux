@@ -53,7 +53,7 @@ Don't disable hooks or skip tests to get green — fix the root cause.
 
 ## Changing routing or models
 
-- **Swap a model:** edit `routes.jsonc`, or use the CLI:
+- **Swap a model:** edit `routes.toml`, or use the CLI:
   `bin/mux set flagship openrouter:<vendor>/<slug>`.
 - **Check your slugs are still live:** `bin/mux check-latest`.
 - **Point an agent at a different alias:** `bin/mux use <agent> <alias>`

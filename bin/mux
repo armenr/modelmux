@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { loadConfig } from "../src/config.ts";
 import { setModel, listModels } from "../src/cli.ts";
 
-const ROUTES = "routes.jsonc";
+const ROUTES = "routes.toml";
 const [cmd, a, b] = process.argv.slice(2);
 
 if (cmd === "models") {

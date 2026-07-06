@@ -5,9 +5,9 @@ description: Use when someone wants to change which OpenRouter (or Claude) model
 
 # Switching models
 
-The model menu lives in `routes.jsonc` under `"models"`: friendly **aliases** →
+The model menu lives in `routes.toml` under `[models]`: friendly **aliases** →
 `"<upstream>:<slug>"`. Everything below is a way to change that mapping or which
-alias an agent uses. The proxy **hot-reloads** `routes.jsonc` on save (and keeps
+alias an agent uses. The proxy **hot-reloads** `routes.toml` on save (and keeps
 the previous config if an edit is invalid), so most changes need no restart.
 
 ## The `mux` CLI
@@ -20,7 +20,7 @@ bin/mux check-latest                        # verify configured slugs exist on O
 ```
 
 - **`set <alias> <upstream:slug>`** rewrites just that alias's value in
-  `routes.jsonc`, validating the spec first (`anthropic:` or `openrouter:`).
+  `routes.toml`, validating the spec first (`anthropic:` or `openrouter:`).
 - **`use <agent> <alias>`** rewrites the `<<route:alias>>` tag inside
   `.claude/agents/<agent>.md`, so that agent now routes to a different alias.
 
@@ -45,10 +45,10 @@ it, either edit the tag, `bin/mux use`, or repoint the alias with
 
 ## Adding a new model or route
 
-1. Add an alias under `"models"` in `routes.jsonc`
-   (`"myalias": "openrouter:vendor/slug"`).
-2. Optionally add a `routes` rule (e.g. `{ "when": { "tag": "myalias" },
-   "use": "myalias" }`) — remember it's **first-match, most-specific-first**.
+1. Add an alias under `[models]` in `routes.toml`
+   (`myalias = "openrouter:vendor/slug"`).
+2. Optionally add a `routes` entry (e.g. `{ when = { tag = "myalias" }, use =
+   "myalias" }`) — remember it's **first-match, most-specific-first**.
 3. `bin/mux models` to confirm it loaded; the loader fails loud if an alias
    is unknown.
 
