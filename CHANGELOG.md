@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/armenr/modelmux/compare/v0.1.0...v0.1.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* print clean errors instead of stack traces and stop a false success on use ([#2](https://github.com/armenr/modelmux/issues/2)) ([bf0fc7c](https://github.com/armenr/modelmux/commit/bf0fc7c5323cfc062f0309687098467cd1746daf))
+
 ## [Unreleased]
 
 ## [0.1.0] - 2026-07-07
