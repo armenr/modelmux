@@ -12,7 +12,7 @@ export function route(signals: Signals, config: Config): Decision {
 function matches(rule: RouteRule, s: Signals, config: Config): boolean {
   const w = rule.when;
   if (w.tag !== undefined)
-    return s.tag === w.tag;
+    return s.tag === w.tag.toLowerCase(); // signal tag is already lowercased; match config case-insensitively
   if (w.workType !== undefined)
     return hasWorkType(s, w.workType, config);
   if (w.anySubagent === true)

@@ -102,6 +102,17 @@ test("work-type rules route on request shape (longContext / think / webSearch)",
   expect(route(sig({ tokensIn: 1000 }), cfg).matchedRule).toBe("default");
 });
 
+test("tag match is case-insensitive against a config `when.tag`", () => {
+  const cfg: Config = {
+    ...CONFIG,
+    routes: [{ when: { tag: "Control" }, use: "orchestrator" }, ...CONFIG.routes],
+  };
+  // signal tag arrives already lowercased ("control"); an uppercase config tag must still match
+  const d = route(sig({ isSubagent: true, agentId: "x", tag: "control" }), cfg);
+  expect(d.matchedRule).toBe("tag:Control");
+  expect(d.upstream).toBe("anthropic"); // pinned to Claude, not leaked to a paid model
+});
+
 test("unknown alias in a rule throws", () => {
   const bad = { ...CONFIG, routes: [{ when: { anySubagent: true }, use: "nope" }] };
   expect(() => route(sig({ isSubagent: true, agentId: "x" }), bad)).toThrow();

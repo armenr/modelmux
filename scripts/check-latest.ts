@@ -72,6 +72,11 @@ export async function run(routesPath = "routes.toml"): Promise<number> {
     return 1;
   }
 
+  if (liveIds.length === 0) {
+    console.error("[check-latest] OpenRouter returned an empty/unrecognized catalog; cannot verify slugs.");
+    return 1;
+  }
+
   const rows = analyzeModels(configured, liveIds);
   let stale = 0;
   console.log(`Checked ${rows.length} OpenRouter model(s) against ${liveIds.length} live catalog entries:\n`);
