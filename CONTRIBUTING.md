@@ -10,29 +10,9 @@ Two principles drive everything here:
 
 ## Development setup
 
-You need [Bun](https://bun.sh) (native TypeScript, `bun:test`, `.env` autoload).
-Pick either path:
-
-### Option A — DevBox (reproducible, Nix-backed)
-
-```bash
-devbox shell         # provisions bun, jq, lefthook; loads .env; installs hooks
-bun install          # dev dependencies (ESLint, types)
-```
-
-### Option B — Bun-direct
-
-```bash
-curl -fsSL https://bun.sh/install | bash   # if you don't have Bun
-bun install
-lefthook install                            # enable the git hooks
-```
-
-Then copy the env template and add your key:
-
-```bash
-cp .env.example .env    # set OPENROUTER_API_KEY
-```
+Environment setup — Bun or DevBox, `.env`, and git hooks — lives in
+[docs/development.md](docs/development.md). Set up your checkout there, then
+follow the loop below.
 
 ## The loop
 
@@ -50,6 +30,13 @@ bun test test/      # hermetic suite (no network)
 
 A `pre-commit` hook auto-fixes lint on staged files; `pre-push` runs the tests.
 Don't disable hooks or skip tests to get green — fix the root cause.
+
+## Binary build & release
+
+`bun run build` compiles the vended single binary to `dist/modelmux` (Bun
+runtime and `routes.toml` embedded). Pushing a `v*` tag runs
+`.github/workflows/release.yml`, which cross-compiles the linux/darwin
+(x64 + arm64) and windows binaries and publishes them to the GitHub release.
 
 ## Changing routing or models
 

@@ -8,6 +8,10 @@ description: Use when someone has just cloned modelmux and wants to plug in Open
 Walk the user through these steps in order. Run the checks yourself where you
 can, and confirm each step before moving on. Never print the value of an API key.
 
+This is the from-source path (clone the repo, run with Bun). Running a prebuilt
+binary instead? Skip install and run `./modelmux` — see
+`docs/using-the-binary.md`. The fuller dev workflow is in `docs/development.md`.
+
 ## 1. Prerequisites
 
 Confirm [Bun](https://bun.sh) is installed:

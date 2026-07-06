@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Vended single binary**: `bun run build` compiles a self-contained
+  `dist/modelmux` (Bun runtime and `routes.toml` embedded at compile time) that
+  runs the proxy with no Bun, Node, DevBox, or Docker. `modelmux` (no args) or
+  `modelmux serve` starts it; on first run it writes a default `routes.toml` if
+  none exists. See [docs/using-the-binary.md](docs/using-the-binary.md).
+- **Release workflow** (`.github/workflows/release.yml`): a `v*` tag
+  cross-compiles the linux and darwin (x64 + arm64) and windows binaries and
+  publishes them to the GitHub release.
+- **Docs**: [docs/using-the-binary.md](docs/using-the-binary.md) (binary users)
+  and [docs/development.md](docs/development.md) (from-source workflow).
+
 ## [0.1.0] - 2026-06-28
 
 Initial release — a batteries-included template for heterogeneous agent

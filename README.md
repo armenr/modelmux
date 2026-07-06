@@ -17,7 +17,6 @@ front of it and reroutes the subagents *you choose* to cheaper or specialized mo
 - 🔀 **Subagents go where you point them** — by a route tag, work-type, or "any subagent."
 - 📄 **One file runs it** — [`routes.toml`](routes.toml): friendly aliases → models, hot-reloaded on save.
 - 🔑 **Your keys, the sanctioned way** — your OpenRouter key + Claude Code passthrough. No impersonation.
-- ✅ **Actually verified** — 53 hermetic tests plus lint + typecheck gates, on every push.
 
 ## Architecture
 
@@ -52,16 +51,20 @@ OPENROUTER_API_KEY=sk-or-... ./modelmux           # runs the proxy on :8787
 
 On first run the binary writes a default `routes.toml` beside itself (edit it to
 swap models — hot-reloaded). `./modelmux models` / `set` / `check-latest` manage
-the config; `./modelmux` with no args runs the proxy.
+the config; `./modelmux` with no args runs the proxy. Full binary usage:
+[docs/using-the-binary.md](docs/using-the-binary.md).
 
 **Option B — from a checkout** (Bun, or DevBox for a pinned toolchain): the
-[Quickstart](#quickstart) below.
+[Quickstart](#quickstart) below, or [docs/development.md](docs/development.md)
+for the full from-source workflow.
 
 Either way, point Claude Code at it: copy `.claude/settings.json.example` →
 `.claude/settings.json` (`ANTHROPIC_BASE_URL=http://127.0.0.1:8787`) and restart
 Claude Code.
 
 ## Quickstart
+
+From a checkout (needs Bun):
 
 ```bash
 bun install                                  # dev deps (or: devbox shell)
