@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/armenr/modelmux/compare/v0.1.1...v0.1.2) (2026-07-06)
+
+
+### Bug Fixes
+
+* bug-hunt batch — credential leak, request-path hardening, config validation, papercuts ([#4](https://github.com/armenr/modelmux/issues/4)) ([e25fd5e](https://github.com/armenr/modelmux/commit/e25fd5edb0ce4e6721477942b700ab948c735970))
+
 ## [0.1.1](https://github.com/armenr/modelmux/compare/v0.1.0...v0.1.1) (2026-07-06)
 
 
