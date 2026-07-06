@@ -1,4 +1,4 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { expect, test } from "bun:test";
 import { loadConfig, parseModelRef, resolveMenu, watchConfig } from "../src/config.ts";
 
@@ -57,31 +57,77 @@ test("loadConfig rejects a route using an unknown alias (fail loud)", () => {
   rmSync(tmp, { force: true });
 });
 
-test("watchConfig reloads holder.current on file change", async () => {
-  const tmp = "test/.tmp-watch.toml";
-  writeFileSync(tmp, toml({ a: "openrouter:x/y1" }, "a"));
-  const holder = watchConfig(tmp, {});
-  expect(holder.current.models.a.slug).toBe("x/y1");
-  writeFileSync(tmp, toml({ a: "openrouter:x/y2" }, "a"));
-  for (let i = 0; i < 40 && holder.current.models.a.slug !== "x/y2"; i++) await Bun.sleep(50);
-  expect(holder.current.models.a.slug).toBe("x/y2");
+test("loadConfig rejects a route with a malformed `when` (fail loud)", () => {
+  const tmp = "test/.tmp-bad-when.toml";
+  writeFileSync(tmp, toml({ a: "openrouter:x/y" }, "a", `\n[[routes]]\nuse = "a"\n`)); // no `when`
+  expect(() => loadConfig(tmp, {})).toThrow(/when/);
+  writeFileSync(tmp, toml({ a: "openrouter:x/y" }, "a", `\n[[routes]]\nwhen.workType = "thinking"\nuse = "a"\n`)); // typo
+  expect(() => loadConfig(tmp, {})).toThrow(/workType/);
   rmSync(tmp, { force: true });
 });
 
-test("watchConfig keeps previous config when a reload fails, then recovers", async () => {
-  const tmp = "test/.tmp-watch-bad.toml";
+test("loadConfig rejects a multi-condition `when` as ambiguous", () => {
+  const tmp = "test/.tmp-multi-when.toml";
+  writeFileSync(tmp, toml({ a: "openrouter:x/y" }, "a", `\n[[routes]]\nwhen.tag = "a"\nwhen.anySubagent = true\nuse = "a"\n`));
+  expect(() => loadConfig(tmp, {})).toThrow(/exactly one/);
+  rmSync(tmp, { force: true });
+});
+
+test("loadConfig gives a clear error when [models] is missing", () => {
+  const tmp = "test/.tmp-no-models.toml";
+  writeFileSync(tmp, `default = "a"\n`);
+  expect(() => loadConfig(tmp, {})).toThrow(/\[models\]/);
+  rmSync(tmp, { force: true });
+});
+
+test("resolveMenu throws when two aliases collide on one MUX_MODEL_ key", () => {
+  const cfg = {
+    models: {
+      "claude-review": { upstream: "anthropic", slug: "claude-sonnet-5" },
+      "claude_review": { upstream: "openrouter", slug: "z-ai/glm-5.2" },
+    },
+    default: "claude-review",
+    routes: [],
+    longContextThreshold: 200000,
+  } as any;
+  expect(() => resolveMenu(cfg, { MUX_MODEL_CLAUDE_REVIEW: "openrouter:x/y" })).toThrow(/both map to/);
+});
+
+// The watched file lives in its OWN directory so macOS FSEvents delivers only
+// its events — other test files churning test/ won't coalesce/drop them (which
+// made these flaky under full-suite load). We also arm the watcher before the
+// first mutating write, and poll with a wide budget that exits on first change.
+test("watchConfig reloads holder.current on file change", async () => {
+  const dir = "test/.tmp-watch-a";
+  mkdirSync(dir, { recursive: true });
+  const tmp = `${dir}/routes.toml`;
   writeFileSync(tmp, toml({ a: "openrouter:x/y1" }, "a"));
   const holder = watchConfig(tmp, {});
   expect(holder.current.models.a.slug).toBe("x/y1");
+  await Bun.sleep(100); // let the OS-level watch arm before mutating
+  writeFileSync(tmp, toml({ a: "openrouter:x/y2" }, "a"));
+  for (let i = 0; i < 120 && holder.current.models.a.slug !== "x/y2"; i++) await Bun.sleep(50);
+  expect(holder.current.models.a.slug).toBe("x/y2");
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("watchConfig keeps previous config when a reload fails, then recovers", async () => {
+  const dir = "test/.tmp-watch-b";
+  mkdirSync(dir, { recursive: true });
+  const tmp = `${dir}/routes.toml`;
+  writeFileSync(tmp, toml({ a: "openrouter:x/y1" }, "a"));
+  const holder = watchConfig(tmp, {});
+  expect(holder.current.models.a.slug).toBe("x/y1");
+  await Bun.sleep(100); // arm the watcher
   // unparseable edit: must be caught, previous kept, no crash
   writeFileSync(tmp, "[[[ not valid toml");
-  await Bun.sleep(300);
+  await Bun.sleep(400);
   expect(holder.current.models.a.slug).toBe("x/y1");
   // recovery: a subsequent valid edit still reloads
   writeFileSync(tmp, toml({ a: "openrouter:x/y3" }, "a"));
-  for (let i = 0; i < 40 && holder.current.models.a.slug !== "x/y3"; i++) await Bun.sleep(50);
+  for (let i = 0; i < 120 && holder.current.models.a.slug !== "x/y3"; i++) await Bun.sleep(50);
   expect(holder.current.models.a.slug).toBe("x/y3");
-  rmSync(tmp, { force: true });
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test("loadConfig throws when default alias is absent from models (fail loud)", () => {
