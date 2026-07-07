@@ -1,7 +1,7 @@
 {
   "name": "modelmux",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "A batteries-included template for heterogeneous agent routing in Claude Code — keep the orchestrator on Claude, route chosen subagents to OpenRouter models via a small owned proxy.",
   "author": "Armen Rostamian",
