@@ -33,8 +33,8 @@ test("setModel throws on an unknown alias", () => {
   expect(() => setModel(ROUTES, "ghost", "openrouter:x/y")).toThrow(/not found/);
 });
 
-test("setModel rejects an invalid spec", () => {
-  expect(() => setModel(`[models]\nx = "a:b"\n`, "x", "bogus:y")).toThrow();
+test("setModel rejects a malformed spec", () => {
+  expect(() => setModel(`[models]\nx = "a:b"\n`, "x", "no-colon-spec")).toThrow();
 });
 
 test("listModels renders each alias", () => {

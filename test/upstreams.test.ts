@@ -1,6 +1,6 @@
 import type { Decision } from "../src/types.ts";
 import { expect, test } from "bun:test";
-import { forwardUrl, MissingKeyError, passthroughHeaders, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
+import { forwardUrl, MissingKeyError, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
 
 const toOR: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
 const toAnthropic: Decision = { alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default" };
@@ -80,4 +80,31 @@ test("passthroughHeaders defaults content-type when the upstream omits it", () =
   const out = passthroughHeaders(new Headers());
   expect(out.get("content-type")).toBe("application/json");
   expect(out.get("cache-control")).toBe("no-cache");
+});
+
+test("resolveUpstream falls back to built-ins and honors config overrides", () => {
+  expect(resolveUpstream("anthropic").base).toBe("https://api.anthropic.com");
+  expect(resolveUpstream("openrouter").auth).toEqual({ kind: "bearer", envKey: "OPENROUTER_API_KEY" });
+  const custom = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true } };
+  expect(resolveUpstream("local", custom).base).toBe("http://localhost:11434");
+  expect(() => resolveUpstream("nope")).toThrow(/unknown upstream/);
+});
+
+test("a local (none-auth) upstream sends no auth and forwards to its configured base", () => {
+  const toLocal: Decision = { alias: "flagship", upstream: "local", model: "qwen3-coder:30b", matchedRule: "anySubagent" };
+  const upstreams = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true } };
+  const inbound = new Headers({ "authorization": "Bearer oauth-tok", "x-api-key": "sk-ant", "anthropic-beta": "x", "content-type": "application/json" });
+  const out = rewriteHeaders(toLocal, inbound, {}, upstreams);
+  expect(out.get("authorization")).toBeNull(); // no Claude auth leaked to the local server
+  expect(out.get("x-api-key")).toBeNull();
+  expect(out.get("anthropic-beta")).toBeNull(); // stripped
+  expect(out.get("content-type")).toBe("application/json");
+  expect(forwardUrl("local", "/v1/messages", "", upstreams)).toBe("http://localhost:11434/v1/messages");
+});
+
+test("a config-defined bearer upstream injects its own env key", () => {
+  const toGw: Decision = { alias: "x", upstream: "gw", model: "m", matchedRule: "tag:x" };
+  const upstreams = { gw: { base: "https://gw.example", auth: { kind: "bearer" as const, envKey: "GW_KEY" }, stripBeta: true } };
+  expect(rewriteHeaders(toGw, new Headers(), { GW_KEY: "secret" }, upstreams).get("authorization")).toBe("Bearer secret");
+  expect(() => rewriteHeaders(toGw, new Headers(), {}, upstreams)).toThrow(MissingKeyError);
 });

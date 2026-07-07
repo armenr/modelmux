@@ -151,6 +151,35 @@ claude-review = "anthropic:claude-sonnet-5"
 The slugs above are illustrative — run `modelmux check-latest` to see which
 models actually exist on OpenRouter right now.
 
+## Local & self-hosted models
+
+`anthropic` and `openrouter` are built in, but you can point an alias at any
+**Anthropic-Messages-compatible** endpoint by declaring it under `[upstreams]`,
+then using it like any other model (`<name>:<slug>`).
+
+The obvious use is a **local model**. Recent Ollama (v0.14+) speaks the Anthropic
+Messages API natively, so no translation shim is needed — run your grunt-work
+subagents on a local Qwen while the orchestrator stays on Claude:
+
+```toml
+[upstreams]
+local = { base = "http://localhost:11434", auth = "none" }
+
+[models]
+orchestrator = "anthropic:passthrough" # brain stays on Claude
+flagship = "local:qwen3-coder:30b" # subagents run on your local Qwen
+cheap = "local:qwen3:8b"
+```
+
+`auth` is one of `passthrough` (forward Claude Code's own auth), `bearer:ENV_VAR`
+(send `Authorization: Bearer $ENV_VAR`), or `none`. modelmux never forwards your
+Claude auth to a `none`/`bearer` upstream, so your Anthropic token stays out of
+the local process.
+
+Runners that only speak the OpenAI format (LM Studio, llama.cpp, vLLM) need a
+[LiteLLM](https://github.com/BerriAI/litellm) proxy in front to expose an
+Anthropic endpoint; point the upstream `base` at that.
+
 ## Managing config from the CLI
 
 `modelmux` with no arguments runs the proxy; the subcommands manage `routes.toml`:
@@ -188,9 +217,9 @@ Everything is controlled by `routes.toml` and a few environment variables:
 
 ## Troubleshooting
 
-- **HTTP 400, `OPENROUTER_API_KEY is not set but a route needs OpenRouter`** — a
-  request routed to OpenRouter but the key is unset where modelmux runs. Set it
-  and restart the binary.
+- **HTTP 400, `OPENROUTER_API_KEY is not set but a route needs it`** — a request
+  routed to OpenRouter but the key is unset where modelmux runs. Set it and
+  restart the binary.
 - **Claude Code reports connection refused** — modelmux isn't running, or it's on
   a different port than `ANTHROPIC_BASE_URL`. Start it and check the listening
   line matches.

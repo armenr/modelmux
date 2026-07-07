@@ -107,6 +107,40 @@ test("missing OpenRouter key fails loud with 400 AND logs an error record", asyn
   noKey.stop(true);
 });
 
+test("a custom local upstream routes there and leaks no Claude auth", async () => {
+  let seenAuth: string | null = "unset";
+  const localSrv = Bun.serve({
+    port: 0,
+    fetch: (req) => {
+      seenAuth = req.headers.get("authorization");
+      return sse("local");
+    },
+  });
+  const cfg: Config = {
+    models: {
+      orchestrator: { upstream: "anthropic", slug: "passthrough" },
+      flagship: { upstream: "local", slug: "qwen3-coder:30b" },
+    },
+    default: "orchestrator",
+    longContextThreshold: 200000,
+    routes: [{ when: { anySubagent: true }, use: "flagship" }],
+    upstreams: { local: { base: localSrv.url.origin, auth: { kind: "none" }, stripBeta: true } },
+  };
+  const p = buildServer({ config: cfg, env: {}, logPath: LOG, port: 0 });
+  const res = await fetch(`${p.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-claude-code-agent-id": "a", "authorization": "Bearer real-claude-oauth" },
+    body: JSON.stringify({ model: "claude-x" }),
+  });
+  expect(await res.text()).toContain("\"upstream\":\"local\"");
+  expect(seenAuth).toBeNull(); // Claude's own token did NOT reach the local server
+  const last = readDecisions(LOG).at(-1)!;
+  expect(last.upstream).toBe("local");
+  expect(last.resolvedModel).toBe("qwen3-coder:30b");
+  p.stop(true);
+  localSrv.stop(true);
+});
+
 test("unreachable upstream fails loud: 502 + a logged error record", async () => {
   const dead = Bun.serve({ port: 0, fetch: () => new Response("x") });
   const deadOrigin = dead.url.origin;

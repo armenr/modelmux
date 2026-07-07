@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { expect, test } from "bun:test";
-import { loadConfig, parseModelRef, resolveMenu, watchConfig } from "../src/config.ts";
+import { loadConfig, parseAuth, parseModelRef, resolveMenu, watchConfig } from "../src/config.ts";
 
 // Build a minimal routes.toml body for temp-file tests.
 function toml(models: Record<string, string>, def: string, extra = ""): string {
@@ -19,8 +19,37 @@ test("parseModelRef splits upstream and slug", () => {
   });
 });
 
-test("parseModelRef rejects unknown upstream", () => {
-  expect(() => parseModelRef("bogus:x")).toThrow();
+test("parseModelRef validates shape, not the upstream name", () => {
+  expect(() => parseModelRef("no-colon-here")).toThrow(/upstream.*slug/);
+  expect(() => parseModelRef("openrouter:")).toThrow(/empty slug/);
+  expect(() => parseModelRef(":slug")).toThrow(/empty upstream/);
+  // an unknown upstream name is fine at parse time — it's checked against [upstreams] at load
+  expect(parseModelRef("local:qwen3-coder:30b")).toEqual({ upstream: "local", slug: "qwen3-coder:30b" });
+});
+
+test("parseAuth understands the auth shorthands", () => {
+  expect(parseAuth("none")).toEqual({ kind: "none" });
+  expect(parseAuth("passthrough")).toEqual({ kind: "passthrough" });
+  expect(parseAuth("passthrough:ANTHROPIC_API_KEY")).toEqual({ kind: "passthrough", envKey: "ANTHROPIC_API_KEY" });
+  expect(parseAuth("bearer:OPENROUTER_API_KEY")).toEqual({ kind: "bearer", envKey: "OPENROUTER_API_KEY" });
+  expect(() => parseAuth("weird")).toThrow();
+});
+
+test("loadConfig parses [upstreams] and accepts a model that targets one", () => {
+  const tmp = "test/.tmp-upstreams.toml";
+  writeFileSync(tmp, `default = "a"\n\n[models]\na = "local:qwen3-coder:30b"\n\n[upstreams]\nlocal = { base = "http://localhost:11434", auth = "none" }\n`);
+  const cfg = loadConfig(tmp, {});
+  expect(cfg.models.a).toEqual({ upstream: "local", slug: "qwen3-coder:30b" });
+  expect(cfg.upstreams?.local).toEqual({ base: "http://localhost:11434", auth: { kind: "none" }, stripBeta: true });
+  expect(cfg.upstreams?.anthropic).toBeDefined(); // built-ins still present
+  rmSync(tmp, { force: true });
+});
+
+test("loadConfig rejects a model whose upstream is neither built in nor declared", () => {
+  const tmp = "test/.tmp-bad-upstream.toml";
+  writeFileSync(tmp, toml({ a: "local:qwen" }, "a")); // no [upstreams] table -> "local" is undefined
+  expect(() => loadConfig(tmp, {})).toThrow(/unknown upstream/);
+  rmSync(tmp, { force: true });
 });
 
 test("resolveMenu applies MUX_MODEL_<ALIAS> overrides", () => {
