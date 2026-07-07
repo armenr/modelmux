@@ -151,11 +151,38 @@ claude-review = "anthropic:claude-sonnet-5"
 The slugs above are illustrative — run `modelmux check-latest` to see which
 models actually exist on OpenRouter right now.
 
+## Flat-rate GLM: bring a Z.ai subscription
+
+If you lean on GLM, OpenRouter's per-token pricing adds up fast. **Z.ai's GLM
+Coding Plan** is a flat monthly subscription (see [z.ai](https://z.ai) for
+current plans) with an Anthropic-compatible endpoint built for Claude Code — and
+`zai` is a **built-in upstream**, so it's zero-config. Set your key and point an
+alias at it:
+
+```bash
+export ZAI_API_KEY=<your z.ai api key>
+```
+
+```toml
+[models]
+orchestrator = "anthropic:passthrough" # brain stays on Claude
+flagship = "zai:glm-5.2" # subagents run on GLM via your subscription
+```
+
+Your `flagship` subagents now ride your Z.ai subscription instead of OpenRouter's
+per-token meter, while the orchestrator stays on Claude. It's sanctioned — your
+own key, your own subscription, Z.ai's own documented endpoint. No impersonation.
+
+Two things to know: use Z.ai's **bare** slug (`zai:glm-5.2`), not OpenRouter's
+`z-ai/glm-5.2` prefix; and modelmux strips Claude Code's `anthropic-beta` headers
+by default (safe). If you'd rather keep them, override with
+`[upstreams]`: `zai = { base = "https://api.z.ai/api/anthropic", auth = "bearer:ZAI_API_KEY", stripBeta = false }`.
+
 ## Local & self-hosted models
 
-`anthropic` and `openrouter` are built in, but you can point an alias at any
-**Anthropic-Messages-compatible** endpoint by declaring it under `[upstreams]`,
-then using it like any other model (`<name>:<slug>`).
+`anthropic`, `openrouter`, and `zai` are built in, but you can point an alias at
+any **Anthropic-Messages-compatible** endpoint by declaring it under
+`[upstreams]`, then using it like any other model (`<name>:<slug>`).
 
 The obvious use is a **local model**. Recent Ollama (v0.14+) speaks the Anthropic
 Messages API natively, so no translation shim is needed — run your grunt-work
@@ -210,6 +237,7 @@ Everything is controlled by `routes.toml` and a few environment variables:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `OPENROUTER_API_KEY` | unset | Required for any `openrouter:` route. If a request routes to OpenRouter while it's unset, that request fails with HTTP 400. |
+| `ZAI_API_KEY` | unset | Required for any `zai:` route (Z.ai GLM Coding Plan). Same 400 behavior when unset. |
 | `PORT` | `8787` | Listen port. |
 | `MUX_ROUTES` | `./routes.toml` | Path to the routes config (also the first-run bootstrap target). |
 | `MUX_LOG` | `./decisions.jsonl` | Path to the JSONL decision log — one line per proxied request. |

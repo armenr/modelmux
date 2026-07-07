@@ -45,6 +45,15 @@ test("loadConfig parses [upstreams] and accepts a model that targets one", () =>
   rmSync(tmp, { force: true });
 });
 
+test("loadConfig accepts a built-in zai model with no [upstreams] block", () => {
+  const tmp = "test/.tmp-zai.toml";
+  writeFileSync(tmp, toml({ orchestrator: "anthropic:passthrough", flagship: "zai:glm-5.2" }, "orchestrator"));
+  const cfg = loadConfig(tmp, {});
+  expect(cfg.models.flagship).toEqual({ upstream: "zai", slug: "glm-5.2" });
+  expect(cfg.upstreams?.zai?.base).toBe("https://api.z.ai/api/anthropic");
+  rmSync(tmp, { force: true });
+});
+
 test("loadConfig rejects a model whose upstream is neither built in nor declared", () => {
   const tmp = "test/.tmp-bad-upstream.toml";
   writeFileSync(tmp, toml({ a: "local:qwen" }, "a")); // no [upstreams] table -> "local" is undefined
