@@ -1,25 +1,49 @@
-import type { Decision, Upstream } from "./types.ts";
+import type { AuthMode, Decision, Upstream, UpstreamDef } from "./types.ts";
 
-const BASE: Record<Upstream, string> = {
-  anthropic: "https://api.anthropic.com",
-  openrouter: "https://openrouter.ai/api",
+// Built-in upstreams. Users can add more (or override these) via the [upstreams]
+// table in routes.toml; these are the defaults when a name isn't configured.
+export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
+  anthropic: {
+    base: "https://api.anthropic.com",
+    auth: { kind: "passthrough", envKey: "ANTHROPIC_API_KEY" },
+    stripBeta: false,
+  },
+  openrouter: {
+    base: "https://openrouter.ai/api",
+    auth: { kind: "bearer", envKey: "OPENROUTER_API_KEY" },
+    stripBeta: true, // OpenRouter's Anthropic endpoint may reject Claude Code's betas
+  },
 };
 
 const HOP_BY_HOP = new Set(["host", "content-length", "connection", "accept-encoding"]);
 
 export class MissingKeyError extends Error {}
 
-export function forwardUrl(upstream: Upstream, inboundPath: string, inboundSearch: string): string {
-  return BASE[upstream] + inboundPath + inboundSearch;
+export function resolveUpstream(name: Upstream, upstreams?: Record<string, UpstreamDef>): UpstreamDef {
+  const def = upstreams?.[name] ?? BUILTIN_UPSTREAMS[name];
+  if (!def)
+    throw new Error(`unknown upstream "${name}" (define it in an [upstreams] table in routes.toml)`);
+  return def;
+}
+
+export function forwardUrl(
+  upstream: Upstream,
+  inboundPath: string,
+  inboundSearch: string,
+  upstreams?: Record<string, UpstreamDef>,
+): string {
+  return resolveUpstream(upstream, upstreams).base + inboundPath + inboundSearch;
 }
 
 export function rewriteHeaders(
   decision: Decision,
   inbound: Headers,
   env: Record<string, string | undefined>,
+  upstreams?: Record<string, UpstreamDef>,
 ): Headers {
+  const def = resolveUpstream(decision.upstream, upstreams);
   const out = new Headers();
-  // Copy inbound headers except hop-by-hop and auth (auth handled per-leg).
+  // Copy inbound headers except hop-by-hop and auth (auth is set per-upstream below).
   for (const [k, v] of inbound) {
     const key = k.toLowerCase();
     if (HOP_BY_HOP.has(key))
@@ -28,21 +52,32 @@ export function rewriteHeaders(
       continue;
     out.set(k, v);
   }
+  applyAuth(out, def.auth, inbound, env);
+  if (def.stripBeta)
+    out.delete("anthropic-beta");
+  return out;
+}
 
-  if (decision.upstream === "openrouter") {
-    const key = env.OPENROUTER_API_KEY;
+function applyAuth(
+  out: Headers,
+  auth: AuthMode,
+  inbound: Headers,
+  env: Record<string, string | undefined>,
+): void {
+  if (auth.kind === "bearer") {
+    const key = env[auth.envKey];
     if (!key)
-      throw new MissingKeyError("OPENROUTER_API_KEY is not set but a route needs OpenRouter");
+      throw new MissingKeyError(`${auth.envKey} is not set but a route needs it`);
     out.set("authorization", `Bearer ${key}`);
-    out.delete("anthropic-beta"); // OpenRouter's Anthropic endpoint may reject CC betas
-    return out;
+    return;
   }
-
-  // anthropic leg: prefer an explicit env key, else pass Claude Code's own auth through.
-  if (env.ANTHROPIC_API_KEY) {
-    out.set("x-api-key", env.ANTHROPIC_API_KEY);
-  }
-  else {
+  if (auth.kind === "passthrough") {
+    // Prefer an explicit env key; otherwise pass Claude Code's own auth through.
+    const envKey = auth.envKey ? env[auth.envKey] : undefined;
+    if (envKey) {
+      out.set("x-api-key", envKey);
+      return;
+    }
     const inboundAuth = inbound.get("authorization");
     const inboundKey = inbound.get("x-api-key");
     if (inboundAuth)
@@ -50,7 +85,7 @@ export function rewriteHeaders(
     if (inboundKey)
       out.set("x-api-key", inboundKey);
   }
-  return out;
+  // kind === "none": send no auth (a local model server that doesn't want one).
 }
 
 export function rewriteBody(decision: Decision, body: any): any {

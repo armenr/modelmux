@@ -39,3 +39,23 @@ reasoner = "openrouter:deepseek/deepseek-v4-pro"
 review = "openrouter:minimax/minimax-m3"
 cheap = "openrouter:deepseek/deepseek-v4-flash"
 claude-review = "anthropic:claude-sonnet-5"
+
+# --- upstreams (optional) ---------------------------------------------------
+# "anthropic" (passthrough) and "openrouter" (Bearer OPENROUTER_API_KEY) are
+# built in. Add your own Anthropic-Messages-compatible endpoints here, then use
+# them like any other alias: <name>:<slug>. auth = passthrough | passthrough:ENV
+# | bearer:ENV | none.
+#
+# LOCAL MODELS: recent Ollama (v0.14+) speaks the Anthropic Messages API
+# natively, so no translation shim is needed — point an alias at it and run your
+# grunt-work subagents on a local model while the orchestrator stays on Claude:
+#
+#   [upstreams]
+#   local = { base = "http://localhost:11434", auth = "none" }
+#
+#   # then in [models] above:
+#   flagship = "local:qwen3-coder:30b"    # subagents run on your local Qwen
+#
+# (Non-Ollama runners like LM Studio / llama.cpp / vLLM speak the OpenAI format;
+# put a LiteLLM proxy in front to expose an Anthropic endpoint, then point the
+# upstream base at that.)

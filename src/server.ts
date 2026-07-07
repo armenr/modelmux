@@ -44,7 +44,7 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       let headers: Headers;
       try {
         decision = route(signals, config);
-        headers = rewriteHeaders(decision, req.headers, opts.env);
+        headers = rewriteHeaders(decision, req.headers, opts.env, config.upstreams);
       }
       catch (e) {
         logError(opts.logPath, signals, e as Error);
@@ -58,7 +58,7 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       const base = opts.baseOverride?.[decision.upstream];
       const target = base
         ? base + url.pathname + url.search
-        : forwardUrl(decision.upstream, url.pathname, url.search);
+        : forwardUrl(decision.upstream, url.pathname, url.search, config.upstreams);
 
       let upstream: Response;
       try {

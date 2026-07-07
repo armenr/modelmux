@@ -1,8 +1,8 @@
-import type { Config, ModelRef, RouteRule, Upstream, WorkType } from "./types.ts";
+import type { AuthMode, Config, ModelRef, RouteRule, UpstreamDef, WorkType } from "./types.ts";
 import { readFileSync, watch } from "node:fs";
 import process from "node:process";
+import { BUILTIN_UPSTREAMS } from "./upstreams.ts";
 
-const UPSTREAMS: Upstream[] = ["anthropic", "openrouter"];
 const WORK_TYPES = new Set<WorkType>(["background", "think", "longContext", "webSearch"]);
 
 // A route's `when` must name exactly one recognized condition. Reject anything
@@ -23,17 +23,55 @@ function validateWhen(when: RouteRule["when"] | undefined): void {
     throw new Error("route `when.anySubagent` must be true when present");
 }
 
+// Split "<upstream>:<slug>" into its parts (shape only). Whether the upstream
+// name actually exists is validated against the [upstreams] table in loadConfig.
 export function parseModelRef(spec: string): ModelRef {
   const idx = spec.indexOf(":");
   if (idx === -1)
     throw new Error(`bad model spec (need "<upstream>:<slug>"): ${spec}`);
-  const upstream = spec.slice(0, idx) as Upstream;
+  const upstream = spec.slice(0, idx);
   const slug = spec.slice(idx + 1);
-  if (!UPSTREAMS.includes(upstream))
-    throw new Error(`unknown upstream: ${upstream}`);
+  if (!upstream)
+    throw new Error(`empty upstream in: ${spec}`);
   if (!slug)
     throw new Error(`empty slug in: ${spec}`);
   return { upstream, slug };
+}
+
+interface RawUpstream {
+  base?: string;
+  auth?: string;
+  stripBeta?: boolean;
+}
+
+// Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
+export function parseAuth(spec: string): AuthMode {
+  if (spec === "none")
+    return { kind: "none" };
+  if (spec === "passthrough")
+    return { kind: "passthrough" };
+  if (spec.startsWith("passthrough:"))
+    return { kind: "passthrough", envKey: spec.slice("passthrough:".length) };
+  if (spec.startsWith("bearer:")) {
+    const envKey = spec.slice("bearer:".length);
+    if (!envKey)
+      throw new Error("bearer auth needs an env var, e.g. auth = \"bearer:MY_API_KEY\"");
+    return { kind: "bearer", envKey };
+  }
+  throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | none)`);
+}
+
+// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter).
+function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<string, UpstreamDef> {
+  const out: Record<string, UpstreamDef> = { ...BUILTIN_UPSTREAMS };
+  for (const [name, u] of Object.entries(raw ?? {})) {
+    if (!u || typeof u !== "object" || typeof u.base !== "string" || !u.base)
+      throw new Error(`upstream "${name}" needs a base URL, e.g. base = "http://localhost:11434"`);
+    const auth = parseAuth(u.auth ?? "none");
+    const stripBeta = u.stripBeta ?? (auth.kind !== "passthrough");
+    out[name] = { base: u.base, auth, stripBeta };
+  }
+  return out;
 }
 
 export function resolveMenu(
@@ -60,6 +98,7 @@ interface RawConfig {
   default: string;
   routes: Config["routes"];
   longContextThreshold?: number;
+  upstreams?: Record<string, RawUpstream>;
 }
 
 export function loadConfig(
@@ -78,6 +117,7 @@ export function loadConfig(
     default: raw.default,
     routes: raw.routes ?? [],
     longContextThreshold: raw.longContextThreshold ?? 200000,
+    upstreams: buildUpstreams(raw.upstreams),
   };
   if (!config.default)
     throw new Error("routes.toml is missing a `default` alias");
@@ -90,7 +130,13 @@ export function loadConfig(
     if (!models[r.use])
       throw new Error(`route uses unknown alias "${r.use}" (not in models)`);
   }
-  return resolveMenu(config, env);
+  const resolved = resolveMenu(config, env);
+  // Every model's upstream must be built in or declared in [upstreams].
+  for (const [alias, ref] of Object.entries(resolved.models)) {
+    if (!resolved.upstreams?.[ref.upstream])
+      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are anthropic and openrouter; add others under [upstreams]`);
+  }
+  return resolved;
 }
 
 function readText(path: string): string {

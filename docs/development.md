@@ -150,7 +150,7 @@ If a request routes to OpenRouter and `OPENROUTER_API_KEY` is unset, the request
 fails HTTP 400 with the body:
 
 ```text
-OPENROUTER_API_KEY is not set but a route needs OpenRouter
+OPENROUTER_API_KEY is not set but a route needs it
 ```
 
 Override one alias for a single run without editing `routes.toml`:
