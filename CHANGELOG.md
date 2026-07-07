@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/armenr/modelmux/compare/v0.2.0...v0.3.0) (2026-07-07)
+
+
+### Features
+
+* built-in zai upstream for Z.ai GLM Coding Plan subscriptions ([#8](https://github.com/armenr/modelmux/issues/8)) ([7bd0277](https://github.com/armenr/modelmux/commit/7bd0277b0e31c8be879f3001b8304b5984397948))
+
 ## [0.2.0](https://github.com/armenr/modelmux/compare/v0.1.2...v0.2.0) (2026-07-07)
 
 
