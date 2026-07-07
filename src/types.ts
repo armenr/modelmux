@@ -1,5 +1,5 @@
-// An upstream name. "anthropic" and "openrouter" are built in; more can be
-// defined in the [upstreams] table of routes.toml (e.g. a local model server).
+// An upstream name. "anthropic", "openrouter", and "zai" are built in; more can
+// be defined in the [upstreams] table of routes.toml (e.g. a local model server).
 export type Upstream = string;
 
 // How modelmux authenticates the outbound leg to an upstream.

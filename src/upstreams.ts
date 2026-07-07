@@ -13,6 +13,14 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     auth: { kind: "bearer", envKey: "OPENROUTER_API_KEY" },
     stripBeta: true, // OpenRouter's Anthropic endpoint may reject Claude Code's betas
   },
+  // Z.ai GLM Coding Plan — a flat-rate subscription via Z.ai's Anthropic endpoint.
+  // Betas stripped by default to avoid 400s; override with stripBeta = false in
+  // [upstreams] if you want to keep Claude Code's betas.
+  zai: {
+    base: "https://api.z.ai/api/anthropic",
+    auth: { kind: "bearer", envKey: "ZAI_API_KEY" },
+    stripBeta: true,
+  },
 };
 
 const HOP_BY_HOP = new Set(["host", "content-length", "connection", "accept-encoding"]);

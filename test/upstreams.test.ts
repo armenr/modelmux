@@ -108,3 +108,23 @@ test("a config-defined bearer upstream injects its own env key", () => {
   expect(rewriteHeaders(toGw, new Headers(), { GW_KEY: "secret" }, upstreams).get("authorization")).toBe("Bearer secret");
   expect(() => rewriteHeaders(toGw, new Headers(), {}, upstreams)).toThrow(MissingKeyError);
 });
+
+const toZai: Decision = { alias: "flagship", upstream: "zai", model: "glm-5.2", matchedRule: "tag:flagship" };
+
+test("built-in zai upstream targets Z.ai's Anthropic endpoint", () => {
+  expect(resolveUpstream("zai").base).toBe("https://api.z.ai/api/anthropic");
+  expect(forwardUrl("zai", "/v1/messages", "")).toBe("https://api.z.ai/api/anthropic/v1/messages");
+});
+
+test("built-in zai upstream sends Bearer ZAI_API_KEY, drops Claude auth, strips betas", () => {
+  const inbound = new Headers({ "authorization": "Bearer claude-oauth", "x-api-key": "sk-ant", "anthropic-beta": "x", "content-type": "application/json" });
+  const out = rewriteHeaders(toZai, inbound, { ZAI_API_KEY: "zk-secret" });
+  expect(out.get("authorization")).toBe("Bearer zk-secret"); // your Z.ai key, not Claude's
+  expect(out.get("x-api-key")).toBeNull(); // Claude auth never leaked to Z.ai
+  expect(out.get("anthropic-beta")).toBeNull(); // stripped by default (safe)
+  expect(out.get("content-type")).toBe("application/json");
+});
+
+test("built-in zai upstream throws MissingKeyError without ZAI_API_KEY", () => {
+  expect(() => rewriteHeaders(toZai, new Headers(), {})).toThrow(MissingKeyError);
+});

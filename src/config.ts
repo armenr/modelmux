@@ -61,7 +61,7 @@ export function parseAuth(spec: string): AuthMode {
   throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | none)`);
 }
 
-// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter).
+// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter, zai).
 function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<string, UpstreamDef> {
   const out: Record<string, UpstreamDef> = { ...BUILTIN_UPSTREAMS };
   for (const [name, u] of Object.entries(raw ?? {})) {
@@ -134,7 +134,7 @@ export function loadConfig(
   // Every model's upstream must be built in or declared in [upstreams].
   for (const [alias, ref] of Object.entries(resolved.models)) {
     if (!resolved.upstreams?.[ref.upstream])
-      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are anthropic and openrouter; add others under [upstreams]`);
+      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are anthropic, openrouter, and zai; add others under [upstreams]`);
   }
   return resolved;
 }

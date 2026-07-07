@@ -57,9 +57,11 @@ export async function run(routesPath = "routes.toml"): Promise<number> {
   const configured = Object.entries(config.models)
     .filter(([, ref]) => ref.upstream === "openrouter")
     .map(([alias, ref]) => ({ alias, slug: ref.slug }));
+  const skipped = Object.keys(config.models).length - configured.length; // zai / anthropic / local aren't checkable here
 
   if (configured.length === 0) {
-    console.log("No OpenRouter models configured in routes.toml — nothing to check.");
+    const note = skipped > 0 ? ` (${skipped} non-openrouter model(s) can't be verified here.)` : "";
+    console.log(`No OpenRouter models configured in routes.toml — nothing to check.${note}`);
     return 0;
   }
 
@@ -97,6 +99,8 @@ export async function run(routesPath = "routes.toml"): Promise<number> {
   else {
     console.log("\nAll configured OpenRouter slugs exist in the live catalog.");
   }
+  if (skipped > 0)
+    console.log(`\n(${skipped} non-openrouter model(s) not checked — check-latest only verifies OpenRouter.)`);
   return stale > 0 ? 1 : 0;
 }
 

@@ -41,10 +41,14 @@ cheap = "openrouter:deepseek/deepseek-v4-flash"
 claude-review = "anthropic:claude-sonnet-5"
 
 # --- upstreams (optional) ---------------------------------------------------
-# "anthropic" (passthrough) and "openrouter" (Bearer OPENROUTER_API_KEY) are
-# built in. Add your own Anthropic-Messages-compatible endpoints here, then use
-# them like any other alias: <name>:<slug>. auth = passthrough | passthrough:ENV
-# | bearer:ENV | none.
+# "anthropic" (passthrough), "openrouter" (Bearer OPENROUTER_API_KEY), and "zai"
+# (Z.ai GLM Coding Plan, Bearer ZAI_API_KEY) are built in. Add your own
+# Anthropic-Messages-compatible endpoints here, then use them like any other
+# alias: <name>:<slug>. auth = passthrough | passthrough:ENV | bearer:ENV | none.
+#
+# Z.AI SUBSCRIPTION (flat-rate, not per-token): set ZAI_API_KEY and point an alias
+# at the built-in zai upstream (no [upstreams] block needed). Use the BARE slug:
+#   flagship = "zai:glm-5.2"    # in [models] above — not "z-ai/glm-5.2"
 #
 # LOCAL MODELS: recent Ollama (v0.14+) speaks the Anthropic Messages API
 # natively, so no translation shim is needed — point an alias at it and run your

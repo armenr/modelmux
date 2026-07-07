@@ -143,6 +143,7 @@ These apply to both `bun run proxy` and the compiled binary.
 | `MUX_ROUTES` | Path to the routes TOML config. | `./routes.toml` |
 | `MUX_LOG` | Path to the JSONL decision log written per request. | `./decisions.jsonl` |
 | `OPENROUTER_API_KEY` | Required for any `openrouter:` route. | unset |
+| `ZAI_API_KEY` | Required for any `zai:` route (built-in Z.ai GLM Coding Plan upstream). | unset |
 | `MUX_MODEL_<ALIAS>` | Per-run override of one alias's target (uppercase alias, hyphens to underscores; value is a full `upstream:slug`). | unset |
 | `ANTHROPIC_API_KEY` | If set, used as `x-api-key` on the anthropic leg; otherwise Claude Code's inbound auth is forwarded. | unset |
 

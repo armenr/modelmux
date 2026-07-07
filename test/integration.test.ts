@@ -107,6 +107,39 @@ test("missing OpenRouter key fails loud with 400 AND logs an error record", asyn
   noKey.stop(true);
 });
 
+test("built-in zai upstream routes a subagent to Z.ai with Bearer ZAI_API_KEY, no Claude leak", async () => {
+  let seenAuth: string | null = "unset";
+  const zaiSrv = Bun.serve({
+    port: 0,
+    fetch: (req) => {
+      seenAuth = req.headers.get("authorization");
+      return sse("zai");
+    },
+  });
+  // No `upstreams` in the config → relies on the BUILT-IN zai for auth/base;
+  // baseOverride only redirects the URL to the fake server so we don't hit real Z.ai.
+  const cfg: Config = {
+    models: {
+      orchestrator: { upstream: "anthropic", slug: "passthrough" },
+      flagship: { upstream: "zai", slug: "glm-5.2" },
+    },
+    default: "orchestrator",
+    longContextThreshold: 200000,
+    routes: [{ when: { anySubagent: true }, use: "flagship" }],
+  };
+  const p = buildServer({ config: cfg, env: { ZAI_API_KEY: "zk-test" }, logPath: LOG, port: 0, baseOverride: { zai: zaiSrv.url.origin } });
+  const res = await fetch(`${p.url.origin}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-claude-code-agent-id": "a", "authorization": "Bearer real-claude-oauth" },
+    body: JSON.stringify({ model: "claude-x" }),
+  });
+  expect(await res.text()).toContain("\"upstream\":\"zai\"");
+  expect(seenAuth).toBe("Bearer zk-test"); // Z.ai received YOUR key, not Claude's oauth token
+  expect(readDecisions(LOG).at(-1)!.resolvedModel).toBe("glm-5.2");
+  p.stop(true);
+  zaiSrv.stop(true);
+});
+
 test("a custom local upstream routes there and leaks no Claude auth", async () => {
   let seenAuth: string | null = "unset";
   const localSrv = Bun.serve({
