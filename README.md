@@ -8,12 +8,13 @@
 
 modelmux is a tiny proxy you run in front of Claude Code. It keeps your
 orchestrator on Claude and reroutes the subagents *you choose* to cheaper or
-specialized models — GLM, Qwen, DeepSeek, MiniMax via OpenRouter. It ships as a
-single self-contained binary: download one file and run it, no Bun, Docker, or
-toolchain.
+specialized models (GLM, Qwen, DeepSeek, MiniMax) via OpenRouter, a flat-rate
+**Z.ai GLM subscription**, or your own local model. It ships as a single
+self-contained binary: download one file and run it, no Bun, Docker, or toolchain.
 
 - **Orchestrator stays Claude** — the main loop never leaves Anthropic.
 - **Subagents go where you point them** — by a route tag, a work-type, or "any subagent."
+- **Flat-rate, not per-token** — send GLM subagents to a [Z.ai GLM Coding Plan](#flat-rate-glm-bring-a-zai-subscription) subscription (the built-in `zai` upstream) instead of OpenRouter's per-token meter, or to a local model.
 - **One file runs it** — [`routes.toml`](routes.toml) maps friendly aliases to models, hot-reloaded on save.
 - **Your keys, the sanctioned way** — your OpenRouter key plus Claude Code's own auth passed through. No impersonation.
 
