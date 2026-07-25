@@ -157,7 +157,7 @@ test("a custom local upstream routes there and leaks no Claude auth", async () =
     default: "orchestrator",
     longContextThreshold: 200000,
     routes: [{ when: { anySubagent: true }, use: "flagship" }],
-    upstreams: { local: { base: localSrv.url.origin, auth: { kind: "none" }, stripBeta: true } },
+    upstreams: { local: { base: localSrv.url.origin, auth: { kind: "none" }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const } },
   };
   const p = buildServer({ config: cfg, env: {}, logPath: LOG, port: 0 });
   const res = await fetch(`${p.url.origin}/v1/messages`, {

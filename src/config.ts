@@ -42,6 +42,8 @@ interface RawUpstream {
   base?: string;
   auth?: string;
   stripBeta?: boolean;
+  format?: string;
+  maxTokensField?: string;
 }
 
 // Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
@@ -69,7 +71,15 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
       throw new Error(`upstream "${name}" needs a base URL, e.g. base = "http://localhost:11434"`);
     const auth = parseAuth(u.auth ?? "none");
     const stripBeta = u.stripBeta ?? (auth.kind !== "passthrough");
-    out[name] = { base: u.base, auth, stripBeta };
+    const format = u.format ?? "anthropic";
+    if (format !== "anthropic" && format !== "openai")
+      throw new Error(`upstream "${name}" has unknown format "${format}" (use "anthropic" or "openai")`);
+    const maxTokensField = u.maxTokensField ?? "max_tokens";
+    if (maxTokensField !== "max_tokens" && maxTokensField !== "max_completion_tokens") {
+      throw new Error(`upstream "${name}" has unknown maxTokensField "${maxTokensField}" `
+        + `(use "max_tokens" or "max_completion_tokens")`);
+    }
+    out[name] = { base: u.base, auth, stripBeta, format, maxTokensField };
   }
   return out;
 }

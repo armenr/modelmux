@@ -7,11 +7,15 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     base: "https://api.anthropic.com",
     auth: { kind: "passthrough", envKey: "ANTHROPIC_API_KEY" },
     stripBeta: false,
+    format: "anthropic",
+    maxTokensField: "max_tokens",
   },
   openrouter: {
     base: "https://openrouter.ai/api",
     auth: { kind: "bearer", envKey: "OPENROUTER_API_KEY" },
     stripBeta: true, // OpenRouter's Anthropic endpoint may reject Claude Code's betas
+    format: "anthropic",
+    maxTokensField: "max_tokens",
   },
   // Z.ai GLM Coding Plan — a flat-rate subscription via Z.ai's Anthropic endpoint.
   // Betas stripped by default to avoid 400s; override with stripBeta = false in
@@ -20,6 +24,8 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     base: "https://api.z.ai/api/anthropic",
     auth: { kind: "bearer", envKey: "ZAI_API_KEY" },
     stripBeta: true,
+    format: "anthropic",
+    maxTokensField: "max_tokens",
   },
   // Kimi Code — Moonshot's flat-rate coding subscription, quota-based rather than
   // per-token. Its key comes from the Kimi Code console and is NOT the same as a
@@ -32,6 +38,8 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     base: "https://api.kimi.com/coding",
     auth: { kind: "bearer", envKey: "KIMI_API_KEY" },
     stripBeta: true,
+    format: "anthropic",
+    maxTokensField: "max_tokens",
   },
 };
 

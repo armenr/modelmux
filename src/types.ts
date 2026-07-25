@@ -8,10 +8,23 @@ export type AuthMode
     | { kind: "bearer"; envKey: string } // Authorization: Bearer <env[envKey]>
     | { kind: "none" }; // send no auth (e.g. a local model server)
 
+// The wire format an upstream speaks. "anthropic" forwards untouched (the
+// default and the fast path); "openai" routes the request and response through
+// the Chat Completions adapter in openai.ts.
+export type WireFormat = "anthropic" | "openai";
+
+// Which token-cap field the OpenAI-format leg should send. There is no safe
+// universal default: OpenAI's newer models REJECT `max_tokens` outright
+// ("Unsupported parameter"), while support for `max_completion_tokens` across
+// local runners is still uneven. Only meaningful when format is "openai".
+export type MaxTokensField = "max_tokens" | "max_completion_tokens";
+
 export interface UpstreamDef {
   base: string; // base URL, e.g. https://api.anthropic.com or http://localhost:11434
   auth: AuthMode;
   stripBeta: boolean; // drop anthropic-beta — non-Anthropic endpoints don't understand Claude Code's betas
+  format: WireFormat;
+  maxTokensField: MaxTokensField;
 }
 
 export interface ModelRef {

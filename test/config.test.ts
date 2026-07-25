@@ -40,7 +40,7 @@ test("loadConfig parses [upstreams] and accepts a model that targets one", () =>
   writeFileSync(tmp, `default = "a"\n\n[models]\na = "local:qwen3-coder:30b"\n\n[upstreams]\nlocal = { base = "http://localhost:11434", auth = "none" }\n`);
   const cfg = loadConfig(tmp, {});
   expect(cfg.models.a).toEqual({ upstream: "local", slug: "qwen3-coder:30b" });
-  expect(cfg.upstreams?.local).toEqual({ base: "http://localhost:11434", auth: { kind: "none" }, stripBeta: true });
+  expect(cfg.upstreams?.local).toEqual({ base: "http://localhost:11434", auth: { kind: "none" }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const });
   expect(cfg.upstreams?.anthropic).toBeDefined(); // built-ins still present
   rmSync(tmp, { force: true });
 });

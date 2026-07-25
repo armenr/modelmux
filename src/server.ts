@@ -4,9 +4,10 @@ import process from "node:process";
 import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
+import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } from "./openai.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
-import { forwardUrl, passthroughHeaders, rewriteBody, rewriteHeaders } from "./upstreams.ts";
+import { normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
 
 export interface ServerOpts {
   config?: Config; // static config (tests); ignored if configHolder is set
@@ -55,18 +56,27 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       rewriteBody(decision, body);
       logDecision(opts.logPath, signals, decision);
 
+      // An upstream that speaks OpenAI Chat Completions needs the body, the
+      // path and (below) the response translated. "anthropic" is the fast path
+      // and forwards untouched, exactly as before.
+      const def = resolveUpstream(decision.upstream, config.upstreams);
+      const isOpenAI = def.format === "openai";
+      const wantsStream = body?.stream === true;
+      const outboundBody = isOpenAI ? toOpenAIRequest(body, def.maxTokensField) : body;
+
       const url = new URL(req.url);
+      const path = isOpenAI ? openaiPath(url.pathname) : url.pathname;
       const base = opts.baseOverride?.[decision.upstream];
       const target = base
-        ? base + url.pathname + url.search
-        : forwardUrl(decision.upstream, url.pathname, url.search, config.upstreams);
+        ? base + path + url.search
+        : normalizeBase(def.base) + path + url.search;
 
       let upstream: Response;
       try {
         upstream = await fetch(target, {
           method: req.method,
           headers,
-          body: JSON.stringify(body),
+          body: JSON.stringify(outboundBody),
           signal: req.signal, // propagate client cancellation so we don't keep billing
         });
       }
@@ -79,9 +89,40 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
       }
 
-      return new Response(upstream.body, {
+      // Anthropic-format upstreams stream straight through, untouched.
+      if (!isOpenAI) {
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: passthroughHeaders(upstream.headers),
+        });
+      }
+
+      // An upstream ERROR body is provider-shaped either way — pass it along
+      // rather than translating it into a well-formed message that says nothing.
+      if (!upstream.ok || !upstream.body) {
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: passthroughHeaders(upstream.headers),
+        });
+      }
+
+      if (wantsStream) {
+        const sseHeaders = passthroughHeaders(upstream.headers);
+        sseHeaders.set("content-type", "text/event-stream");
+        return new Response(toAnthropicStream(upstream.body, decision.model), {
+          status: upstream.status,
+          headers: sseHeaders,
+        });
+      }
+
+      const oaiJson = await upstream.json().catch(() => null);
+      if (oaiJson == null)
+        return new Response("upstream returned an unparseable body", { status: 502 });
+      const jsonHeaders = passthroughHeaders(upstream.headers);
+      jsonHeaders.set("content-type", "application/json");
+      return new Response(JSON.stringify(toAnthropicResponse(oaiJson, decision.model)), {
         status: upstream.status,
-        headers: passthroughHeaders(upstream.headers),
+        headers: jsonHeaders,
       });
     },
   });
