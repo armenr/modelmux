@@ -14,21 +14,30 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-- **OQ-007** (🟢 verification depth; surfaced 2026-07-25 by a peer's `gopls` finding reproducing here) —
-  **This tree's cited IMPL→WIRED oracle has never run.** `.claude/rules/node-ts-code-intel.md:64` names
-  **`knip`** as "the deterministic oracle the IMPL→WIRED proof cites" and invokes it as `npx knip`.
-  `knip` is **not installed and not declared** here, so that oracle has never executed on this repo —
-  and nothing said so. Separately, `tsserver` reads as ABSENT to `command -v` while being **present at
-  `node_modules/.bin/tsserver`** (symlinked from the `typescript` dependency), so the naive availability
-  check answers the wrong question: *"is it on my PATH"* is not *"is it installed"*.
-  **Cost this cycle: none** — WU-0003's reachability was proven by running the proxy end-to-end against
-  the live backend and reading `decisions.jsonl` (6/6 to the intended upstream), which is a *stronger*
-  evidence class than knip. It would bite the next unit that ships **without** a live rig, which is
-  exactly when nobody would notice. **Resolve:** add `knip` as a devDependency and wire it into a gate
-  (currency-check first), or record explicitly that reachability here is proven by live field test and
-  amend the rule. Deliberately NOT done on a release-cut branch. Relates: WU-0003.
+*(none — all seven resolved 2026-07-25.)*
 
 ## Recently resolved
+
+- **OQ-007** — *the cited IMPL→WIRED oracle had never run.* → **RESOLVED 2026-07-25.** `knip@6.29.0`
+  added as a devDependency (currency-checked against the npm registry: published 2026-01-22, actively
+  maintained, first-class Bun plugin; `ts-prune` rejected as stalled since 2021). `knip.json` declares
+  the **production** entrypoints — `src/main.ts`, `bin/mux`, `scripts/record-fixtures.ts` — and
+  deliberately **excludes tests**. Wired as `bun run reachability` (~169 ms), into the `check` script
+  and into CI.
+  > **The vacuity trap, and why the config looks the way it does.** Every `src/*.ts` here has a test
+  > that imports it. Admitting tests as entrypoints makes the whole tree look reachable and the oracle
+  > reports clean *forever* — coverage-shaped output that checks nothing. **Derived, not assumed:** a
+  > module imported only by a test is flagged (`rc=1`) with tests excluded, and goes **silent**
+  > (`rc=0`) the moment tests are added to `entry`. `test/reachability-config.test.ts` is the standing
+  > guard on that, and is itself non-vacuous (widen `entry` → it goes red).
+  > **Non-vacuity proven twice**, before and after the config was edited — a config change is exactly
+  > how an oracle silently disarms.
+
+  **It found a real defect on its first run.** `forwardUrl` was exported, unit-tested, and **never
+  called** — `src/server.ts` duplicated its logic inline, so the one tested URL-builder was not the one
+  production ran. Now wired: breaking `forwardUrl` fails **6 tests including integration tests**, where
+  before it would have failed only the unit test of dead code. Per the standing rule, the dead export
+  was a *symptom* (duplication) and the fix was the missing call, not a deletion.
 
 - **OQ-003** — *machine-specific partyline paths in the public `CLAUDE.md`.* → **RESOLVED 2026-07-25,
   operator's call from four options: strip-and-skip-worktree.** The committed `CLAUDE.md` now carries

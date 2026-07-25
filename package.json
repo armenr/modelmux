@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.5.0",
   "private": true,
-  "description": "A batteries-included template for heterogeneous agent routing in Claude Code — keep the orchestrator on Claude, route chosen subagents to OpenRouter models via a small owned proxy.",
+  "description": "A batteries-included template for heterogeneous agent routing in Claude Code \u2014 keep the orchestrator on Claude, route chosen subagents to OpenRouter models via a small owned proxy.",
   "author": "Armen Rostamian",
   "license": "MIT",
   "homepage": "https://github.com/armenr/modelmux#readme",
@@ -33,8 +33,10 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "check": "bun run lint && bun run typecheck && bun test test/",
-    "build": "bun build --compile --minify src/main.ts --outfile dist/modelmux"
+    "check": "bun run lint && bun run typecheck && bun run reachability && bun test test/",
+    "build": "bun build --compile --minify src/main.ts --outfile dist/modelmux",
+    "reachability": "knip --include files",
+    "knip": "knip"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.1.0",
@@ -42,6 +44,7 @@
     "@commitlint/config-conventional": "^21.2.0",
     "@types/bun": "^1.3.14",
     "eslint": "^10.6.0",
+    "knip": "6.29.0",
     "typescript": "^6.0.3"
   }
 }
