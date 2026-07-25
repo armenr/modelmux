@@ -48,12 +48,16 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
 - 🔍 `doc-lint-clean-is-a-partial-claim-kit-template-provenance-disables-four-rules.md` — **Open when:**
   you are about to cite "doc-lint clean — N files" as evidence, or wondering why a reference/annotation
   defect went unreported. **Carry-away:** `lint-docs.py` skips rules 8/15/21/12 on any doc whose
-  `provenance:` is `kit-template` regardless of path, which is **17 of our 37 files** and is permanent
-  by construction (that provenance is *correct* for verbatim kit copies and will never be bumped) — an
-  armed-vs-control diff found 2 real hidden findings here, both kit-owned and not ours to patch. Hit
-  count is not debt (17→2 here vs 4→6 on another tree), and a subset control is only evidence if you can
-  say why the subset is representative. (Measured firsthand 2026-07-25; kit-side confirmed by
-  `fieldbook`, fix queued behind v0.8.3.)
+  `provenance:` is `kit-template` regardless of path — **17 of our 37 files**, so a clean headline means
+  "clean on the rules that ran". Those 17 split two ways: **10 SEED-THEN-LIVE** (every `index.md`, plus
+  `log.md` and `glossary.md`) that the *adopter writes* — rule 13 mandates adding index rows, and the
+  label then exempts exactly what you wrote — and **7 static-normative** that are genuinely verbatim.
+  An armed-vs-control diff found 2 real hidden findings here, both in the static-normative bucket, both
+  kit-owned. **Do not patch, and do not self-bump the seed files** (zero findings gained, manifest
+  `sha256` divergence risk). Hit count is not debt (17→2 here vs 4→6 on another tree), the buckets are
+  **not filename-separable** (`MOC.md` is seed-then-live despite its name), and a subset control is only
+  evidence if you can say why the subset is representative. (Measured firsthand 2026-07-25; kit-side
+  confirmed and the two-class taxonomy corrected by `fieldbook`; fix queued behind v0.8.3.)
 
 ## Maintenance
 
