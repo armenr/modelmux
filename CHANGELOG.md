@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1](https://github.com/armenr/modelmux/compare/v0.5.0...v0.5.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* **server:** call forwardUrl instead of duplicating it, and gate reachability in CI ([#17](https://github.com/armenr/modelmux/issues/17)) ([8b989bb](https://github.com/armenr/modelmux/commit/8b989bb23f2511df9ad4a73c84d25b14171d329b))
+
 ## [0.5.0](https://github.com/armenr/modelmux/compare/v0.4.0...v0.5.0) (2026-07-25)
 
 
