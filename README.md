@@ -8,15 +8,17 @@
 
 modelmux is a tiny proxy you run in front of Claude Code. It keeps your
 orchestrator on Claude and reroutes the subagents *you choose* to cheaper or
-specialized models (GLM, Qwen, DeepSeek, MiniMax) via OpenRouter, a flat-rate
-**Z.ai GLM subscription**, or your own local model. It ships as a single
-self-contained binary: download one file and run it, no Bun, Docker, or toolchain.
+specialized models — via OpenRouter, a flat-rate **subscription you already pay
+for** (Z.ai GLM, Kimi Code, or ChatGPT/Codex), or a model on your own machine.
+It ships as a single self-contained binary: download one file and run it, no Bun,
+Docker, or toolchain.
 
 - **Orchestrator stays Claude** — the main loop never leaves Anthropic.
 - **Subagents go where you point them** — by a route tag, a work-type, or "any subagent."
-- **Flat-rate, not per-token** — send GLM subagents to a [Z.ai GLM Coding Plan](#flat-rate-glm-bring-a-zai-subscription) subscription (the built-in `zai` upstream) instead of OpenRouter's per-token meter, or to a local model.
+- **Flat-rate, not per-token** — put subagents on a [subscription](#subscription-backed-models) you already have: `zai`, `kimi` and `codex` are built in, no `[upstreams]` block needed.
+- **Three wire formats, one binary** — Anthropic Messages, OpenAI [Chat Completions and Responses](#wire-formats-what-modelmux-can-talk-to). LM Studio, llama.cpp and vLLM need **no proxy in front**.
 - **One file runs it** — [`routes.toml`](routes.toml) maps friendly aliases to models, hot-reloaded on save.
-- **Your keys, the sanctioned way** — your OpenRouter key plus Claude Code's own auth passed through. No impersonation.
+- **Your keys, your account** — your own credentials, nothing pooled, no impersonation. The Codex path has [caveats worth reading](#gpt--codex-bring-a-chatgpt-subscription).
 
 ## Install
 
@@ -150,7 +152,31 @@ claude-review = "anthropic:claude-sonnet-5"
 ```
 
 The slugs above are illustrative — run `modelmux check-latest` to see which
-models actually exist on OpenRouter right now.
+models actually exist on OpenRouter right now. (It checks **OpenRouter only**;
+the Anthropic, Z.ai, Kimi and Codex slugs below are verified by hand.)
+
+### Claude models
+
+The orchestrator uses `anthropic:passthrough`, which forwards whatever model
+Claude Code already picked — so you normally don't name a Claude model at all.
+You only need one for an alias like `claude-review`, where you want a **Claude
+second opinion** on work a cheaper model did. Verified against the Anthropic
+Models API on 2026-07-25:
+
+| Model | API ID | Context | Notes |
+|---|---|---|---|
+| Claude Opus 5 | `claude-opus-5` | 1M | **Newest — released 2026-07-24.** Strongest reviewer |
+| Claude Sonnet 5 | `claude-sonnet-5` | 1M | Best speed/intelligence balance — the default here |
+| Claude Fable 5 | `claude-fable-5` | 1M | Most capable widely released; slower, pricier |
+| Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 200k | Fastest, cheapest |
+
+```toml
+[models]
+claude-review = "anthropic:claude-opus-5" # strongest second opinion
+```
+
+Older generations (`claude-opus-4-8`, `claude-sonnet-4-6`, …) still work.
+`claude-opus-4-1-20250805` is **deprecated and retires 2026-08-05**.
 
 ## Subscription-backed models
 
@@ -160,8 +186,8 @@ block, just a credential and a bare slug.
 
 | Subscription | Upstream | Credential | Slugs |
 |---|---|---|---|
-| Z.ai GLM Coding Plan | `zai` (built in) | `ZAI_API_KEY` | `glm-5.2`, `glm-4.7` |
-| Kimi Code (Moonshot) | `kimi` (built in) | `KIMI_API_KEY` | `k3` (~1M ctx), `k3-256k` (capped), `kimi-for-coding`, `kimi-for-coding-highspeed` |
+| Z.ai GLM Coding Plan | `zai` (built in) | `ZAI_API_KEY` | `glm-5.2`, `glm-5-turbo`, `glm-4.7` |
+| Kimi Code (Moonshot) | `kimi` (built in) | `KIMI_API_KEY` | `k3-256k` (256K, half quota — start here), `k3` (~1M), `kimi-for-coding`, `kimi-for-coding-highspeed` |
 | GPT / Codex (ChatGPT) | `codex` (built in) | `codex login` — [caveats](#gpt--codex-bring-a-chatgpt-subscription) | `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.4`, … ([verified list](#gpt--codex-bring-a-chatgpt-subscription)) |
 
 Z.ai and Kimi are your own key against the vendor's **own documented** endpoint —
@@ -209,13 +235,24 @@ export KIMI_API_KEY=<key from the Kimi Code console>
 ```toml
 [models]
 orchestrator = "anthropic:passthrough"
-flagship = "kimi:k3" # full ~1M context; best for large-codebase work
+flagship = "kimi:k3-256k" # 256K context at HALF the quota of k3
 ```
 
-K3 is a **1,048,576-token (~1M) context** model. On Kimi Code the *usable* window is
-tiered by plan — lower tiers cap around 256K, higher tiers get the full 1M — so
-`k3-256k` is the **capped** variant, not a bigger one. Reach for plain `k3` unless
-you specifically want the cap.
+K3 is a **1,048,576-token (~1M) context** model, and `k3-256k` is the **capped**
+262,144-token variant — *not* a bigger one, which is the way round most people
+guess wrong.
+
+**But capped is the one to reach for by default.** Moonshot's own docs recommend
+`k3-256k` for most work: it delivers the same results inside the smaller window
+while consuming **half the quota** of full `k3`. Save plain `k3` for when you
+genuinely need more than 256K of context. Model access is also tiered by plan.
+
+| Model id | Context |
+|---|---|
+| `k3` | 1,048,576 |
+| `k3-256k` | 262,144 |
+| `kimi-for-coding` | 262,144 |
+| `kimi-for-coding-highspeed` | 262,144 |
 
 **Mind the split — this is the one thing that will bite you.** Moonshot sells two
 different products and they are not interchangeable:
