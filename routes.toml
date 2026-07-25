@@ -72,14 +72,21 @@ claude-review = "anthropic:claude-sonnet-5"
 #   moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
 #   # then in [models]:  flagship = "moonshot:kimi-k3"
 #
-# ── GPT / CODEX ──────────────────────────────────────────────────────────────
-# Not a built-in, deliberately: Codex subscription auth targets an undocumented
-# ChatGPT backend that speaks OpenAI's Responses schema, not Anthropic Messages,
-# so it needs protocol translation rather than a base URL. Run a local
-# translating shim and point an upstream at it (same pattern as LM Studio below):
+# ── GPT / CODEX (works, via LiteLLM — just not a built-in) ───────────────────
+# Codex subscription auth targets an undocumented ChatGPT backend speaking
+# OpenAI's Responses schema, not Anthropic Messages, so it needs protocol
+# translation rather than a base URL. LiteLLM already does both halves: OAuth
+# device-code login against your subscription, and an Anthropic /v1/messages
+# endpoint. Run it, then point an upstream at it:
+#
+#   litellm --config config.yaml        # model_name: chatgpt/gpt-5.3-codex
+#
 #   [upstreams]
-#   codex = { base = "http://localhost:8080", auth = "none" }
-# See the README section "Subscription-backed models" for the trade-offs.
+#   codex = { base = "http://localhost:4000", auth = "none" }
+#   # then in [models]:  flagship = "codex:chatgpt/gpt-5.3-codex"
+#
+# Same gateway as the LM Studio recipe below. See the README section
+# "Subscription-backed models" for the terms trade-off, which is yours to judge.
 #
 # LOCAL MODELS: recent Ollama (v0.14+) speaks the Anthropic Messages API
 # natively, so no translation shim is needed — point an alias at it and run your

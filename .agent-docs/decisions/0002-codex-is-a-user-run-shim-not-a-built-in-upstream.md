@@ -93,11 +93,34 @@ Code's own docs publish theirs with one and `base + "/v1/messages"` would otherw
 today with no code change. The fragile, fast-moving, terms-ambiguous part lives in the user's local
 setup where they control it, and this repo keeps its single forwarding shape.
 
-**Costs, named.** Codex is second-class: more setup, and the shim is a dependency we neither vet nor
-version — if it breaks or goes unmaintained, users have no recourse from us. Someone skimming the
-subscription table will read the em-dash next to GPT/Codex as "unsupported" and may stop there. And this
-decision is explicitly time-limited: it rests on a vendor's current API surface and current terms, both
-of which can move, so it needs re-checking rather than assuming.
+**Costs, named.** Codex is second-class: more setup than an env var, and it depends on software we
+don't ship. Someone skimming the subscription table will read the em-dash next to GPT/Codex as
+"unsupported" and may stop there. And this decision is explicitly time-limited: it rests on a vendor's
+current API surface and current terms, both of which can move, so it needs re-checking rather than
+assuming.
+
+## Amendment 2026-07-25 — the shim is LiteLLM, which weakens one stated cost
+
+Written into the Consequences above was: *"the shim is a dependency we neither vet nor version — if it
+breaks or goes unmaintained, users have no recourse from us."* That was drafted against the assumption
+of a bespoke community proxy, and the operator's follow-up question ("is there something we can bolt
+on?") turned up a better answer that I should have looked for before writing the cost.
+
+**LiteLLM does both halves natively**: OAuth device-code authentication against a ChatGPT subscription,
+and an Anthropic-compatible `/v1/messages` endpoint with streaming and tool calls. It is a mature,
+actively maintained gateway — and it is *already* the shim this repo's README recommends for LM Studio
+and llama.cpp, so for a chunk of users it is not a new dependency at all. It also strips the fields the
+subscription backend rejects (`max_tokens`, metadata) on its own.
+
+So the unmaintained-dependency cost is materially weaker than stated, and the README now gives a
+concrete recipe rather than pointing vaguely at "community shims".
+
+**The decision does not change, and it is worth being explicit about why**, since a weakened cost is
+exactly the kind of thing that should be re-examined rather than waved through: the deciding axis was
+never dependency quality. It was that a built-in asserts stability and sanction we cannot stand behind.
+LiteLLM being excellent does not make OpenAI's endpoint documented, and does not resolve the terms
+question for anyone's account. Option B (a built-in pointed at a shim's default port) is now *more*
+tempting and still fails the same axis for the same reason.
 
 ## Related
 

@@ -255,20 +255,51 @@ it. Pooling or reselling is clearly out. **Check the current terms yourself and
 decide for your own account** — modelmux won't make that call for you by shipping
 a built-in that implies it's settled.
 
-If you've decided it's fine for your own use, the pattern already works today
-with no modelmux change. Run one of the community Anthropic↔Codex shims locally
-and point an upstream at it — the same way you'd front LM Studio with LiteLLM:
+If you've decided it's fine for your own account, **it works today with no
+modelmux change** — and you don't need a bespoke shim, because
+[LiteLLM](https://docs.litellm.ai) already does both halves. It's the same
+gateway this README recommends for LM Studio and llama.cpp, so if you run local
+models you may already have it.
+
+LiteLLM authenticates to a ChatGPT subscription with an **OAuth device-code
+flow** (it prints a code and a URL, you approve in the browser, tokens are cached
+locally — no API key), and it serves an **Anthropic-compatible `/v1/messages`
+endpoint**, which is exactly what modelmux forwards. Streaming and tool calls
+are supported.
+
+**1. Point LiteLLM at your subscription** (`config.yaml`):
+
+```yaml
+model_list:
+  - model_name: chatgpt/gpt-5.3-codex
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex
+```
+
+```bash
+litellm --config config.yaml   # serves http://0.0.0.0:4000; approve the device code once
+```
+
+**2. Point modelmux at LiteLLM:**
 
 ```toml
 [upstreams]
-codex = { base = "http://localhost:8080", auth = "none" }
+codex = { base = "http://localhost:4000", auth = "none" } # or bearer:LITELLM_API_KEY if you set a master key
 
 [models]
-flagship = "codex:gpt-5.5"
+flagship = "codex:chatgpt/gpt-5.3-codex"
 ```
 
-That keeps the undocumented dependency and the terms exposure in your own local
-setup, where you control it, instead of baked into a released binary.
+Other model names LiteLLM exposes on the subscription include
+`chatgpt/gpt-5.4`, `chatgpt/gpt-5.4-pro`, `chatgpt/gpt-5.3-codex-spark` and
+`chatgpt/gpt-5.3-instant`. LiteLLM strips the fields the subscription backend
+rejects (`max_tokens` and metadata) for you.
+
+That keeps the undocumented endpoint and the terms exposure inside a
+purpose-built, actively maintained gateway on your own machine — rather than
+baked into a binary we ship to everyone.
 
 ## Local & self-hosted models
 
