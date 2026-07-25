@@ -18,6 +18,21 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | WU-0001 (cont.) — the diversion is now LOUD, not just fixable
+
+Closed the limitation ADR-0001 named for itself. `src/agents.ts` + a `startProxy` call now print a
+startup notice listing every untagged agent, the alias `anySubagent` would send it to, and the command
+to pin it. Verified by booting the proxy against a scratch project: two untagged agents named, the
+tagged one absent; then `mux tag kit-planner control` and a reboot dropped it to one. Warn → fix →
+warning shrinks, end to end.
+
+The load-bearing design choice is where it stays SILENT: no `anySubagent` rule, or one resolving to
+passthrough (still Claude, so not a diversion), or nothing untagged. That has its own falsifier — I
+removed the passthrough check and two tests went red, because the naive version warns on repos that
+carry untagged agents but are not actually exposed. Gates: lint clean · typecheck clean · 101 tests.
+
+Still open: no request-time warning, so an agent added after boot is unannounced until restart.
+
 ## 2026-07-25 | WU-0001 — `tag` verb closes the untagged-third-party-agent gap
 
 Added `tagAgent` + `modelmux tag <agent> <alias>` (`src/cli.ts`), the insert counterpart to `use`'s

@@ -98,6 +98,17 @@ as `use`. And it does **not** fix the underlying silence: an untagged agent stil
 diversion loud. Making it loud (a startup warning naming untagged agents, or a route-time log line) is
 unaddressed and is the obvious follow-on.
 
+## Follow-up (landed 2026-07-25, same session)
+
+The gap this ADR named under Consequences — *"it does not make the diversion loud"* — has since been
+closed. `src/agents.ts` computes a startup notice naming every untagged agent, where the `anySubagent`
+rule would send it, and the command to pin it; `startProxy` writes it to stderr. It is deliberately
+silent in the three cases where there is nothing to act on: no `anySubagent` rule, a rule resolving to
+passthrough (still Claude — a diversion in name only), or no untagged agents. That silence-condition is
+the load-bearing part and carries its own test, because warning on untagged-agents-alone would fire on
+repos that are not actually exposed. Still open: nothing warns at *request* time, so an agent added
+after boot is unannounced until the next restart.
+
 ## Related
 
 - `memories/installed-safety-gate-does-not-protect-this-repo.md` — the same session's separate finding;

@@ -251,6 +251,21 @@ itself picked. That matters if anything downstream — a dispatch gate, a review
 asserts a model pin, because under any other tag the cascade, not the pin, decides what
 answers.
 
+You don't have to remember to check. The proxy names untagged agents at startup:
+
+```text
+modelmux listening on http://localhost:8787
+[modelmux] 2 agent(s) in .claude/agents/ carry no <<route:>> tag and will be routed
+  by the anySubagent rule to 'flagship' (openrouter:z-ai/glm-5.2):
+    - kit-auditor
+    - kit-planner
+  Pin one to Claude with:  modelmux tag <name> control
+```
+
+It stays quiet when there's nothing to act on — no `anySubagent` rule, or one that
+resolves to passthrough (still Claude, so not a diversion), or every agent already
+tagged.
+
 ## Configuration
 
 Everything is controlled by `routes.toml` and a few environment variables:
