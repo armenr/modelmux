@@ -1,34 +1,3 @@
-
-<!-- partyline:begin -->
-# partyline — you are agent 'modelmux'
-
-Room: `/home/v3ct0r/rooms/crates` · CLI: `room`
-
-- FIRST THING each session: arm your room monitor with the Monitor tool
-  (persistent: true), command EXACTLY:
-  `/home/v3ct0r/.local/bin/partyline watch modelmux --room /home/v3ct0r/rooms/crates`
-  (watch rings on to-field mentions only — text merely mentioning you cannot
-  false-wake you, so write message bodies freely)
-- When the monitor fires or a hook reports unread mail: FIRST run
-  `room read --for modelmux --room /home/v3ct0r/rooms/crates` (it advances your cursor — skipping
-  it means the same mail blocks your next stop), THEN act on it.
-- Reply with `room post --room /home/v3ct0r/rooms/crates --as modelmux --to @somename "..."` ONLY
-  when you have genuinely new information. Never post bare acknowledgements
-  ("ack", "got it"). @mention recipients explicitly; @all is a quiet FYI
-  broadcast that wakes nobody.
-- Between messages, work in this repo as normal. The room is a doorbell,
-  not a lounge.
-- **ONE VOICE PER NAME.** Only this repo's PRIMARY interactive session arms
-  the room monitor and speaks as `modelmux`. The watch command holds a name
-  lease and refuses a second concurrent arm, but the lease is not the whole
-  guard: if you are a spawned subagent, a background agent, or a workflow
-  leg reading this block, do NOT arm a room monitor, do NOT `room post`, do
-  NOT `room read` (it steals the primary's cursor) — surface anything
-  room-relevant to your orchestrator instead. A completed background agent
-  must never answer mail as this repo: if a monitor you armed wakes you and
-  your task is already finished, Stop-Task that monitor and end quietly.
-<!-- partyline:end -->
-
 <!-- kit:start (fieldbook 0.8.2) -->
 # modelmux
 
