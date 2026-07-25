@@ -170,7 +170,9 @@ bun run lint        # eslint . — lints and formats (@antfu/eslint-config)
 bun run lint:fix    # eslint . --fix
 bun run typecheck   # tsc --noEmit
 bun test test/      # hermetic test suite, no network
-bun run check       # lint && typecheck && bun test test/ in sequence
+bun run reachability # knip --include files — the IMPL->WIRED oracle
+bun run knip        # full knip report (unused files/exports/deps)
+bun run check       # lint && typecheck && reachability && bun test test/ in sequence
 ```
 
 `bun run lint` also formats (ESLint Stylistic; no prettier/dprint) and covers
