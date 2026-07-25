@@ -33,3 +33,9 @@ dist/
 # silently does not exist (every path in it is ${CLAUDE_PROJECT_DIR}-relative, no secrets).
 # settings.local.json stays personal: machine-absolute paths, per-operator allowances.
 .claude/settings.local.json
+
+# /handoff archives the previous session bridge here before regenerating it. Local
+# session state, same class as .kit-backups/ — and it accumulates verbatim operator
+# session notes, which are exactly the thing that should not land in a public repo
+# by way of a stray `git add -A`. The live bridge is .agent-docs/now/handoff.md.
+.claude/handoffs/
