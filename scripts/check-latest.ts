@@ -100,7 +100,12 @@ export async function run(routesPath = "routes.toml"): Promise<number> {
     console.log("\nAll configured OpenRouter slugs exist in the live catalog.");
   }
   if (skipped > 0)
-    console.log(`\n(${skipped} non-openrouter model(s) not checked — check-latest only verifies OpenRouter.)`);
+    console.log(`\n(${skipped} non-openrouter model(s) NOT checked — check-latest only verifies OpenRouter.`);
+  // Disclose WHEN as well as WHICH. "not checked" tells a reader the claim is
+  // frozen; it does not tell them how stale, which is the half that decides
+  // whether to trust it today. The README tables carry their derivation date.
+  if (skipped > 0)
+    console.log(" Their slugs are hand-verified and DATED in README.md — check the date before trusting them.)");
   return stale > 0 ? 1 : 0;
 }
 

@@ -33,8 +33,11 @@ remains **unverifiable** — OpenAI's endpoint is circuit-broken and their own C
 
 ## Build / test state
 
-- Gates all green: `bun run lint` ✅ · `bun run typecheck` ✅ · `bun test test/` ✅ **146 pass** ·
+- Gates all green: `bun run lint` ✅ · `bun run typecheck` ✅ · `bun test test/` ✅ **148 pass** ·
   `bun run build` ✅ compiles · doc-lint ✅ clean 39 files · index-lint ✅ rc=0.
+- **Reachability oracle wired** (`bun run reachability`, ~169 ms) — in `check` and in CI. Tests are
+  deliberately NOT entrypoints; `test/reachability-config.test.ts` guards that, because admitting
+  them makes the oracle report clean forever.
 - **The pre-commit gate is now ARMED** (`core.hooksPath=.githooks`) and proven by a deliberate
   failure — it blocked a staged lint violation with the right gate named. Before this it was a
   pre-commit.com shim that skipped and exited 0 on every commit. Undo: `git config --unset core.hooksPath`.

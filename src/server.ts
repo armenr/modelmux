@@ -8,7 +8,7 @@ import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } f
 import { collectResponsesOutput, responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
-import { normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
+import { forwardUrl, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
 
 export interface ServerOpts {
   config?: Config; // static config (tests); ignored if configHolder is set
@@ -73,10 +73,16 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       const path = isOpenAI
         ? openaiPath(url.pathname)
         : isResponses ? responsesPath(url.pathname) : url.pathname;
+      // Call forwardUrl rather than re-deriving the same expression inline.
+      // It used to be duplicated here, which meant the ONE tested URL-builder was
+      // not the one production ran — the reachability oracle caught it as an
+      // export with no production caller. Keep them the same function so the test
+      // covers the real path. baseOverride stays inline: it is a test seam that
+      // bypasses upstream resolution entirely.
       const base = opts.baseOverride?.[decision.upstream];
       const target = base
         ? base + path + url.search
-        : normalizeBase(def.base) + path + url.search;
+        : forwardUrl(decision.upstream, path, url.search, config.upstreams);
 
       let upstream: Response;
       try {

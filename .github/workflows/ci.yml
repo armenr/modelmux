@@ -28,6 +28,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
+      # IMPL->WIRED oracle: fails if any file is unreachable from a real
+      # production entrypoint. Tests are deliberately NOT entrypoints; that
+      # constraint is DERIVED and guarded, not asserted — see
+      # test/reachability-config.test.ts for the experiment and the standing guard.
+      - run: bun run reachability
       - run: bun test test/
 
   live-smoke:

@@ -4,6 +4,13 @@ import { join } from "node:path";
 import process from "node:process";
 import { loadConfig, parseModelRef } from "./config.ts";
 
+// THE single source for the CLI's verb list: printed by the usage line AND
+// asserted against README.md by test/cli-docs.test.ts. The README used to
+// transcribe these by hand, which is a claim about a system the doc has no
+// link to — correct until someone adds a verb and forgets. Adding a verb here
+// now fails the test until it is documented.
+export const USAGE = "serve | models | set <alias> <upstream:slug> | tag <agent> <alias> | use <agent> <alias> | check-latest";
+
 const ROUTES = process.env.MUX_ROUTES ?? "routes.toml";
 
 // Rewrite one alias's value in routes.toml text, preserving the rest verbatim.
@@ -96,7 +103,7 @@ export async function runCli(argv: string[]): Promise<number> {
       const { run } = await import("../scripts/check-latest.ts");
       return run(ROUTES); // honor MUX_ROUTES like every other command
     }
-    console.log("commands: serve | models | set <alias> <upstream:slug> | tag <agent> <alias> | use <agent> <alias> | check-latest");
+    console.log(`commands: ${USAGE}`);
     return 0;
   }
   catch (e) {

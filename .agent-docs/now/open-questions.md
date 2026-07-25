@@ -14,21 +14,63 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-- **OQ-007** (🟢 verification depth; surfaced 2026-07-25 by a peer's `gopls` finding reproducing here) —
-  **This tree's cited IMPL→WIRED oracle has never run.** `.claude/rules/node-ts-code-intel.md:64` names
-  **`knip`** as "the deterministic oracle the IMPL→WIRED proof cites" and invokes it as `npx knip`.
-  `knip` is **not installed and not declared** here, so that oracle has never executed on this repo —
-  and nothing said so. Separately, `tsserver` reads as ABSENT to `command -v` while being **present at
-  `node_modules/.bin/tsserver`** (symlinked from the `typescript` dependency), so the naive availability
-  check answers the wrong question: *"is it on my PATH"* is not *"is it installed"*.
-  **Cost this cycle: none** — WU-0003's reachability was proven by running the proxy end-to-end against
-  the live backend and reading `decisions.jsonl` (6/6 to the intended upstream), which is a *stronger*
-  evidence class than knip. It would bite the next unit that ships **without** a live rig, which is
-  exactly when nobody would notice. **Resolve:** add `knip` as a devDependency and wire it into a gate
-  (currency-check first), or record explicitly that reachability here is proven by live field test and
-  amend the rule. Deliberately NOT done on a release-cut branch. Relates: WU-0003.
+- **OQ-008** (🟡 doc-drift/carrier; surfaced 2026-07-25 by a peer's *quoted-is-still-typed* argument) —
+  **Four of our five providers' model tables are FROZEN transcriptions; only OpenRouter's is derived.**
+  `mux check-latest` re-derives the OpenRouter slugs against the live catalog at run time, so they
+  cannot rot silently. The **Anthropic, Z.ai, Kimi and Codex** tables in `README.md` were verified by
+  hand on 2026-07-25 and then frozen — and `check-latest` says so in its own output:
+  *"(2 non-openrouter model(s) not checked — check-latest only verifies OpenRouter.)"*
+  The gap is self-reported and nothing acts on it.
+  > **Why this is a carrier problem, not a diligence one.** A hand-verified table is correct at
+  > authoring time and rots the day a vendor changes a slug — which is exactly how the README came to
+  > ship `gpt-5.3-codex`, a model that does not exist. Being more careful was not what fixed that;
+  > probing the live endpoint was. *"A quoted doc string is still a typed literal — derived once, then
+  > frozen."*
+  > **PARTIALLY ADDRESSED 2026-07-25 — the date column, not the probes.** The frozen tables are not
+  > wrong to be frozen: probing five providers per README build is real cost. What was missing is that
+  > they did not **admit** they were frozen. All four now carry their **referent and derivation date**
+  > (2 of 4 already did; GLM and Kimi were the gap), and `check-latest` now discloses **when** as well
+  > as **which** — "not checked" says a claim is frozen but not how stale, and staleness is the half
+  > that decides whether to trust it today. A frozen literal is not the problem; one that does not
+  > admit it is frozen is. What remains open is the run-time probing below.
+
+  **Resolve:** extend `check-latest` to verify what it can derive per provider — Anthropic via the
+  Models API (needs a key), Codex via `~/.codex/models_cache.json` (on disk, no network), Z.ai/Kimi
+  likely not derivable without credentials — and have it **say which providers it could not check**
+  rather than implying full coverage. Deliberately NOT done on a branch that is ready to merge; adding
+  provider probes is feature scope. Relates: WU-0003, `LP-001`.
 
 ## Recently resolved
+
+- **OQ-007** — *the cited IMPL→WIRED oracle had never run.* → **RESOLVED 2026-07-25.** `knip@6.29.0`
+  added as a devDependency (currency-checked against the npm registry: published 2026-01-22, actively
+  maintained, first-class Bun plugin; `ts-prune` rejected as stalled since 2021). `knip.json` declares
+  the **production** entrypoints — `src/main.ts`, `bin/mux`, `scripts/record-fixtures.ts` — and
+  deliberately **excludes tests**. Wired as `bun run reachability` (~169 ms), into the `check` script
+  and into CI.
+  > **The vacuity trap, and why the config looks the way it does.** Every `src/*.ts` here has a test
+  > that imports it. Admitting tests as entrypoints makes the whole tree look reachable and the oracle
+  > reports clean *forever* — coverage-shaped output that checks nothing. **Derived, not assumed:** a
+  > module imported only by a test is flagged (`rc=1`) with tests excluded, and goes **silent**
+  > (`rc=0`) the moment tests are added to `entry`. `test/reachability-config.test.ts` is the standing
+  > guard on that, and is itself non-vacuous (widen `entry` → it goes red).
+  > **Non-vacuity proven twice**, before and after the config was edited — a config change is exactly
+  > how an oracle silently disarms.
+  >
+  > **And knip alone was not enough.** Measured: it exits **0 over a population of ZERO** — point
+  > `project` at a glob matching no files and it emits a hint and still returns success, which is
+  > byte-identical to a clean tree. The config guard could not see it either (the config was
+  > well-formed). `scripts/reachability.ts` wraps knip to supply the term it cannot: it **prints the
+  > population** rather than implying it, **verifies every entrypoint exists** on disk, and **floors
+  > the population** at 10 files — exiting **2** (distinct from knip's 1) when the check itself cannot
+  > be trusted. Three controls, three distinct codes: planted orphan → **1**, empty population → **2**,
+  > renamed-away entrypoint → **2**, healthy → **0**.
+
+  **It found a real defect on its first run.** `forwardUrl` was exported, unit-tested, and **never
+  called** — `src/server.ts` duplicated its logic inline, so the one tested URL-builder was not the one
+  production ran. Now wired: breaking `forwardUrl` fails **6 tests including integration tests**, where
+  before it would have failed only the unit test of dead code. Per the standing rule, the dead export
+  was a *symptom* (duplication) and the fix was the missing call, not a deletion.
 
 - **OQ-003** — *machine-specific partyline paths in the public `CLAUDE.md`.* → **RESOLVED 2026-07-25,
   operator's call from four options: strip-and-skip-worktree.** The committed `CLAUDE.md` now carries
