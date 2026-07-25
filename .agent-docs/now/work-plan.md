@@ -10,36 +10,26 @@ related: [status, open-questions, obligations]
 
 ## Immediate next
 
-> **✅ DONE — the three shipping inconsistencies are closed, and WU-0003 is committed.**
+> **🎯 CURRENT — PR #15 is ready to merge. That is the next real decision, and it is the operator's.**
 >
-> 1. ✅ `ADR-0003` written and accepted; `ADR-0002` set `status: superseded` + `superseded-by`, with a
->    SUPERSEDED banner at its head; `decisions/index.md` row added in the same change (rule 13).
-> 2. ✅ README fixed — and the scope was **larger than this plan recorded**. It listed one stale
->    section; reading found **five**: the Codex section, the local-runners "needs LiteLLM in front"
->    advice (falsified by the already-committed `03bcc2e`), the subscription table, missing
->    `KIMI_API_KEY`/`CODEX_HOME` config rows, and — the serious one — a **Security & scope claim that
->    the shipped code makes false** (it asserted modelmux "is not a tool for using a Claude/ChatGPT
->    *subscription* outside its official client"). Rewritten to state the real bright line and name the
->    grey area rather than soften it away.
-> 3. ✅ PR #15 retitled: *"speak OpenAI wire formats natively — Chat Completions, Responses, and
->    flat-rate subscriptions"*.
+> 21 commits ahead of `main`, CI green, mergeable, working tree clean. Contents: **3 `feat` + 2 `fix`**,
+> so release-please would cut **v0.5.0** on merge and build the 5 cross-compiled binaries.
 >
-> Commits: `7ef2d4c` (work) · `fd08a9a` (README) · docs commit pending. Gates green on true exit codes.
-
-> **🎯 CURRENT — decide the Codex token-refresh fork (`OQ-002`), then push.**
+> Everything that was open is closed: WU-0003 shipped and field-tested, **all six OQs resolved**, the
+> model lists verified against primary sources, and the pre-commit gate armed and proven by a
+> deliberate failure. No operator gate remains in `obligations.md`.
 >
-> Verified this cycle: **Codex is the only upstream with an expiring credential** — the other four are
-> passthrough or console-issued API keys. And modelmux re-reads `~/.codex/auth.json` **per request with
-> no cache**, so a token refreshed by the `codex` CLI is picked up on the next call with no restart;
-> the gap only bites a modelmux-only user. **Option (b)** — detect 401, fail loud with "re-run
-> `codex login`" — is safe and correct regardless of how the rest resolves. **Option (a)** (redeem
-> `refresh_token` ourselves) is **gated on `OQ-001`**: if OpenAI rotates refresh tokens, redeeming ours
-> invalidates the copy in `auth.json` and **breaks the user's own `codex` CLI**, and that cannot be
-> tested while the endpoint is circuit-broken.
+> **Two cheap things that do NOT block the merge:**
+> 1. Adjudicate the three staged lessons in `now/lessons/proposals.md` (`LP-001..003`) — accept / defer /
+>    reject. All three were reinforced hard by this session; `LP-001` also needs an amendment (see below).
+> 2. `LP-001` says "implement from the primary spec, not memory". Today proved that is **necessary but
+>    not sufficient**: the Responses adapter WAS spec-derived and still shipped five defects, because
+>    the ChatGPT-subscription backend is undocumented and diverges from the published Responses spec.
+>    The stronger claim is *spec first, then a live probe before you believe it*.
 >
-> **Do NOT:** re-login to Codex (a valid token would be risked against a broken auth service); reopen
-> the kit safety-gate enumeration (fieldbook closed it — file findings only); or patch kit-owned files
-> to clear the doc-lint suppression (fieldbook owns that fix; it arrives on upgrade).
+> **Do NOT:** redeem the Codex refresh token to find out whether it rotates (the test IS the dangerous
+> act — it would break the operator's `codex` CLI); reopen the kit safety-gate enumeration; or patch
+> kit-owned files to clear the doc-lint suppression (fieldbook owns that fix, it arrives on upgrade).
 
 ## The plan (phases / milestones)
 
@@ -51,8 +41,8 @@ related: [status, open-questions, obligations]
 | Wire format: OpenAI Chat Completions | ✅ committed `03bcc2e`, field-tested |
 | Wire format: OpenAI Responses + Codex auth | ✅ committed `7ef2d4c` |
 | README / security-claim correction | ✅ committed `fd08a9a` |
-| Codex acceptance verification | ⛔ blocked on OpenAI (not on us) — `OQ-001` |
-| Codex refresh-token handling | ⬜ fork identified, (b) safe now / (a) gated on `OQ-001` — `OQ-002` |
+| Codex acceptance verification | ✅ RESOLVED — auth accepted, field-tested live (`OQ-001`/`OQ-004`) |
+| Codex refresh-token handling | ✅ fail-loud-on-401 shipped (`OQ-002`); renewal deliberately not done |
 
 ## Locked decisions (this cycle)
 
@@ -71,4 +61,4 @@ related: [status, open-questions, obligations]
 |---|---|---|---|
 | WU-0001 | Give the CLI a way to add a FIRST `<<route:>>` tag, so untagged third-party agents can be pinned instead of silently diverted by the `anySubagent` catch-all | — | ✅ WIRED (shipped v0.4.0) |
 | WU-0002 | Support flat-rate coding subscriptions as first-class upstreams (GLM via Z.ai, Kimi K3 via Kimi Code); rule on GPT/Codex | — | ✅ WIRED |
-| WU-0003 | Speak OpenAI wire formats natively (Chat Completions + Responses) and authenticate Codex from its own credential store, so no second process is needed | WU-0002 | 🟡 IMPL — Chat Completions WIRED + field-tested; Responses/Codex built, uncommitted, acceptance unverified |
+| WU-0003 | Speak OpenAI wire formats natively (Chat Completions + Responses) and authenticate Codex from its own credential store, so no second process is needed | WU-0002 | ✅ **WIRED** — both adapters committed and field-tested end-to-end against live backends; leg proven from `decisions.jsonl` |
