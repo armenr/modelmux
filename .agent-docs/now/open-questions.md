@@ -14,16 +14,23 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-- **OQ-003** (🟠 leak/ergonomics; surfaced 2026-07-25 by the operator asking whether anything was
-  machine-specific) — **`CLAUDE.md` is committed to the PUBLIC repo carrying machine-specific partyline
-  paths** (`/home/v3ct0r/rooms/crates`, an absolute local binary path) plus instructions telling a
-  *contributor's* Claude that it is "agent modelmux" and should arm a monitor on a room that does not
-  exist for them. Not secret, but useless-to-wrong for everyone else. **Resolve:** operator's call —
-  gitignore `CLAUDE.md` (loses the useful kit constitution too), commit it without the partyline block
-  (which `partyline wire` will re-add locally), or accept it. Left untouched deliberately: that marker
-  block is managed by `partyline wire` and editing it risks desyncing the fleet wiring.
+*(none — all six resolved 2026-07-25.)*
 
 ## Recently resolved
+
+- **OQ-003** — *machine-specific partyline paths in the public `CLAUDE.md`.* → **RESOLVED 2026-07-25,
+  operator's call from four options: strip-and-skip-worktree.** The committed `CLAUDE.md` now carries
+  ONLY the portable Fieldbook constitution (`kit:start`/`kit:end`); the machine-specific
+  `partyline:begin`/`end` block is gone from git. The local file keeps its block unchanged and is held
+  out of git with `git update-index --skip-worktree CLAUDE.md`, because `partyline wire` writes only to
+  `CLAUDE.md` and has no alternate-target flag. Verified: `git status` clean · local file has the block
+  and 4 machine paths · committed version has **0** of either and still carries the kit block.
+  > **⚠️ The gotcha this creates, recorded so it is not rediscovered the hard way.** `skip-worktree` is
+  > **per-clone local state**, not committed. Two consequences: (a) a fresh clone does NOT have it, so
+  > re-running `partyline wire` there makes `CLAUDE.md` show as modified until the bit is set again;
+  > (b) a **kit upgrade that edits `CLAUDE.md` will fail or behave confusingly** while the bit is set —
+  > `git update-index --no-skip-worktree CLAUDE.md`, take the upgrade, re-strip, re-set. That is the
+  > accepted cost of the chosen option, not a defect.
 
 - **OQ-002** — *Codex credential is read but never refreshed.* → **RESOLVED 2026-07-25 by option (b).**
   modelmux now detects a `401`/`403` **from a `codex`-auth upstream specifically** and fails loud with

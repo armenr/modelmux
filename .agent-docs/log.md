@@ -45,8 +45,13 @@ weaken the per-request refresh pickup OQ-002's answer relies on.
 flat 0 that reads as "free" rather than "not yet known". The existing empty-choices usage test was
 STRENGTHENED rather than loosened: it now asserts both figures survive that chunk.
 
-OQ-003 (machine-specific paths in the public `CLAUDE.md`) stays open — `partyline wire` writes only to
-`CLAUDE.md` and offers no alternate target, so every option is a real trade and it is the operator's.
+**OQ-003 closed too — the board is clear.** Operator chose strip-and-skip-worktree from four options.
+The committed `CLAUDE.md` now carries only the portable kit constitution; the machine-specific
+partyline block is gone from git but untouched locally, held out with `git update-index
+--skip-worktree`. Verified four ways: status clean · local block intact (4 machine paths) · committed
+version 0 machine paths · kit block still shipping. **All six OQs resolved.** The accepted cost is
+recorded on the OQ: skip-worktree is per-clone local state, so a fresh clone lacks it and a kit
+upgrade touching `CLAUDE.md` needs `--no-skip-worktree` first.
 
 ## 2026-07-25 | model lists refreshed against PRIMARY sources — Claude Opus 5 landed yesterday
 

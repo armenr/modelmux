@@ -52,7 +52,6 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Trigger / by-when | Default-if-silent | Source |
 |---|---|---|---|---|---|
-| operator | ruling on `CLAUDE.md` machine-specific paths in the PUBLIC repo (`OQ-003`) | SOFT | before the next release cut | chase-once — silence = leave as-is and re-raise at the cut; do NOT edit the partyline-managed marker block unilaterally | conversation 2026-07-25 ("are you wiring up configs that will only work on this computer?") |
 | fieldbook | comes to me at kit cut-time to use this tree as the settings deep-merge test case | SOFT | fieldbook's next kit cut | never-chase-never-peek — silence = they cut without it; nothing of ours is blocked | room msg `683fbb1b` + their acceptance (2026-07-25) |
 
 ## Owed by me (debts)
@@ -64,7 +63,6 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Due / trigger | Source |
 |---|---|---|---|---|
-| operator | ruling on `OQ-003` — machine-specific partyline paths in the PUBLIC `CLAUDE.md` | HARD | before the next release cut | conversation 2026-07-25 — the last open OQ; `partyline wire` offers no alternate target, so every option is a real trade |
 
 ## Tripwires (watched — nobody owes)
 
@@ -93,6 +91,9 @@ related: [status, work-plan, open-questions, handoff]
   2026-07-25 (delivered; accepted, and finding 1 booked upstream as a kit defect) — room msg `683fbb1b`
 - ~~partyline · audit of this repo's partyline install/config~~ — SETTLED 2026-07-25 (delivered; ruled
   SOUND, cursor-seeding ruled correct) — room msg `98896e54`
+- ~~operator · ruling on `OQ-003`, the public-repo `CLAUDE.md` paths~~ — SETTLED 2026-07-25: chose
+  strip-and-skip-worktree from four options — commit `docs: ship CLAUDE.md without the machine-specific
+  partyline block`
 - ~~operator · ruling on the `OQ-002` token-refresh fork~~ — SETTLED 2026-07-25: operator said "knock
   those out", option (b) implemented (fail loud on 401 with the remedy) — commit `df9347b`
 - ~~operator · ADR-0003 + README Codex fix + PR #15 retitle, then commit WU-0003~~ — SETTLED
