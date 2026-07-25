@@ -215,7 +215,8 @@ Anthropic endpoint; point the upstream `base` at that.
 ```bash
 modelmux models                              # list aliases -> upstream:slug
 modelmux set flagship openrouter:z-ai/glm-6  # repoint an alias
-modelmux use glm-researcher reasoner         # retarget an agent's <<route:>> tag
+modelmux tag kit-agent control               # add a FIRST <<route:>> tag to an untagged agent
+modelmux use glm-researcher reasoner         # retarget an agent's existing <<route:>> tag
 modelmux check-latest                        # verify configured slugs exist on OpenRouter
 ```
 
@@ -228,8 +229,27 @@ alias            upstream:slug
   ...
 ```
 
-`use` rewrites the `<<route:>>` tag inside `.claude/agents/<name>.md`, so it needs
-a project with a `.claude/agents/` directory; `models` and `set` work anywhere.
+`tag` and `use` both edit `.claude/agents/<name>.md`, so they need a project with a
+`.claude/agents/` directory; `models` and `set` work anywhere. They are deliberately
+split and each refuses the other's job: `use` **retargets an existing** tag and errors
+on a file that has none, `tag` **adds a first** tag and errors on a file that already
+has one. Neither can report a false success.
+
+**Third-party agents you install are untagged.** An agent crew from a docs kit, a
+starter pack, or a teammate ships without a `<<route:>>` tag, so under the default
+`anySubagent` catch-all every one of them routes to whatever that rule names — quietly,
+with nothing in the tool's output saying so. If you want them on Claude instead, tag
+them for passthrough:
+
+```bash
+modelmux tag some-installed-agent control     # -> orchestrator (anthropic:passthrough)
+```
+
+`control` is the alias to reach for here: its route rule sits *above* `anySubagent` and
+resolves to passthrough, so the agent stays on Claude and on whatever model Claude Code
+itself picked. That matters if anything downstream — a dispatch gate, a review policy —
+asserts a model pin, because under any other tag the cascade, not the pin, decides what
+answers.
 
 ## Configuration
 
