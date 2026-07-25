@@ -59,6 +59,16 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   evidence if you can say why the subset is representative. (Measured firsthand 2026-07-25; kit-side
   confirmed and the two-class taxonomy corrected by `fieldbook`; fix queued behind v0.8.3.)
 
+- 🪝 `this-repo-has-three-pre-commit-mechanisms-and-none-of-them-run.md` — **Open when:** you are about
+  to rely on the pre-commit hook to catch a lint/test failure, or wondering why commits print
+  "Skipping `pre-commit`". **Carry-away:** `lefthook.yml` exists but lefthook is **not installed**;
+  `.githooks/pre-commit` is tracked but `core.hooksPath` is unset; the hook git actually runs is a
+  pre-commit.com shim that skips on missing config and **exits 0 every time** — so commits pass a gate
+  that does nothing and the repo only *looks* gated. Run the four gates by hand until
+  `bash .claude/hooks/install-hooks.sh` is run. Root cause worth generalizing: the install read a
+  **config file's presence as evidence its tool was live**. (Diagnosed firsthand 2026-07-25 after nine
+  commits skipped.)
+
 ## Maintenance
 
 UPDATE-IN-PLACE; adding/retiring a memory updates this index in the same change. Carry-away claims
