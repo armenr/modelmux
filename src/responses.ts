@@ -243,6 +243,11 @@ export function toAnthropicStreamFromResponses(
   let started = false;
   let sawToolCall = false;
   let outputTokens = 0;
+  // Responses only reveals usage at `response.completed`, but Anthropic puts
+  // input usage in `message_start` — which we must emit FIRST, before any of
+  // it is known. Rather than leave the 0 standing (which reads as "free"
+  // rather than "unknown"), carry the real figure in the final message_delta.
+  let inputTokens = 0;
   let stopReason = "end_turn";
   const blockFor = new Map<number, number>(); // responses output_index -> anthropic index
   const openBlocks = new Set<number>();
@@ -350,6 +355,7 @@ export function toAnthropicStreamFromResponses(
           const r = ev.response ?? {};
           const u = usageOf(r.usage);
           outputTokens = u.output_tokens;
+          inputTokens = u.input_tokens;
           if (r?.incomplete_details?.reason === "max_output_tokens")
             stopReason = "max_tokens";
         }
@@ -388,7 +394,7 @@ export function toAnthropicStreamFromResponses(
         emit(sse("message_delta", {
           type: "message_delta",
           delta: { stop_reason: sawToolCall ? "tool_use" : stopReason, stop_sequence: null },
-          usage: { output_tokens: outputTokens },
+          usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         }));
         emit(sse("message_stop", { type: "message_stop" }));
         controller.close();

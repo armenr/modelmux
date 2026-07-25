@@ -240,6 +240,9 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
   let finish: string | null = null;
   let sawToolCall = false;
   let outputTokens = 0;
+  // Same reason as responses.ts: usage arrives at the END of the stream, long
+  // after message_start had to claim a number. Report it in message_delta.
+  let inputTokens = 0;
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -280,6 +283,8 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
         // no-choice guard below or the count is silently dropped.
         if (json?.usage?.completion_tokens != null)
           outputTokens = json.usage.completion_tokens;
+        if (json?.usage?.prompt_tokens != null)
+          inputTokens = json.usage.prompt_tokens;
 
         const choice = json?.choices?.[0];
         if (!choice)
@@ -365,7 +370,7 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
         emit(sse("message_delta", {
           type: "message_delta",
           delta: { stop_reason: mapStopReason(finish, sawToolCall), stop_sequence: null },
-          usage: { output_tokens: outputTokens },
+          usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         }));
         emit(sse("message_stop", { type: "message_stop" }));
         controller.close();

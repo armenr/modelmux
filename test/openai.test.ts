@@ -200,7 +200,10 @@ test("usage arrives on a chunk with an EMPTY choices array and must still be rea
     `data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":11}}\n\n`,
     `data: [DONE]\n\n`,
   ]), "m"));
-  expect(out).toContain(`"usage":{"output_tokens":11}`);
+  // BOTH figures ride that same empty-choices chunk, so both must survive the
+  // guard — input_tokens is the half that used to be reported as a flat 0,
+  // which reads as "free" rather than "not yet known" (OQ-006).
+  expect(out).toContain(`"usage":{"input_tokens":5,"output_tokens":11}`);
 });
 
 test("an SSE frame split across chunk boundaries is reassembled", async () => {

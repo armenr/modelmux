@@ -104,8 +104,25 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         });
       }
 
-      // An upstream ERROR body is provider-shaped either way — pass it along
-      // rather than translating it into a well-formed message that says nothing.
+      // A lapsed Codex credential is the ONE upstream error we can diagnose
+      // better than the provider can. modelmux reads `~/.codex/auth.json` but
+      // never refreshes it (OQ-002), so once the access token expires every
+      // request 401s — and the raw ChatGPT-backend body does not tell you that
+      // re-running `codex login` is the fix. Fail LOUD with the actual remedy
+      // instead of forwarding an opaque 401. Only for the codex auth kind: any
+      // other upstream's 401 means a wrong API key, which is a different fix.
+      if (def.auth.kind === "codex" && (upstream.status === 401 || upstream.status === 403)) {
+        const detail = await upstream.text().catch(() => "");
+        const msg = `codex upstream rejected the credential (HTTP ${upstream.status}).\n`
+          + `The access token in ~/.codex/auth.json has most likely expired — modelmux READS that file `
+          + `but never refreshes it.\nFix: re-run \`codex login\`, then retry. No modelmux restart is `
+          + `needed; the credential is re-read on every request.\nUpstream said: ${detail.slice(0, 500)}`;
+        logError(opts.logPath, signals, new Error(`codex auth rejected (${upstream.status})`));
+        return new Response(msg, { status: upstream.status, headers: { "content-type": "text/plain" } });
+      }
+
+      // Every other upstream ERROR body is provider-shaped either way — pass it
+      // along rather than translating it into a well-formed message that says nothing.
       if (!upstream.ok || !upstream.body) {
         return new Response(upstream.body, {
           status: upstream.status,

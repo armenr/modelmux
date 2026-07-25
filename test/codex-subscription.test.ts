@@ -141,3 +141,23 @@ test("a reasoning item opens NO content block, and indices stay contiguous from 
   expect(stops).toEqual([0]); // and no stop for a block that was never opened
   expect(out).toContain("hi");
 });
+
+// ── OQ-006: streamed input usage must not stay at 0 ──────────────────────────
+
+test("streamed message_delta reports the REAL input_tokens, not a flat 0", async () => {
+  // Responses only reveals usage at response.completed, but Anthropic wants input
+  // usage in message_start — which is emitted before any of it is known. Leaving
+  // the placeholder 0 uncorrected reads as "this call was free".
+  const frames = [
+    `event: response.output_item.added\ndata: ${JSON.stringify({ type: "response.output_item.added", output_index: 0, item: { type: "message" } })}\n\n`,
+    `event: response.output_text.delta\ndata: ${JSON.stringify({ type: "response.output_text.delta", output_index: 0, delta: "hi" })}\n\n`,
+    `event: response.completed\ndata: ${JSON.stringify({
+      type: "response.completed",
+      response: { output: [], usage: { input_tokens: 19, output_tokens: 16 } },
+    })}\n\n`,
+  ];
+  const out = await drain(toAnthropicStreamFromResponses(sseStream(frames), "gpt-5.5"));
+  expect(out).toContain(`"usage":{"input_tokens":19,"output_tokens":16}`);
+  // and the message_start placeholder is still the documented 0/0
+  expect(out).toContain(`"usage":{"input_tokens":0,"output_tokens":0}`);
+});
