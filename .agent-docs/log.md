@@ -18,6 +18,36 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | OQ sweep — pre-commit gate finally armed, three OQs closed
+
+**The pre-commit gate now actually gates.** Root cause of 16 silent skips: `.git/hooks/pre-commit` was
+a pre-commit.com shim run with `--skip-on-missing-config` against a config this repo never had, so it
+fired and exited 0 every time. `lefthook.yml` exists but lefthook was never installed; Fieldbook's real
+dispatcher sat tracked-but-unwired because `core.hooksPath` was unset. Ran `install-hooks.sh`, which
+pointed git at `.githooks/` and RENAMED the stale shim so an `--unset` cannot resurrect it.
+
+Then the acceptance test that matters — **made it fail on purpose.** Staged a deliberate lint
+violation: `git commit` exited **1**, HEAD did not move, and the log named the right gate
+(`pre-commit: x lint gate FAILED (exit 1) -> commit blocked`). Probe removed, tree clean. A hook nobody
+has watched block a commit is a hypothesis, not a gate. Undo: `git config --unset core.hooksPath`.
+
+**OQ-002 closed via option (b).** A 401/403 from a `codex`-auth upstream now fails loud with the real
+remedy rather than an opaque provider body. Option (a) stays undone for a reason worth keeping: *the
+test IS the dangerous act* — finding out whether the refresh token rotates requires redeeming it, and
+if it rotates, that one redemption breaks the operator's own `codex` CLI. No read-only probe exists.
+
+**OQ-005 closed as accepted, MEASURED not assumed:** the sync `readFileSync` costs **0.002 ms/call**,
+0.0001% of a Codex round trip. Async would ripple through the whole call chain for ~2 µs; a cache would
+weaken the per-request refresh pickup OQ-002's answer relies on.
+
+**OQ-006 closed and live-verified.** Both stream translators now report real input usage in the final
+`message_delta` — `{"input_tokens":15,"output_tokens":5}` against the live backend, where it had been a
+flat 0 that reads as "free" rather than "not yet known". The existing empty-choices usage test was
+STRENGTHENED rather than loosened: it now asserts both figures survive that chunk.
+
+OQ-003 (machine-specific paths in the public `CLAUDE.md`) stays open — `partyline wire` writes only to
+`CLAUDE.md` and offers no alternate target, so every option is a real trade and it is the operator's.
+
 ## 2026-07-25 | model lists refreshed against PRIMARY sources — Claude Opus 5 landed yesterday
 
 Operator flagged new Claude models. Verified every provider against a primary source rather than a

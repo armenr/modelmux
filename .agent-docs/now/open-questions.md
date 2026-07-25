@@ -14,36 +14,6 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-- **OQ-002** (🟠 robustness; surfaced 2026-07-25 while reading the token claims) — **modelmux reads the
-  Codex credential but never refreshes it.** `access_token` is valid only until **2026-07-28**.
-  **Codex is the ONLY upstream with this exposure** (verified 2026-07-25 against `BUILTIN_UPSTREAMS`):
-  `anthropic` is `passthrough` so modelmux never holds the credential, and `openrouter`/`zai`/`kimi`
-  are console-issued API keys with no clock. Console key vs OAuth grant is the whole distinction.
-
-  > **CORRECTION 2026-07-25 — the original wording ("no recovery path from inside modelmux") was too
-  > strong.** Verified in code: `rewriteHeaders` runs *inside* the request handler (`src/server.ts:50`)
-  > and `readCodexAuth` does an **uncached** `readFileSync` per call — so modelmux re-reads
-  > `~/.codex/auth.json` on **every request** and picks up a token refreshed by any other process on the
-  > very next call, no restart. The `codex` CLI refreshes it when it runs. The real gap is therefore
-  > narrower: it bites only a modelmux-only user whose CLI never runs again.
-
-  **Resolve:** (a) redeem the stored `refresh_token` ourselves, or (b) detect 401 and fail loud with
-  "re-run `codex login`". (a) carries a hazard that must not be discovered the hard way: if OpenAI issues **rotating** refresh tokens, redeeming ours *consumes* it and invalidates the
-  copy still in `auth.json` — **breaking the user's own `codex` CLI**, the very tool we depend on for
-  credentials. That also kills the otherwise-clean in-memory-only variant. Writing the new token back
-  avoids the invalidation but breaks the never-writes promise and races the CLI on the same file.
-  > **UPDATE 2026-07-25 — the gate moved, it did not lift.** This previously said (a) was blocked
-  > "while the endpoint is circuit-broken (`OQ-001`)". OQ-001 is now RESOLVED and the endpoint works,
-  > so that reason is void — but **(a) is still not safe to try**, for a different and better reason:
-  > *the test IS the dangerous act.* Finding out whether the refresh token rotates requires redeeming
-  > it, and if it does rotate, that single redemption invalidates the copy in `auth.json` and breaks
-  > the operator's `codex` CLI. There is no read-only probe. So (a) needs either vendor documentation
-  > or a throwaway account — not an experiment on a working login.
-
-  **Leaning (b)** — it is safe today, correct regardless, and needs no such experiment.
-  Relates: WU-0003, OQ-001.
-
-
 - **OQ-003** (🟠 leak/ergonomics; surfaced 2026-07-25 by the operator asking whether anything was
   machine-specific) — **`CLAUDE.md` is committed to the PUBLIC repo carrying machine-specific partyline
   paths** (`/home/v3ct0r/rooms/crates`, an absolute local binary path) plus instructions telling a
@@ -53,23 +23,28 @@ related: [status, work-plan, obligations]
   (which `partyline wire` will re-add locally), or accept it. Left untouched deliberately: that marker
   block is managed by `partyline wire` and editing it risks desyncing the fleet wiring.
 
-- **OQ-005** (🟢 minor robustness; surfaced 2026-07-25 while verifying OQ-002) — **`readCodexAuth` does a
-  synchronous `readFileSync` on the request path**, once per Codex-routed request. `node-ts-rules.md`
-  says don't do sync I/O on a request path where the async API exists. It is small and it buys the
-  free-refresh-pickup behaviour described in `OQ-002`, so it is a real trade rather than a plain defect. **Resolve:**
-  either accept and document the trade, or move to an async read with a short TTL cache — noting a
-  cache would *weaken* the pick-up-a-refreshed-token-immediately property. Relates: WU-0003, OQ-002.
-
-- **OQ-006** (🟡 fidelity; surfaced 2026-07-25 during the live Codex field test) — **The streamed
-  `message_start` reports `input_tokens: 0`.** Responses only reveals usage at `response.completed`, but
-  Anthropic puts input usage in `message_start`, which we must emit first. The **non-streaming** path is
-  correct (measured 19/16). Streaming `output_tokens` is correct (measured 38); only streamed
-  `input_tokens` is wrong, and it is wrong as **0**, which reads as free rather than unknown.
-  **Resolve:** carry `input_tokens` in the final `message_delta.usage`, or accept and document.
-  Relates: WU-0003.
-
-
 ## Recently resolved
+
+- **OQ-002** — *Codex credential is read but never refreshed.* → **RESOLVED 2026-07-25 by option (b).**
+  modelmux now detects a `401`/`403` **from a `codex`-auth upstream specifically** and fails loud with
+  the actual remedy — "the token in `~/.codex/auth.json` has most likely expired; re-run `codex login`,
+  no restart needed" — instead of forwarding an opaque provider 401. Scoped to the codex auth kind on
+  purpose: any other upstream's 401 means a wrong API key, which is a different fix. Option (a)
+  (redeeming the refresh token ourselves) is **deliberately NOT done**, and the reason is sharper than
+  the original one: *the test IS the dangerous act.* Establishing whether the refresh token rotates
+  requires redeeming it, and if it does, that one redemption invalidates the copy in `auth.json` and
+  breaks the operator's own `codex` CLI. There is no read-only probe, so (a) needs vendor documentation
+  or a throwaway account — never an experiment on a working login.
+- **OQ-005** — *sync `readFileSync` on the request path.* → **RESOLVED 2026-07-25: ACCEPTED, measured.**
+  **0.002 ms/call** over 2,000 warm reads — **0.0001%** of a ~1.4 s Codex round trip. Going async would
+  make `applyAuth`/`rewriteHeaders` async and ripple through the whole call chain for ~2 µs, and adding
+  a cache would *weaken* the per-request pickup of a CLI-refreshed token that `OQ-002`'s answer depends
+  on. Recorded as a measured trade, not an assumed-fine.
+- **OQ-006** — *streamed `message_start` reports `input_tokens: 0`.* → **RESOLVED 2026-07-25.** Both
+  stream translators now capture input usage when it arrives (at the END of the stream, long after
+  `message_start` had to claim a number) and report it in the final `message_delta`. Live-verified
+  against the real Codex backend: `{"input_tokens":15,"output_tokens":5}` where it previously read 0.
+  The `message_start` placeholder stays `0/0` — that value genuinely is not known yet.
 
 - **OQ-001** — *Is the Codex auth pair actually ACCEPTED?* → **RESOLVED 2026-07-25: YES.** The endpoint
   recovered and a direct probe returned **HTTP 400 `The 'gpt-5.3-codex' model is not supported`** — a
