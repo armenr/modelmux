@@ -64,8 +64,10 @@ here carry the claim-as-carry-away **plus status**. Route by status first (don't
   omission** — omission only works when the absence is legible, and an undocumented endpoint makes it
   unreadable. Rejected: holding ADR-0002 (loses to the operator's explicit reversal + the already-paid
   cost), and shipping the adapter with no built-in so users type the base themselves (omission wearing
-  config's clothes — the risk ships, the caveat doesn't). Acceptance is UNPROVEN (`OQ-001`), there is no
-  token-refresh path (`OQ-002`), and the Responses adapter has never met a real backend (`OQ-004`).
+  config's clothes — the risk ships, the caveat doesn't). Acceptance is PROVEN (`OQ-001`) and the adapter is
+  field-tested live end-to-end (`OQ-004`) — but only after the built-in shipped BROKEN in five ways no
+  unit test could see (see the ADR's 2026-07-25 amendment). Still no token renewal, though a lapsed
+  credential now fails loud with the remedy (`OQ-002`).
   *(status: accepted.)*
 
 ## Maintenance

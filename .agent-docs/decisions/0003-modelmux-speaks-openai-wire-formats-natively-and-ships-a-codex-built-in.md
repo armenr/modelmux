@@ -147,9 +147,11 @@ or from memory. They were memory plus one secondary source. Checking the **prima
 - `max_tokens` is rejected by newer models (hence point 5 above).
 
 **Costs, named.**
-- **No refresh path** (`OQ-002`). We read the token and never renew it; the current one expires
-  **2026-07-28**. Narrower than first written — the credential file is re-read *per request, uncached*,
-  so a token refreshed by the `codex` CLI is picked up on the next call.
+- **No refresh path** (`OQ-002` — RESOLVED via fail-loud). We read the token and still never renew it,
+  but the failure is no longer opaque: a 401/403 from a codex-auth upstream returns the actual remedy
+  ("re-run `codex login`"). And the credential file is re-read *per request, uncached*, so a token
+  refreshed by the `codex` CLI is picked up on the very next call with no restart. Redeeming the
+  refresh token ourselves stays undone deliberately — the test IS the dangerous act.
 
 ### Amendment 2026-07-25 — field-tested live; the built-in did not work as shipped
 

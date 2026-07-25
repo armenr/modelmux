@@ -33,24 +33,30 @@ remains **unverifiable** — OpenAI's endpoint is circuit-broken and their own C
 
 ## Build / test state
 
-- Gates all green: `bun run lint` ✅ · `bun run typecheck` ✅ · `bun test test/` ✅ **137 pass** ·
-  `bun run build` ✅ compiles · doc-lint ✅ clean 35 files · index-lint ✅ rc=0.
+- Gates all green: `bun run lint` ✅ · `bun run typecheck` ✅ · `bun test test/` ✅ **146 pass** ·
+  `bun run build` ✅ compiles · doc-lint ✅ clean 39 files · index-lint ✅ rc=0.
+- **The pre-commit gate is now ARMED** (`core.hooksPath=.githooks`) and proven by a deliberate
+  failure — it blocked a staged lint violation with the right gate named. Before this it was a
+  pre-commit.com shim that skipped and exited 0 on every commit. Undo: `git config --unset core.hooksPath`.
 - **Toolchain note:** `bun install --frozen-lockfile` must have run or `lint`/`typecheck` exit **127**
   (`eslint`/`tsc` not found) while `bun test` still passes — a partial green that looks fine.
 
 ## Runtime state (delta)
 
 - **Three wire formats:** `format = "anthropic"` (default, untouched fast path) · `"openai"`
-  (`src/openai.ts`) · `"responses"` (`src/responses.ts`, uncommitted).
-- **Five built-in upstreams:** `anthropic`, `openrouter`, `zai`, `kimi`, and `codex` (uncommitted).
+  (`src/openai.ts`) · `"responses"` (`src/responses.ts`).
+- **Five built-in upstreams:** `anthropic`, `openrouter`, `zai`, `kimi`, `codex` — all committed and,
+  for `codex`, field-tested live end-to-end (`OQ-001`/`OQ-004` resolved).
 - **New auth kind `codex`** — READS the credentials `codex login` already wrote; modelmux never
   performs the login and never writes that file.
 
 ## Context-system state
 
-Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0002** — note **ADR-0003 is cited in
-`src/upstreams.ts:49` but does not exist**, and ADR-0002 (status `accepted`) is now *contradicted* by
-shipped code. Memories: 1. Reference docs: 5. Work-units: WU-0001..0003. No `checkpoints/` sitrep.
+Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0003** (ADR-0002 `superseded` by it).
+Memories: **3**. Reference docs: 5. Work-units: WU-0001..0003. No `checkpoints/` sitrep.
+Open questions: **OQ-003 only** — OQ-001/002/004/005/006 all resolved 2026-07-25.
+**Caveat on the doc-lint number:** 17 of the 39 files carry `provenance: kit-template`, which silently
+disables rules 8/15/21/12 on them — see `memories/doc-lint-clean-is-a-partial-claim-*`.
 
 ## What this means for next steps
 

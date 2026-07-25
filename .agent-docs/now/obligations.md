@@ -64,7 +64,7 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Due / trigger | Source |
 |---|---|---|---|---|
-| operator | ruling on the `OQ-002` fork — implement (b) fail-loud-on-401 now, or wait for `OQ-001` and reconsider (a) | HARD | before the next release cut | conversation 2026-07-25 — operator asked "what about refreshing tokens then?" |
+| operator | ruling on `OQ-003` — machine-specific partyline paths in the PUBLIC `CLAUDE.md` | HARD | before the next release cut | conversation 2026-07-25 — the last open OQ; `partyline wire` offers no alternate target, so every option is a real trade |
 
 ## Tripwires (watched — nobody owes)
 
@@ -93,6 +93,8 @@ related: [status, work-plan, open-questions, handoff]
   2026-07-25 (delivered; accepted, and finding 1 booked upstream as a kit defect) — room msg `683fbb1b`
 - ~~partyline · audit of this repo's partyline install/config~~ — SETTLED 2026-07-25 (delivered; ruled
   SOUND, cursor-seeding ruled correct) — room msg `98896e54`
+- ~~operator · ruling on the `OQ-002` token-refresh fork~~ — SETTLED 2026-07-25: operator said "knock
+  those out", option (b) implemented (fail loud on 401 with the remedy) — commit `df9347b`
 - ~~operator · ADR-0003 + README Codex fix + PR #15 retitle, then commit WU-0003~~ — SETTLED
   2026-07-25, all four delivered; README scope was 5 stale spots not 1, incl. a false security claim —
   commits `7ef2d4c`, `fd08a9a`
