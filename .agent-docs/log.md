@@ -18,6 +18,29 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | WU-0002 — flat-rate subscriptions: Kimi built in, Codex ruled out
+
+Request was "subscription support for GLM 5.2, GPT Codex, Kimi K3". Checked each against vendor primary
+docs rather than memory, and they turned out to be three different problems. GLM 5.2 already worked —
+the `zai` built-in is current and `glm-5.2` is the right slug; it was under-documented, not missing.
+Kimi K3 was real work and a clean fit: Kimi Code is flat-rate at `api.kimi.com/coding` speaking
+Anthropic Messages, so it drops in as a built-in with `KIMI_API_KEY`. Codex does not fit at all — see
+ADR-0002.
+
+Two traps found while verifying, both now documented. Moonshot sells TWO products with different hosts,
+different model ids (`k3` vs `kimi-k3`) and non-interchangeable keys; the built-in is the subscription.
+And Kimi Code's own docs publish their base WITH a trailing slash, which `base + "/v1/messages"` would
+have doubled — hence `normalizeBase`, which also protects any user-declared `[upstreams]` entry.
+
+Operator caught a real error in review: I had written `k3-256k` as the large-codebase option. Backwards.
+K3 is a 1,048,576-token model and on Kimi Code the usable window is TIERED BY PLAN — lower tiers cap near
+256K, higher tiers get the full 1M — so `k3-256k` is the CAPPED variant and plain `k3` is the full one,
+which Moonshot's docs also say outright. Corrected in README and routes.toml, and the 1M window makes the
+commented-out `longContext` route genuinely useful, so that now points at it.
+
+Gates: lint clean · typecheck clean · 107 tests · doc-lint clean 35 files · index-lint rc=0. Both doc
+linters caught a missing ADR-0002 index row before commit.
+
 ## 2026-07-25 | WU-0001 (cont.) — the diversion is now LOUD, not just fixable
 
 Closed the limitation ADR-0001 named for itself. `src/agents.ts` + a `startProxy` call now print a

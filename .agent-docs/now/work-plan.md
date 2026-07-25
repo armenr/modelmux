@@ -31,3 +31,4 @@ entrypoint) or has a recorded `DEFER` — not merely test-green.>
 | WU | Objective | Depends | Status |
 |---|---|---|---|
 | WU-0001 | Give the CLI a way to add a FIRST `<<route:>>` tag, so untagged third-party agents can be pinned instead of silently diverted by the `anySubagent` catch-all | — | WIRED |
+| WU-0002 | Support flat-rate coding subscriptions as first-class upstreams (GLM via Z.ai, Kimi K3 via Kimi Code); rule on GPT/Codex | — | WIRED |

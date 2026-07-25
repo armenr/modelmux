@@ -1,6 +1,6 @@
 import type { Decision } from "../src/types.ts";
 import { expect, test } from "bun:test";
-import { forwardUrl, MissingKeyError, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
+import { forwardUrl, MissingKeyError, normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
 
 const toOR: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
 const toAnthropic: Decision = { alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default" };
@@ -127,4 +127,47 @@ test("built-in zai upstream sends Bearer ZAI_API_KEY, drops Claude auth, strips 
 
 test("built-in zai upstream throws MissingKeyError without ZAI_API_KEY", () => {
   expect(() => rewriteHeaders(toZai, new Headers(), {})).toThrow(MissingKeyError);
+});
+
+// --- Kimi Code (flat-rate coding subscription) --------------------------------
+
+const toKimi: Decision = { alias: "flagship", upstream: "kimi", model: "k3", matchedRule: "tag:flagship" };
+
+test("built-in kimi upstream targets the Kimi Code endpoint", () => {
+  expect(resolveUpstream("kimi").base).toBe("https://api.kimi.com/coding");
+  expect(forwardUrl("kimi", "/v1/messages", "")).toBe("https://api.kimi.com/coding/v1/messages");
+});
+
+test("built-in kimi upstream sends Bearer KIMI_API_KEY, drops Claude auth, strips betas", () => {
+  const inbound = new Headers({ "authorization": "Bearer claude-oauth", "x-api-key": "sk-ant", "anthropic-beta": "x" });
+  const out = rewriteHeaders(toKimi, inbound, { KIMI_API_KEY: "kc-secret" });
+  expect(out.get("authorization")).toBe("Bearer kc-secret");
+  expect(out.get("x-api-key")).toBeNull(); // Claude auth never leaked to Moonshot
+  expect(out.get("anthropic-beta")).toBeNull();
+});
+
+test("built-in kimi upstream throws MissingKeyError without KIMI_API_KEY", () => {
+  expect(() => rewriteHeaders(toKimi, new Headers(), {})).toThrow(MissingKeyError);
+});
+
+test("kimi and zai keys are independent — one set does not satisfy the other", () => {
+  // Both are flat-rate subscriptions, and it would be easy to assume one key
+  // covers both. It does not: each upstream demands its own env var.
+  expect(() => rewriteHeaders(toKimi, new Headers(), { ZAI_API_KEY: "zk" })).toThrow(MissingKeyError);
+  expect(() => rewriteHeaders(toZai, new Headers(), { KIMI_API_KEY: "kc" })).toThrow(MissingKeyError);
+});
+
+// --- base normalization -------------------------------------------------------
+
+test("normalizeBase strips trailing slashes so paths do not double up", () => {
+  expect(normalizeBase("https://api.kimi.com/coding/")).toBe("https://api.kimi.com/coding");
+  expect(normalizeBase("https://api.kimi.com/coding///")).toBe("https://api.kimi.com/coding");
+  expect(normalizeBase("https://api.kimi.com/coding")).toBe("https://api.kimi.com/coding");
+});
+
+test("a user-declared upstream with a trailing-slash base still builds a clean URL", () => {
+  // Providers publish bases both ways (Kimi Code's own docs show the slash), so
+  // a pasted base must not yield "//v1/messages".
+  const upstreams = { shim: { base: "http://localhost:4000/anthropic/", auth: { kind: "none" as const }, stripBeta: true } };
+  expect(forwardUrl("shim", "/v1/messages", "", upstreams)).toBe("http://localhost:4000/anthropic/v1/messages");
 });

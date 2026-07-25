@@ -21,7 +21,27 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     auth: { kind: "bearer", envKey: "ZAI_API_KEY" },
     stripBeta: true,
   },
+  // Kimi Code — Moonshot's flat-rate coding subscription, quota-based rather than
+  // per-token. Its key comes from the Kimi Code console and is NOT the same as a
+  // per-token MOONSHOT_API_KEY; the two use different hosts and different model
+  // ids (`k3` here vs `kimi-k3` on the metered API), so they are separate
+  // upstreams rather than one with a swappable key. For the metered API add:
+  //   [upstreams]
+  //   moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
+  kimi: {
+    base: "https://api.kimi.com/coding",
+    auth: { kind: "bearer", envKey: "KIMI_API_KEY" },
+    stripBeta: true,
+  },
 };
+
+// Upstream bases are concatenated with an inbound path that already starts with
+// "/", so a trailing slash would produce a doubled separator. Providers publish
+// bases both ways (Kimi Code's docs show a trailing slash, Z.ai's does not), and
+// a user-declared [upstreams] entry is just as likely to carry one.
+export function normalizeBase(base: string): string {
+  return base.replace(/\/+$/, "");
+}
 
 const HOP_BY_HOP = new Set(["host", "content-length", "connection", "accept-encoding"]);
 
@@ -40,7 +60,7 @@ export function forwardUrl(
   inboundSearch: string,
   upstreams?: Record<string, UpstreamDef>,
 ): string {
-  return resolveUpstream(upstream, upstreams).base + inboundPath + inboundSearch;
+  return normalizeBase(resolveUpstream(upstream, upstreams).base) + inboundPath + inboundSearch;
 }
 
 export function rewriteHeaders(

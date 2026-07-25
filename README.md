@@ -152,7 +152,23 @@ claude-review = "anthropic:claude-sonnet-5"
 The slugs above are illustrative — run `modelmux check-latest` to see which
 models actually exist on OpenRouter right now.
 
-## Flat-rate GLM: bring a Z.ai subscription
+## Subscription-backed models
+
+Per-token pricing adds up fast. Several vendors now sell **flat-rate coding
+subscriptions** with Anthropic-compatible endpoints, which is exactly the shape
+modelmux forwards to — so they need no translation layer and no `[upstreams]`
+block, just an env var and a bare slug.
+
+| Subscription | Upstream | Env var | Slugs |
+|---|---|---|---|
+| Z.ai GLM Coding Plan | `zai` (built in) | `ZAI_API_KEY` | `glm-5.2`, `glm-4.7` |
+| Kimi Code (Moonshot) | `kimi` (built in) | `KIMI_API_KEY` | `k3` (~1M ctx), `k3-256k` (capped), `kimi-for-coding`, `kimi-for-coding-highspeed` |
+| GPT / Codex | — see [below](#gpt--codex-why-its-not-built-in) | — | — |
+
+Both built-ins are your own key against the vendor's own documented endpoint —
+no impersonation, nothing pooled.
+
+### Flat-rate GLM: bring a Z.ai subscription
 
 If you lean on GLM, OpenRouter's per-token pricing adds up fast. **Z.ai's GLM
 Coding Plan** is a flat monthly subscription (see [z.ai](https://z.ai) for
@@ -178,6 +194,81 @@ Two things to know: use Z.ai's **bare** slug (`zai:glm-5.2`), not OpenRouter's
 `z-ai/glm-5.2` prefix; and modelmux strips Claude Code's `anthropic-beta` headers
 by default (safe). If you'd rather keep them, override with
 `[upstreams]`: `zai = { base = "https://api.z.ai/api/anthropic", auth = "bearer:ZAI_API_KEY", stripBeta = false }`.
+
+### Kimi K3: bring a Kimi Code subscription
+
+**Kimi Code** is Moonshot's flat-rate coding plan — quota-based (refreshing on a
+rolling window) rather than per-token. It speaks the Anthropic Messages API, so
+`kimi` is a **built-in upstream** too:
+
+```bash
+export KIMI_API_KEY=<key from the Kimi Code console>
+```
+
+```toml
+[models]
+orchestrator = "anthropic:passthrough"
+flagship = "kimi:k3" # full ~1M context; best for large-codebase work
+```
+
+K3 is a **1,048,576-token (~1M) context** model. On Kimi Code the *usable* window is
+tiered by plan — lower tiers cap around 256K, higher tiers get the full 1M — so
+`k3-256k` is the **capped** variant, not a bigger one. Reach for plain `k3` unless
+you specifically want the cap.
+
+**Mind the split — this is the one thing that will bite you.** Moonshot sells two
+different products and they are not interchangeable:
+
+| | Host | Model ids | Key |
+|---|---|---|---|
+| **Kimi Code** (subscription) | `api.kimi.com/coding` | `k3`, `k3-256k`, `kimi-for-coding`, `kimi-for-coding-highspeed` | Kimi Code console |
+| Moonshot API (metered) | `api.moonshot.ai/anthropic` | `kimi-k3` | `MOONSHOT_API_KEY` |
+
+A subscription key will not authenticate against the metered host, and the model
+ids differ (`k3` vs `kimi-k3`). The built-in `kimi` upstream is the
+**subscription**. For the metered API, declare it yourself:
+
+```toml
+[upstreams]
+moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
+```
+
+### GPT / Codex: why it's not built-in
+
+Codex is deliberately **not** a built-in upstream, for a reason that isn't
+laziness: it doesn't fit the shape modelmux forwards.
+
+Every other upstream here exposes an Anthropic **Messages** endpoint, so modelmux
+swaps a header and a model id and gets out of the way. Codex subscription access
+goes to an undocumented ChatGPT backend that speaks OpenAI's **Responses** schema,
+authenticated by a ChatGPT session rather than an API key. Supporting it natively
+would mean a bidirectional protocol translator — streaming, tool calls, thinking
+blocks — built on an endpoint its own vendor doesn't document and can change
+without notice. That's not an upstream entry; it's a subsystem with a moving
+foundation, and it would be the most fragile code in this repo.
+
+There's also a licensing question worth reading before you wire anything: OpenAI
+treats ChatGPT subscriptions and the API as separate products, and programmatic
+use of a subscription sits somewhere between "personally endorsed for your own
+use" and "against the terms" depending on who you ask and what you're doing with
+it. Pooling or reselling is clearly out. **Check the current terms yourself and
+decide for your own account** — modelmux won't make that call for you by shipping
+a built-in that implies it's settled.
+
+If you've decided it's fine for your own use, the pattern already works today
+with no modelmux change. Run one of the community Anthropic↔Codex shims locally
+and point an upstream at it — the same way you'd front LM Studio with LiteLLM:
+
+```toml
+[upstreams]
+codex = { base = "http://localhost:8080", auth = "none" }
+
+[models]
+flagship = "codex:gpt-5.5"
+```
+
+That keeps the undocumented dependency and the terms exposure in your own local
+setup, where you control it, instead of baked into a released binary.
 
 ## Local & self-hosted models
 

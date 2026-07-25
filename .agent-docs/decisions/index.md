@@ -43,6 +43,14 @@ here carry the claim-as-carry-away **plus status**. Route by status first (don't
   false-success guard and was left intact; the two verbs refuse each other's input. Rejected: loosening
   `use` to insert, and a `--create` flag on `use` (both fail the can-it-report-an-unintended-success
   axis). *(status: accepted.)*
+- ⭐ `0002-codex-is-a-user-run-shim-not-a-built-in-upstream.md` —
+  **Open when:** adding a subscription-backed upstream, or asking why GPT/Codex has no built-in when
+  Z.ai and Kimi do. **Carry-away:** every built-in upstream speaks Anthropic Messages, but Codex
+  subscription auth targets an undocumented ChatGPT backend on OpenAI's Responses schema, so it needs a
+  translator rather than a base URL — and a built-in would assert a stability and a terms position we
+  can't stand behind. Supported instead as a documented `[upstreams]` entry pointing at a user-run shim.
+  Rejected: building the translator in-tree, and shipping a built-in aimed at a community shim.
+  *(status: accepted.)*
 
 ## Maintenance
 

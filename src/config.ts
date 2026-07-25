@@ -134,7 +134,7 @@ export function loadConfig(
   // Every model's upstream must be built in or declared in [upstreams].
   for (const [alias, ref] of Object.entries(resolved.models)) {
     if (!resolved.upstreams?.[ref.upstream])
-      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are anthropic, openrouter, and zai; add others under [upstreams]`);
+      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are ${Object.keys(BUILTIN_UPSTREAMS).join(", ")}; add others under [upstreams]`);
   }
   return resolved;
 }

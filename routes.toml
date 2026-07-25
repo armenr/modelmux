@@ -25,6 +25,9 @@ routes = [
   # by default — uncomment any of these (before the anySubagent catch-all) to
   # enable size-/type-based routing:
   #   { when = { workType = "longContext" }, use = "max" },
+  #     ^ pairs well with a 1M-context model on a flat-rate plan — e.g. point
+  #       `max` at "kimi:k3" so oversized requests go somewhere they fit and
+  #       don't cost per-token.
   #   { when = { workType = "think" }, use = "reasoner" },
   #   { when = { workType = "webSearch" }, use = "review" },
   { when = { workType = "background" }, use = "cheap" },
@@ -41,14 +44,42 @@ cheap = "openrouter:deepseek/deepseek-v4-flash"
 claude-review = "anthropic:claude-sonnet-5"
 
 # --- upstreams (optional) ---------------------------------------------------
-# "anthropic" (passthrough), "openrouter" (Bearer OPENROUTER_API_KEY), and "zai"
-# (Z.ai GLM Coding Plan, Bearer ZAI_API_KEY) are built in. Add your own
+# Built in: "anthropic" (passthrough), "openrouter" (Bearer OPENROUTER_API_KEY),
+# "zai" (Z.ai GLM Coding Plan) and "kimi" (Kimi Code). Add your own
 # Anthropic-Messages-compatible endpoints here, then use them like any other
 # alias: <name>:<slug>. auth = passthrough | passthrough:ENV | bearer:ENV | none.
 #
-# Z.AI SUBSCRIPTION (flat-rate, not per-token): set ZAI_API_KEY and point an alias
-# at the built-in zai upstream (no [upstreams] block needed). Use the BARE slug:
-#   flagship = "zai:glm-5.2"    # in [models] above — not "z-ai/glm-5.2"
+# ── FLAT-RATE SUBSCRIPTIONS ──────────────────────────────────────────────────
+# Both are quota-based rather than per-token, and both speak the Anthropic
+# Messages API directly, so they need no [upstreams] block — just an env var and
+# a BARE slug in [models] above.
+#
+#   Z.ai GLM Coding Plan       export ZAI_API_KEY=...
+#     flagship = "zai:glm-5.2"        # not "z-ai/glm-5.2" (that's OpenRouter's)
+#     cheap    = "zai:glm-4.7"        # Z.ai's own haiku-tier suggestion
+#
+#   Kimi Code (Moonshot)       export KIMI_API_KEY=...   (Kimi Code console key)
+#     flagship = "kimi:k3"            # ~1M context — the full window
+#     # other ids: k3-256k (context CAPPED at 256K, not bigger), kimi-for-coding,
+#     # kimi-for-coding-highspeed. On Kimi Code the usable window is tiered by
+#     # plan: lower tiers cap near 256K, higher tiers get the full 1M.
+#
+# NOTE the Kimi split: the Kimi Code SUBSCRIPTION is api.kimi.com/coding with
+# console keys and the model ids above. The METERED Moonshot API is a different
+# host and different ids (kimi-k3) — a subscription key will not work there and
+# vice versa. For the metered one:
+#   [upstreams]
+#   moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
+#   # then in [models]:  flagship = "moonshot:kimi-k3"
+#
+# ── GPT / CODEX ──────────────────────────────────────────────────────────────
+# Not a built-in, deliberately: Codex subscription auth targets an undocumented
+# ChatGPT backend that speaks OpenAI's Responses schema, not Anthropic Messages,
+# so it needs protocol translation rather than a base URL. Run a local
+# translating shim and point an upstream at it (same pattern as LM Studio below):
+#   [upstreams]
+#   codex = { base = "http://localhost:8080", auth = "none" }
+# See the README section "Subscription-backed models" for the trade-offs.
 #
 # LOCAL MODELS: recent Ollama (v0.14+) speaks the Anthropic Messages API
 # natively, so no translation shim is needed — point an alias at it and run your
