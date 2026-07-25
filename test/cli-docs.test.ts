@@ -36,3 +36,38 @@ test("the check can actually fail (a verb that does not exist is not documented)
   // anything, which would make the real assertion meaningless.
   expect(/modelmux notaverb|mux notaverb|`notaverb`/.test(readme)).toBe(false);
 });
+
+// ── the upstream link: USAGE must match the ACTUAL dispatch ──────────────────
+//
+// The chain is dispatch -> USAGE -> README. The test above derives README from
+// USAGE. This one derives USAGE from the dispatch, so no link in the chain is a
+// frozen transcription.
+//
+// Without it, USAGE is a hand-typed copy of a verb table that lives in TWO files
+// (src/main.ts handles `serve`; src/cli.ts handles the rest). Add a branch to
+// the if-chain and the binary accepts a verb it never advertises — and the
+// README test still passes, because it only walks USAGE forward.
+
+function handledVerbs(): string[] {
+  const cli = readFileSync("src/cli.ts", "utf8");
+  const main = readFileSync("src/main.ts", "utf8");
+  const found = new Set<string>();
+  for (const src of [cli, main]) {
+    for (const m of src.matchAll(/cmd === "([a-z-]+)"/g)) found.add(m[1]!);
+  }
+  return [...found].sort();
+}
+
+test("the dispatch extraction works (non-vacuity)", () => {
+  // An empty match set would make the comparison below vacuously pass.
+  const h = handledVerbs();
+  expect(h.length).toBeGreaterThanOrEqual(5);
+  expect(h).toContain("serve"); // handled in main.ts, not cli.ts
+});
+
+test("USAGE advertises exactly the verbs the dispatch handles", () => {
+  // Both directions: an advertised-but-unhandled verb is a lie to the user; a
+  // handled-but-unadvertised verb is an undiscoverable feature, and is the one
+  // that drifts silently when someone adds a branch.
+  expect(handledVerbs()).toEqual(verbs().sort());
+});
