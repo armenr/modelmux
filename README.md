@@ -217,6 +217,12 @@ Your `flagship` subagents now ride your Z.ai subscription instead of OpenRouter'
 per-token meter, while the orchestrator stays on Claude. It's sanctioned — your
 own key, your own subscription, Z.ai's own documented endpoint. No impersonation.
 
+**Slugs — hand-verified against Z.ai's own docs on 2026-07-25:** `glm-5.2` (newest),
+`glm-5-turbo` (faster/cheaper tier Z.ai promotes for coding), `glm-4.7` (previous
+generation, still available). This table is **frozen at that date** — `modelmux
+check-latest` verifies OpenRouter slugs live, but not these, so treat the date as
+the claim's expiry hint rather than a guarantee.
+
 Two things to know: use Z.ai's **bare** slug (`zai:glm-5.2`), not OpenRouter's
 `z-ai/glm-5.2` prefix; and modelmux strips Claude Code's `anthropic-beta` headers
 by default (safe). If you'd rather keep them, override with
@@ -246,6 +252,9 @@ guess wrong.
 `k3-256k` for most work: it delivers the same results inside the smaller window
 while consuming **half the quota** of full `k3`. Save plain `k3` for when you
 genuinely need more than 256K of context. Model access is also tiered by plan.
+
+**Hand-verified against Moonshot's own Claude Code docs on 2026-07-25** and
+**frozen at that date** — `check-latest` does not probe this provider.
 
 | Model id | Context |
 |---|---|

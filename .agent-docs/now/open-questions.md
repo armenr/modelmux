@@ -26,6 +26,14 @@ related: [status, work-plan, obligations]
   > ship `gpt-5.3-codex`, a model that does not exist. Being more careful was not what fixed that;
   > probing the live endpoint was. *"A quoted doc string is still a typed literal — derived once, then
   > frozen."*
+  > **PARTIALLY ADDRESSED 2026-07-25 — the date column, not the probes.** The frozen tables are not
+  > wrong to be frozen: probing five providers per README build is real cost. What was missing is that
+  > they did not **admit** they were frozen. All four now carry their **referent and derivation date**
+  > (2 of 4 already did; GLM and Kimi were the gap), and `check-latest` now discloses **when** as well
+  > as **which** — "not checked" says a claim is frozen but not how stale, and staleness is the half
+  > that decides whether to trust it today. A frozen literal is not the problem; one that does not
+  > admit it is frozen is. What remains open is the run-time probing below.
+
   **Resolve:** extend `check-latest` to verify what it can derive per provider — Anthropic via the
   Models API (needs a key), Codex via `~/.codex/models_cache.json` (on disk, no network), Z.ai/Kimi
   likely not derivable without credentials — and have it **say which providers it could not check**
