@@ -18,6 +18,33 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | model lists refreshed against PRIMARY sources — Claude Opus 5 landed yesterday
+
+Operator flagged new Claude models. Verified every provider against a primary source rather than a
+search summary, and the search summary was in fact wrong — it reported "Opus 4.8 and Sonnet 4.6" as
+current. The **Anthropic Models API** (queried live) settles it: `claude-opus-5`, **created
+2026-07-24**, is the new one. Full current set: `claude-opus-5` · `claude-sonnet-5` ·
+`claude-fable-5` · `claude-haiku-4-5-20251001`. `claude-opus-4-1-20250805` is deprecated, retires
+2026-08-05. README gains the Claude model table it never had.
+
+**OpenRouter: all 5 shipped slugs valid** — verified with our own `mux check-latest` against 345 live
+catalog entries. **Z.ai:** `glm-5.2` still newest, `glm-4.7` still available, and `glm-5-turbo` exists
+and is promoted for coding — we had never mentioned it. **Kimi:** all four ids exact.
+
+**One substantive correction, from the vendor's own docs:** we told users to "reach for plain `k3`
+unless you specifically want the cap." Moonshot recommends the opposite — `k3-256k` delivers the same
+results in a smaller window at **half the quota**, so it is the sensible default and `k3` is for when
+you genuinely need >256K. Flipped in README and routes.toml.
+
+`routes.toml` was also carrying three stale blocks from before today: a whole "GPT/CODEX works via
+LiteLLM — just not a built-in" recipe (codex has been a built-in for hours), a built-ins list missing
+`codex`, and a note telling OpenAI-format runners to put LiteLLM in front. All replaced.
+
+Method note: `bun run src/cli.ts check-latest` printed NOTHING and exited 0 — `src/cli.ts` has no
+`import.meta.main` guard, so the module loaded and exited. I nearly filed that as a silent-success
+defect in our own CLI. It is `bin/mux check-latest`. Exit 0 with no output is not evidence the tool
+found nothing; it can mean the tool never ran.
+
 ## 2026-07-25 | Codex FIELD-TESTED live — auth accepted, and the built-in was broken in five ways
 
 Operator said the endpoint was back. It was, and that settled `OQ-001` immediately: the very first
