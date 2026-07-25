@@ -14,7 +14,19 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-*(none — all six resolved 2026-07-25.)*
+- **OQ-007** (🟢 verification depth; surfaced 2026-07-25 by a peer's `gopls` finding reproducing here) —
+  **This tree's cited IMPL→WIRED oracle has never run.** `.claude/rules/node-ts-code-intel.md:64` names
+  **`knip`** as "the deterministic oracle the IMPL→WIRED proof cites" and invokes it as `npx knip`.
+  `knip` is **not installed and not declared** here, so that oracle has never executed on this repo —
+  and nothing said so. Separately, `tsserver` reads as ABSENT to `command -v` while being **present at
+  `node_modules/.bin/tsserver`** (symlinked from the `typescript` dependency), so the naive availability
+  check answers the wrong question: *"is it on my PATH"* is not *"is it installed"*.
+  **Cost this cycle: none** — WU-0003's reachability was proven by running the proxy end-to-end against
+  the live backend and reading `decisions.jsonl` (6/6 to the intended upstream), which is a *stronger*
+  evidence class than knip. It would bite the next unit that ships **without** a live rig, which is
+  exactly when nobody would notice. **Resolve:** add `knip` as a devDependency and wire it into a gate
+  (currency-check first), or record explicitly that reachability here is proven by live field test and
+  amend the rule. Deliberately NOT done on a release-cut branch. Relates: WU-0003.
 
 ## Recently resolved
 
