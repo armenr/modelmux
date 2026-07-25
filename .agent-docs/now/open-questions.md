@@ -32,6 +32,15 @@ related: [status, work-plan, obligations]
   > guard on that, and is itself non-vacuous (widen `entry` → it goes red).
   > **Non-vacuity proven twice**, before and after the config was edited — a config change is exactly
   > how an oracle silently disarms.
+  >
+  > **And knip alone was not enough.** Measured: it exits **0 over a population of ZERO** — point
+  > `project` at a glob matching no files and it emits a hint and still returns success, which is
+  > byte-identical to a clean tree. The config guard could not see it either (the config was
+  > well-formed). `scripts/reachability.ts` wraps knip to supply the term it cannot: it **prints the
+  > population** rather than implying it, **verifies every entrypoint exists** on disk, and **floors
+  > the population** at 10 files — exiting **2** (distinct from knip's 1) when the check itself cannot
+  > be trusted. Three controls, three distinct codes: planted orphan → **1**, empty population → **2**,
+  > renamed-away entrypoint → **2**, healthy → **0**.
 
   **It found a real defect on its first run.** `forwardUrl` was exported, unit-tested, and **never
   called** — `src/server.ts` duplicated its logic inline, so the one tested URL-builder was not the one

@@ -35,7 +35,7 @@
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck && bun run reachability && bun test test/",
     "build": "bun build --compile --minify src/main.ts --outfile dist/modelmux",
-    "reachability": "knip --include files",
+    "reachability": "bun run scripts/reachability.ts",
     "knip": "knip"
   },
   "devDependencies": {
