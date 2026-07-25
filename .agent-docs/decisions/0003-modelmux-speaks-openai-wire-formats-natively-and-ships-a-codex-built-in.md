@@ -147,15 +147,44 @@ or from memory. They were memory plus one secondary source. Checking the **prima
 - `max_tokens` is rejected by newer models (hence point 5 above).
 
 **Costs, named.**
-- **Acceptance is UNVERIFIED** (`OQ-001`). Every Codex call returns `503 circuit_open`, and a breaker
-  can fire *before* auth is evaluated — so a green build proves nothing about whether the header pair
-  is accepted. Only a 200 or a 401 settles it. Control established: OpenAI's own `codex` CLI fails
-  identically on the same endpoint, so the fault is theirs.
 - **No refresh path** (`OQ-002`). We read the token and never renew it; the current one expires
-  **2026-07-28**. After that, Codex requests fail with no recovery from inside modelmux.
-- **The Responses adapter has never run against a real Responses backend** (`OQ-004`). It is
-  spec-derived and unit-tested, where the Chat Completions adapter was field-tested end-to-end against
-  local Ollama including the full tool loop. Ollama does not speak Responses, so there is no local rig.
+  **2026-07-28**. Narrower than first written — the credential file is re-read *per request, uncached*,
+  so a token refreshed by the `codex` CLI is picked up on the next call.
+
+### Amendment 2026-07-25 — field-tested live; the built-in did not work as shipped
+
+`OQ-001` and `OQ-004` are **both RESOLVED** by a live field test once OpenAI's endpoint recovered. The
+auth pair is **accepted** — the first probe returned a *model* complaint, which is only reachable past
+authentication — and the full matrix now passes end-to-end through modelmux: non-streaming, streaming,
+tool call, tool-result round trip, streaming tool-call fragment reassembly. Leg proven from
+`decisions.jsonl`: 6/6 `upstream=codex`, zero anthropic.
+
+**The honest headline is that the built-in was BROKEN when this ADR was written, and the unit tests
+could not see it.** Everything was green; every request would have 400'd. Five defects, all found only
+by running it:
+
+1. **`store: false` never sent** → `400 Store must be set to false` on every request.
+2. **`stream` forwarded from the caller** → the backend is **SSE-ONLY**; a non-streaming request is
+   rejected outright. It now always streams upstream and the server re-aggregates for a JSON caller.
+3. **`instructions` omitted when there is no system prompt** → must be a non-empty string.
+4. **`max_output_tokens` / `temperature` / `top_p` forwarded** → each is a hard `400 Unsupported
+   parameter`, *not* an ignored field. Anthropic **requires** `max_tokens`, so this was the common
+   path, not an edge case. They are now stripped, and the honest cost is that **those three knobs do
+   not work on a ChatGPT subscription**.
+5. **Reasoning items opened an empty Anthropic content block.** The backend prefixes *every* reply with
+   one, so 100% of streamed responses carried a spurious empty text block at index 0 and pushed the
+   real text to index 1.
+
+**And the trap worth remembering:** the terminal `response.completed` event carries `output: []` —
+always empty. Aggregating a non-streaming reply from that event is the obvious implementation and
+silently yields a structurally-valid **empty** message. The content exists only in the per-item events.
+
+Two beliefs this ADR recorded were also **measured false**: `ChatGPT-Account-ID` is *not* required
+(a code comment claimed it was load-bearing; corrected in place), and neither is `OpenAI-Beta`.
+
+*Method note:* the Chat Completions adapter got a live Ollama rig and shipped correct; the Responses
+adapter was spec-derived only, and shipped with five defects. That is the whole argument for
+`OQ-004`-style gaps being tracked as **blocking risk** rather than a nice-to-have.
 - **We now own a translator on a foundation we don't control** — the exact cost ADR-0002 named. It is
   accepted deliberately, and flip-condition 2 is the pre-written trigger for reversing it.
 

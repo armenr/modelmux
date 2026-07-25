@@ -18,6 +18,36 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | Codex FIELD-TESTED live — auth accepted, and the built-in was broken in five ways
+
+Operator said the endpoint was back. It was, and that settled `OQ-001` immediately: the very first
+direct probe returned `400 The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT
+account` — a **model** complaint, which is only reachable **past authentication**. Auth accepted.
+
+Then the useful part. The `codex` built-in, committed hours earlier with every gate green and 137 tests
+passing, **would have 400'd on every single request.** Five defects, none visible to a unit test:
+missing `store:false`; `stream` forwarded from the caller when the backend is **SSE-ONLY**;
+`instructions` omitted when there is no system prompt; `max_output_tokens`/`temperature`/`top_p`
+forwarded when each is a hard `400 Unsupported parameter` (and Anthropic *requires* `max_tokens`, so
+that was the common path); and reasoning items opening an empty Anthropic content block on 100% of
+streamed replies. All five fixed, each with a falsifier, all seven negative controls watched go red
+with the blob hash confirming a clean restore. 137 → 145 tests.
+
+**The trap worth keeping:** the terminal `response.completed` carries `output: []` — always empty.
+Aggregating a non-streaming reply from it is the obvious implementation and silently returns a
+structurally-valid EMPTY message. Content lives only in the per-item events.
+
+Two beliefs measured FALSE: `ChatGPT-Account-ID` is not required (our own code comment called it
+load-bearing — corrected in place, kept because a multi-account login is exactly what a single-account
+test cannot observe), and neither is `OpenAI-Beta`. And the README shipped `gpt-5.3-codex`, which does
+not exist; 8 slugs verified working, 3 rejected. `models_cache.json`'s `supported_in_api` flag refers
+to the *platform* API, not this endpoint — `gpt-5.3-codex-spark` is `false` there and works fine here,
+so a table-based inference would have been wrong too.
+
+Method note, since the operator had to say it twice: I started probing model slugs one at a time
+instead of reading the CLI's own cache and searching for the documented constraints. Checking the web
+gave the whole constraint set at once. Guessing serially where a source exists is the expensive path.
+
 ## 2026-07-25 | WU-0003 committed — cleanup closed, and the README was wronger than the plan said
 
 Shipped the three-item cleanup, then committed WU-0003 as `7ef2d4c` (work) and `fd08a9a` (README).
