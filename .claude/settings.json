@@ -1,0 +1,195 @@
+{
+  "_comment": "Fieldbook base settings template \u2014 the install concierge fills {{...}} scalars and writes .claude/settings.json. autoMemoryEnabled is false ON PURPOSE: durable memory lives in the git-tracked .agent-docs/ store (auditable, reviewable, portable, survives tool churn), NOT in Claude Code's local auto-memory. State-mutating/destructive ops stay gated by .claude/hooks/pretooluse-safety-gates.sh regardless of the allowlist below. Operator-personal narrow allowances belong in .claude/settings.local.json (gitignored), which the kit does not ship.",
+  "autoMemoryEnabled": false,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart-state-router.sh startup"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart-state-router.sh resume"
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart-state-router.sh clear"
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart-state-router.sh compact"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/precompact-handoff-trigger.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/subagentstart-prefix.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/pretooluse-safety-gates.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-gate/dispatch-gate.sh agent"
+          }
+        ]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-gate/dispatch-gate.sh workflow"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "_comment": "Allowlist of safe read-only + common project dev commands (sub-agents inherit). Destructive/irreversible ops (force-push to a protected branch, checks-bypass, recursive rm, git reset --hard, plus any per-stack rules assembled into the gate) remain gated by .claude/hooks/pretooluse-safety-gates.sh REGARDLESS of this list. Wildcard `:*` covers arguments. The concierge fills bun run build/bun test test//bun run lint/ from the detected toolchain.",
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(file:*)",
+      "Bash(diff:*)",
+      "Bash(stat:*)",
+      "Bash(tree:*)",
+      "Bash(echo:*)",
+      "Bash(date:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "Bash(cut:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(tr:*)",
+      "Bash(xargs:*)",
+      "Bash(jq:*)",
+      "Bash(yq:*)",
+      "Bash(base64:*)",
+      "Bash(env:*)",
+      "Bash(printenv:*)",
+      "Bash(printf:*)",
+      "Bash(test:*)",
+      "Bash(which:*)",
+      "Bash(pwd:*)",
+      "Bash(basename:*)",
+      "Bash(dirname:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git blame:*)",
+      "Bash(git remote:*)",
+      "Bash(git reflog:*)",
+      "Bash(git config --get:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(bun run build:*)",
+      "Bash(bun test test/:*)",
+      "Bash(bun run lint:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart-state-router.sh:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/precompact-handoff-trigger.sh:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/subagentstart-prefix.sh:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/pretooluse-safety-gates.sh:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-gate/dispatch-gate.sh:*)",
+      "Bash(${CLAUDE_PROJECT_DIR}/.claude/hooks/lint-agent-docs-indexes.sh:*)",
+      "Bash(.claude/hooks/lint-agent-docs-indexes.sh:*)",
+      "WebFetch",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm view:*)",
+      "Bash(npm outdated:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm exec:*)",
+      "Bash(npm --version:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm why:*)",
+      "Bash(pnpm outdated:*)",
+      "Bash(pnpm audit:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm --version:*)",
+      "Bash(yarn install:*)",
+      "Bash(yarn --version:*)",
+      "Bash(bun install:*)",
+      "Bash(bun test:*)",
+      "Bash(bun run:*)",
+      "Bash(bun --version:*)",
+      "Bash(tsc:*)",
+      "Bash(eslint:*)",
+      "Bash(prettier:*)",
+      "Bash(vitest:*)",
+      "Bash(jest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx jest:*)",
+      "Bash(node --version:*)",
+      "Bash(node -v:*)"
+    ],
+    "deny": []
+  }
+}
