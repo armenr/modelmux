@@ -1,5 +1,6 @@
 import type { Config } from "./types.ts";
 import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { loadConfig, parseModelRef } from "./config.ts";
 
@@ -76,7 +77,7 @@ export async function runCli(argv: string[]): Promise<number> {
         console.error("usage: modelmux use <agent-name> <alias>");
         return 1;
       }
-      const path = `.claude/agents/${a}.md`;
+      const path = join(".claude", "agents", `${a}.md`);
       writeFileSync(path, retargetAgentTag(readFileSync(path, "utf8"), b));
       console.log(`agent ${a} now uses <<route:${b}>>`);
       return 0;
@@ -86,7 +87,7 @@ export async function runCli(argv: string[]): Promise<number> {
         console.error("usage: modelmux tag <agent-name> <alias>");
         return 1;
       }
-      const path = `.claude/agents/${a}.md`;
+      const path = join(".claude", "agents", `${a}.md`);
       writeFileSync(path, tagAgent(readFileSync(path, "utf8"), b));
       console.log(`agent ${a} tagged <<route:${b}>>`);
       return 0;

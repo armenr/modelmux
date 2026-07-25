@@ -5,6 +5,7 @@ import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
 import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } from "./openai.ts";
+import { responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
 import { normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
@@ -61,11 +62,17 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       // and forwards untouched, exactly as before.
       const def = resolveUpstream(decision.upstream, config.upstreams);
       const isOpenAI = def.format === "openai";
+      const isResponses = def.format === "responses";
+      const translates = isOpenAI || isResponses;
       const wantsStream = body?.stream === true;
-      const outboundBody = isOpenAI ? toOpenAIRequest(body, def.maxTokensField) : body;
+      const outboundBody = isOpenAI
+        ? toOpenAIRequest(body, def.maxTokensField)
+        : isResponses ? toResponsesRequest(body) : body;
 
       const url = new URL(req.url);
-      const path = isOpenAI ? openaiPath(url.pathname) : url.pathname;
+      const path = isOpenAI
+        ? openaiPath(url.pathname)
+        : isResponses ? responsesPath(url.pathname) : url.pathname;
       const base = opts.baseOverride?.[decision.upstream];
       const target = base
         ? base + path + url.search
@@ -90,7 +97,7 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       }
 
       // Anthropic-format upstreams stream straight through, untouched.
-      if (!isOpenAI) {
+      if (!translates) {
         return new Response(upstream.body, {
           status: upstream.status,
           headers: passthroughHeaders(upstream.headers),
@@ -109,10 +116,10 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       if (wantsStream) {
         const sseHeaders = passthroughHeaders(upstream.headers);
         sseHeaders.set("content-type", "text/event-stream");
-        return new Response(toAnthropicStream(upstream.body, decision.model), {
-          status: upstream.status,
-          headers: sseHeaders,
-        });
+        const translated = isResponses
+          ? toAnthropicStreamFromResponses(upstream.body, decision.model)
+          : toAnthropicStream(upstream.body, decision.model);
+        return new Response(translated, { status: upstream.status, headers: sseHeaders });
       }
 
       const oaiJson = await upstream.json().catch(() => null);
@@ -120,7 +127,10 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         return new Response("upstream returned an unparseable body", { status: 502 });
       const jsonHeaders = passthroughHeaders(upstream.headers);
       jsonHeaders.set("content-type", "application/json");
-      return new Response(JSON.stringify(toAnthropicResponse(oaiJson, decision.model)), {
+      const anthropicJson = isResponses
+        ? toAnthropicFromResponses(oaiJson, decision.model)
+        : toAnthropicResponse(oaiJson, decision.model);
+      return new Response(JSON.stringify(anthropicJson), {
         status: upstream.status,
         headers: jsonHeaders,
       });

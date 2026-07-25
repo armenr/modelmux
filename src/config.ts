@@ -52,6 +52,10 @@ export function parseAuth(spec: string): AuthMode {
     return { kind: "none" };
   if (spec === "passthrough")
     return { kind: "passthrough" };
+  if (spec === "codex")
+    return { kind: "codex" };
+  if (spec.startsWith("codex:"))
+    return { kind: "codex", path: spec.slice("codex:".length) };
   if (spec.startsWith("passthrough:"))
     return { kind: "passthrough", envKey: spec.slice("passthrough:".length) };
   if (spec.startsWith("bearer:")) {
@@ -60,10 +64,11 @@ export function parseAuth(spec: string): AuthMode {
       throw new Error("bearer auth needs an env var, e.g. auth = \"bearer:MY_API_KEY\"");
     return { kind: "bearer", envKey };
   }
-  throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | none)`);
+  throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | codex | codex:PATH | none)`);
 }
 
-// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter, zai).
+// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter,
+// zai, kimi, codex).
 function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<string, UpstreamDef> {
   const out: Record<string, UpstreamDef> = { ...BUILTIN_UPSTREAMS };
   for (const [name, u] of Object.entries(raw ?? {})) {
@@ -72,8 +77,8 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
     const auth = parseAuth(u.auth ?? "none");
     const stripBeta = u.stripBeta ?? (auth.kind !== "passthrough");
     const format = u.format ?? "anthropic";
-    if (format !== "anthropic" && format !== "openai")
-      throw new Error(`upstream "${name}" has unknown format "${format}" (use "anthropic" or "openai")`);
+    if (format !== "anthropic" && format !== "openai" && format !== "responses")
+      throw new Error(`upstream "${name}" has unknown format "${format}" (use "anthropic", "openai" or "responses")`);
     const maxTokensField = u.maxTokensField ?? "max_tokens";
     if (maxTokensField !== "max_tokens" && maxTokensField !== "max_completion_tokens") {
       throw new Error(`upstream "${name}" has unknown maxTokensField "${maxTokensField}" `

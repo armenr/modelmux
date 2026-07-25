@@ -6,12 +6,15 @@ export type Upstream = string;
 export type AuthMode
   = | { kind: "passthrough"; envKey?: string } // forward Claude Code's own inbound auth; if envKey is set and present, send it as x-api-key instead
     | { kind: "bearer"; envKey: string } // Authorization: Bearer <env[envKey]>
+    | { kind: "codex"; path?: string } // read the Codex CLI's own OAuth credentials (default ~/.codex/auth.json)
     | { kind: "none" }; // send no auth (e.g. a local model server)
 
 // The wire format an upstream speaks. "anthropic" forwards untouched (the
 // default and the fast path); "openai" routes the request and response through
-// the Chat Completions adapter in openai.ts.
-export type WireFormat = "anthropic" | "openai";
+// the Chat Completions adapter in openai.ts; "responses" through the Responses
+// adapter in responses.ts (OpenAI's newer schema — different request shape,
+// FLAT tools, and named SSE events rather than delta chunks).
+export type WireFormat = "anthropic" | "openai" | "responses";
 
 // Which token-cap field the OpenAI-format leg should send. There is no safe
 // universal default: OpenAI's newer models REJECT `max_tokens` outright
@@ -65,4 +68,10 @@ export interface Decision {
   upstream: Upstream;
   model: string; // resolved slug or "passthrough"
   matchedRule: string; // "tag:flagship" | "workType:background" | "anySubagent" | "default"
+}
+
+// Anthropic's token-usage shape, the target of every adapter's usage mapping.
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
 }

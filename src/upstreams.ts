@@ -1,4 +1,7 @@
 import type { AuthMode, Decision, Upstream, UpstreamDef } from "./types.ts";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 // Built-in upstreams. Users can add more (or override these) via the [upstreams]
 // table in routes.toml; these are the defaults when a name isn't configured.
@@ -39,6 +42,18 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     auth: { kind: "bearer", envKey: "KIMI_API_KEY" },
     stripBeta: true,
     format: "anthropic",
+    maxTokensField: "max_tokens",
+  },
+  // GPT / Codex on a ChatGPT subscription. Speaks the Responses wire format and
+  // authenticates with the credentials `codex login` already wrote to disk.
+  // See ADR-0003 for why this ships built-in and what it does NOT promise: the
+  // endpoint is undocumented and can change, and whether subscription use suits
+  // your account is a terms question only you can answer.
+  codex: {
+    base: "https://chatgpt.com/backend-api/codex",
+    auth: { kind: "codex" },
+    stripBeta: true,
+    format: "responses",
     maxTokensField: "max_tokens",
   },
 };
@@ -94,12 +109,66 @@ export function rewriteHeaders(
   return out;
 }
 
+// Codex CLI stores its ChatGPT OAuth credentials here after `codex login`.
+// modelmux READS them; it never performs the login itself and never writes to
+// this file — one subscription, one credential store, owned by the tool that
+// obtained it.
+// Path SEGMENTS, joined with node:path so this resolves correctly on
+// Linux, macOS and Windows alike rather than assuming "/".
+export const CODEX_AUTH_SEGMENTS = [".codex", "auth.json"] as const;
+
+export class CodexAuthError extends Error {}
+
+interface CodexCreds { accessToken: string; accountId: string }
+
+// Read the Codex credentials. Throws a MissingKeyError-equivalent rather than
+// returning empty, so a mis-set-up upstream fails loud at the first request
+// instead of sending an unauthenticated call and reporting the provider's 401.
+export function readCodexAuth(path: string | undefined, env: Record<string, string | undefined>): CodexCreds {
+  // CODEX_HOME first (Codex CLI's own override), then the platform home dir.
+  const codexHome = env.CODEX_HOME;
+  const home = env.HOME ?? env.USERPROFILE ?? homedir();
+  const file = path ?? (codexHome
+    ? join(codexHome, "auth.json")
+    : join(home, ...CODEX_AUTH_SEGMENTS));
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  }
+  catch {
+    throw new CodexAuthError(
+      `codex auth not found at ${file} — run \`codex login\` first (modelmux reads its credentials, it does not create them)`,
+    );
+  }
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  }
+  catch {
+    throw new CodexAuthError(`codex auth at ${file} is not valid JSON`);
+  }
+  const accessToken = parsed?.tokens?.access_token;
+  const accountId = parsed?.tokens?.account_id;
+  if (typeof accessToken !== "string" || !accessToken)
+    throw new CodexAuthError(`codex auth at ${file} has no tokens.access_token — re-run \`codex login\``);
+  if (typeof accountId !== "string" || !accountId)
+    throw new CodexAuthError(`codex auth at ${file} has no tokens.account_id — re-run \`codex login\``);
+  return { accessToken, accountId };
+}
+
 function applyAuth(
   out: Headers,
   auth: AuthMode,
   inbound: Headers,
   env: Record<string, string | undefined>,
 ): void {
+  if (auth.kind === "codex") {
+    const { accessToken, accountId } = readCodexAuth(auth.path, env);
+    out.set("authorization", `Bearer ${accessToken}`);
+    // Load-bearing: without ChatGPT-Account-ID the backend answers 401/403.
+    out.set("chatgpt-account-id", accountId);
+    return;
+  }
   if (auth.kind === "bearer") {
     const key = env[auth.envKey];
     if (!key)
