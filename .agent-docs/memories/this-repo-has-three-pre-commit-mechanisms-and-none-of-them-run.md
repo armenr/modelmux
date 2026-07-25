@@ -52,6 +52,36 @@ lefthook's `.git/hooks/` registration cannot both win:
 Either way, **verify by making the gate fail on purpose** — a hook you have never watched block a
 commit is a hypothesis, not a gate.
 
+### ⚠️ Installing the dispatcher does NOT gate all four gates — read this before believing you're covered
+
+Wiring the hook fixes *nothing runs*. It does **not** mean *everything is checked*. Measured by reading
+`.githooks/pre-commit` (not inferred):
+
+| Staged | Gate that runs | Blocks? |
+|---|---|---|
+| `.agent-docs/**/*.md` | `python3 lint-docs.py` + index-completeness | **yes** |
+| code files | `bun run lint` | **yes** |
+| code files | *format gate* — wired to the **empty string** (`FMT_CMD` is deliberately empty; no format script exists) | no — "gate empty → skipped" |
+| anything outside `.agent-docs/` | doc-refs sweep | **no — advisory by contract, never touches `rc`** |
+
+**`bun test test/`, `tsc --noEmit`/typecheck, and `bun run build` appear ZERO times in the hook.** Grep
+count is 0 for each. They stay **manual**. (`lefthook.yml` would give `bun test test/` on *pre-push* —
+but lefthook isn't installed, and its `core.hooksPath` conflict makes the two mutually exclusive.)
+
+**Second trap in the same file:** `REQUIRED_GATE_TOOLS` defaults to **empty**, and a gate whose tool is
+missing from `PATH` is **skipped, not blocked** — only labels named in that variable block on absence.
+So a broken toolchain passes silently by default. Set `REQUIRED_GATE_TOOLS="lint"` if you want a missing
+`bun` to fail the commit rather than wave it through.
+
+**And `FIELDBOOK_PRECOMMIT_BYPASS=1` skips every gate** — an intentional emergency exit that announces
+itself loudly, but it exists.
+
+> The generalized lesson, and the reason this section exists: **verifying that a hook is INSTALLED is
+> not verifying that it CHECKS anything**, and the two are indistinguishable from the install side. A
+> peer repo hit the mirror image of this repo's defect — correctly installed hook, fires on every
+> commit, scrolls green, and never contained the test command at all, so their ~2722 tests had never run
+> in any automated context. Same end state, opposite cause: *the repo looks gated.*
+
 **Avoid:**
 - Do **not** read "the pre-commit hook ran" as "the gates ran". Until this is fixed, `bun run lint` /
   `bun run typecheck` / `bun test test/` / `bun run build` must be run **by hand** before every commit;
