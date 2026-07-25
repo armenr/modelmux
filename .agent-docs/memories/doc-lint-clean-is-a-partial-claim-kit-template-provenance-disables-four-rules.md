@@ -97,6 +97,35 @@ following them hits nothing. Also kit-owned.
   finding. **A negative control on a subset is only evidence if you can say why the subset is
   representative** — "it was the first one I tried" is not that.
 
+## Dry-run of the incoming fix (2026-07-25) — and the trap in validating it
+
+fieldbook's shipped fix will be: **rule 3 FAILs `kit-template` on any doc whose content has diverged
+from its `.kit-manifest.json` `sha256`.** Hash matches ⇒ still verbatim ⇒ label correct. Diverged ⇒ the
+adopter wrote it ⇒ label stale. (Their earlier path-keyed version was retracted: it produced **23
+false positives on a fresh install**, this tree's `now/lessons/MOC.md` among them.)
+
+**Dry-run here — it holds. 4 flagged, 13 clean, zero false positives:**
+
+| | |
+|---|---|
+| Would FLAG | `decisions/index.md`, `memories/index.md`, `reference/index.md`, `log.md` |
+| Would NOT flag | the 7 static-normative docs + the 6 index/glossary/MOC files not yet written to |
+
+**This refines the "11 seed-then-live" number above.** Only **4 have actually diverged**; the other 7
+are seed-then-live *by class* but still byte-verbatim *today* — correctly labelled right now, latently
+wrong. The hash check measures the **state**, not the class, which is the better thing to measure: it
+fires when the label *becomes* wrong rather than when it might.
+
+> **⚠️ TRAP — do not validate this the obvious way.** The natural check is "compare the manifest against
+> the files **at the install commit**, where no adopter edit is possible, so any mismatch is a manifest
+> bug." That produced **5 mismatches here and it is WRONG**: this repo's Fieldbook install was *squashed
+> into a feature commit* (`c7cb694`), so edits made during that same session sit inside the install
+> commit and are indistinguishable from installer output by that method. The decisive disproof:
+> `reference/index.md:57` carries a row for `fieldbook-install-reconstitution.md`, a doc authored that
+> session. All 5 are adopter edits; the manifest is fine. **On a squashed install the install-commit
+> baseline is contaminated and manufactures phantom manifest errors at exactly the rate the adopter
+> edited during install.** This was one step from being posted as a refutation of the fix.
+
 **See also:** `now/open-questions.md` (the tripwire for fieldbook's rule-21 + rule-3 fix landing);
 `memories/installed-safety-gate-does-not-protect-this-repo.md` — the same shape, a kit-owned instrument
 that silently under-protects this tree.
