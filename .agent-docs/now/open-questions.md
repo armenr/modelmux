@@ -14,7 +14,23 @@ related: [status, work-plan, obligations]
 
 ## Open
 
-*(none — all seven resolved 2026-07-25.)*
+- **OQ-008** (🟡 doc-drift/carrier; surfaced 2026-07-25 by a peer's *quoted-is-still-typed* argument) —
+  **Four of our five providers' model tables are FROZEN transcriptions; only OpenRouter's is derived.**
+  `mux check-latest` re-derives the OpenRouter slugs against the live catalog at run time, so they
+  cannot rot silently. The **Anthropic, Z.ai, Kimi and Codex** tables in `README.md` were verified by
+  hand on 2026-07-25 and then frozen — and `check-latest` says so in its own output:
+  *"(2 non-openrouter model(s) not checked — check-latest only verifies OpenRouter.)"*
+  The gap is self-reported and nothing acts on it.
+  > **Why this is a carrier problem, not a diligence one.** A hand-verified table is correct at
+  > authoring time and rots the day a vendor changes a slug — which is exactly how the README came to
+  > ship `gpt-5.3-codex`, a model that does not exist. Being more careful was not what fixed that;
+  > probing the live endpoint was. *"A quoted doc string is still a typed literal — derived once, then
+  > frozen."*
+  **Resolve:** extend `check-latest` to verify what it can derive per provider — Anthropic via the
+  Models API (needs a key), Codex via `~/.codex/models_cache.json` (on disk, no network), Z.ai/Kimi
+  likely not derivable without credentials — and have it **say which providers it could not check**
+  rather than implying full coverage. Deliberately NOT done on a branch that is ready to merge; adding
+  provider probes is feature scope. Relates: WU-0003, `LP-001`.
 
 ## Recently resolved
 
