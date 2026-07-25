@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/armenr/modelmux/compare/v0.4.0...v0.5.0) (2026-07-25)
+
+
+### Features
+
+* **upstreams:** speak OpenAI wire formats natively — Chat Completions, Responses, and flat-rate subscriptions ([#15](https://github.com/armenr/modelmux/issues/15)) ([5e862d8](https://github.com/armenr/modelmux/commit/5e862d87dd986f4055420ea62ca012c6fad84c2e))
+
 ## [0.4.0](https://github.com/armenr/modelmux/compare/v0.3.0...v0.4.0) (2026-07-25)
 
 
