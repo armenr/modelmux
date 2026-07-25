@@ -44,6 +44,7 @@ interface RawUpstream {
   stripBeta?: boolean;
   format?: string;
   maxTokensField?: string;
+  codexSubscription?: boolean;
 }
 
 // Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
@@ -84,7 +85,15 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
       throw new Error(`upstream "${name}" has unknown maxTokensField "${maxTokensField}" `
         + `(use "max_tokens" or "max_completion_tokens")`);
     }
-    out[name] = { base: u.base, auth, stripBeta, format, maxTokensField };
+    // Opt-in, and it defaults ON for a user-declared upstream that uses codex
+    // auth: that auth kind exists only for the ChatGPT-subscription backend, so
+    // someone pointing their own alias at it needs the same three quirks or every
+    // request 400s. An explicit false still wins. Only SET when true, so an
+    // ordinary upstream's shape stays exactly as it was before this field existed.
+    const codexSubscription = u.codexSubscription ?? auth.kind === "codex";
+    out[name] = codexSubscription
+      ? { base: u.base, auth, stripBeta, format, maxTokensField, codexSubscription: true }
+      : { base: u.base, auth, stripBeta, format, maxTokensField };
   }
   return out;
 }

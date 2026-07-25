@@ -101,7 +101,11 @@ function mapToolChoice(tc: any): any {
   return undefined;
 }
 
-export function toResponsesRequest(body: any): any {
+// The ChatGPT-subscription Codex backend needs three things generic Responses
+// does not. See UpstreamDef.codexSubscription for the measured 400s.
+const CODEX_FALLBACK_INSTRUCTIONS = "You are a helpful assistant.";
+
+export function toResponsesRequest(body: any, codexSubscription = false): any {
   const out: any = {
     model: body?.model,
     input: toInputItems(Array.isArray(body?.messages) ? body.messages : []),
@@ -118,6 +122,28 @@ export function toResponsesRequest(body: any): any {
     out.top_p = body.top_p;
   if (body?.stream)
     out.stream = true;
+
+  if (codexSubscription) {
+    // Each of these is a measured 400 on that backend, not a precaution.
+    out.store = false;
+    // SSE-ONLY: force streaming upstream even when the caller wanted a single
+    // JSON reply. The server re-aggregates the stream for that caller — without
+    // this the request is simply rejected, so there is nothing to degrade to.
+    out.stream = true;
+    // `instructions` must be a NON-EMPTY string. An Anthropic request carrying
+    // no system prompt is perfectly legal, so it needs a floor rather than a throw.
+    if (!out.instructions)
+      out.instructions = CODEX_FALLBACK_INSTRUCTIONS;
+    // The backend REJECTS these outright — `400 Unsupported parameter` — rather
+    // than ignoring them, so forwarding any one of them fails the whole request.
+    // Anthropic REQUIRES max_tokens, so this is not an edge case: every single
+    // Claude Code request carries one. Dropping them is the only way this path
+    // works at all, and the honest cost is that max_tokens / temperature / top_p
+    // are NOT HONOURED on a ChatGPT subscription. Documented in the README.
+    delete out.max_output_tokens;
+    delete out.temperature;
+    delete out.top_p;
+  }
 
   if (Array.isArray(body?.tools) && body.tools.length) {
     // FLAT tool shape — Chat Completions nests under `function`, Responses does not.
@@ -261,8 +287,15 @@ export function toAnthropicStreamFromResponses(
 
         if (t === "response.output_item.added") {
           openMessage();
-          const idx = indexFor(ev.output_index ?? 0);
           const item = ev.item ?? {};
+          // Reasoning items have NO Anthropic equivalent. Opening a block for one
+          // emits an EMPTY text block that never receives a delta — measured
+          // against the live Codex backend, which prefixes every reply with a
+          // reasoning item, so this fired on 100% of streamed responses. The
+          // non-streaming path already drops these; this keeps the two agreeing.
+          if (item.type === "reasoning")
+            return;
+          const idx = indexFor(ev.output_index ?? 0);
           if (item.type === "function_call") {
             sawToolCall = true;
             emit(sse("content_block_start", {
@@ -303,8 +336,12 @@ export function toAnthropicStreamFromResponses(
         }
 
         if (t === "response.output_item.done") {
-          const idx = indexFor(ev.output_index ?? 0);
-          if (openBlocks.delete(idx))
+          // LOOK UP, never allocate. indexFor() would mint an index for an item
+          // we deliberately skipped (a reasoning item), consuming index 0 and
+          // leaving the real text block at index 1 with a hole beneath it —
+          // Anthropic content indices must be contiguous from 0.
+          const idx = blockFor.get(ev.output_index ?? 0);
+          if (idx !== undefined && openBlocks.delete(idx))
             emit(sse("content_block_stop", { type: "content_block_stop", index: idx }));
           return;
         }
@@ -368,4 +405,67 @@ export function toAnthropicStreamFromResponses(
 
 export function responsesPath(inboundPath: string): string {
   return inboundPath.replace(/\/v1\/messages$/, "/responses");
+}
+
+/**
+ * Drain a Responses SSE stream into the single response object that
+ * `toAnthropicFromResponses` expects, for an SSE-ONLY upstream serving a caller
+ * who asked for a non-streaming reply.
+ *
+ * THE TRAP THIS EXISTS TO AVOID (measured against the ChatGPT-subscription
+ * Codex backend, 2026-07-25): the terminal `response.completed` event carries
+ * `output: []` — ALWAYS EMPTY. Reading the finished output off that event is
+ * the obvious implementation and it silently yields an empty message that is
+ * structurally valid in every other respect. The content only ever exists in the
+ * per-item `response.output_item.done` events, so they are what we accumulate.
+ * `response.completed` is still the source for id/usage/stop metadata.
+ */
+export async function collectResponsesOutput(
+  upstream: ReadableStream<Uint8Array>,
+): Promise<any> {
+  const dec = new TextDecoder();
+  const reader = upstream.getReader();
+  const output: any[] = [];
+  let buf = "";
+  let meta: any = {};
+
+  const handle = (ev: any): void => {
+    if (ev?.type === "response.output_item.done" && ev.item) {
+      output.push(ev.item);
+    }
+    else if (
+      ev?.type === "response.completed"
+      || ev?.type === "response.incomplete"
+      || ev?.type === "response.failed"
+    ) {
+      // Take the envelope for id/usage/incomplete_details — but NOT its `output`.
+      meta = ev.response ?? {};
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done)
+      break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop() ?? "";
+    for (const block of parts) {
+      for (const line of block.split("\n")) {
+        if (!line.startsWith("data:"))
+          continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]")
+          continue;
+        try {
+          handle(JSON.parse(payload));
+        }
+        catch {
+          // a malformed frame is the provider's problem; keep draining
+        }
+      }
+    }
+  }
+
+  return { ...meta, output };
 }

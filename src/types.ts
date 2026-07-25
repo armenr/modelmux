@@ -28,6 +28,17 @@ export interface UpstreamDef {
   stripBeta: boolean; // drop anthropic-beta — non-Anthropic endpoints don't understand Claude Code's betas
   format: WireFormat;
   maxTokensField: MaxTokensField;
+  // The ChatGPT-subscription Codex backend is NOT generic Responses. Measured
+  // against it 2026-07-25, it rejects three otherwise-legal request shapes:
+  //   store: true / absent -> 400 "Store must be set to false"
+  //   stream: false        -> 400 (subscription OAuth is SSE-ONLY; there is no
+  //                          non-streaming mode at all)
+  //   instructions empty   -> 400 (must be a non-empty string)
+  // and its terminal `response.completed` event carries an EMPTY `output` array,
+  // so a non-streaming reply must be aggregated from the per-item events rather
+  // than read off the completed event. Off by default: a self-hosted or Azure
+  // Responses endpoint has none of these constraints.
+  codexSubscription?: boolean;
 }
 
 export interface ModelRef {

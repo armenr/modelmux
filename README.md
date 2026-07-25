@@ -162,7 +162,7 @@ block, just a credential and a bare slug.
 |---|---|---|---|
 | Z.ai GLM Coding Plan | `zai` (built in) | `ZAI_API_KEY` | `glm-5.2`, `glm-4.7` |
 | Kimi Code (Moonshot) | `kimi` (built in) | `KIMI_API_KEY` | `k3` (~1M ctx), `k3-256k` (capped), `kimi-for-coding`, `kimi-for-coding-highspeed` |
-| GPT / Codex (ChatGPT) | `codex` (built in) | `codex login` — [caveats](#gpt--codex-bring-a-chatgpt-subscription) | `gpt-5.3-codex`, and whatever else your plan exposes |
+| GPT / Codex (ChatGPT) | `codex` (built in) | `codex login` — [caveats](#gpt--codex-bring-a-chatgpt-subscription) | `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.4`, … ([verified list](#gpt--codex-bring-a-chatgpt-subscription)) |
 
 Z.ai and Kimi are your own key against the vendor's **own documented** endpoint —
 no impersonation, nothing pooled, nothing to translate. **Codex is the exception
@@ -258,15 +258,29 @@ Then point an alias at it — no env var, no `[upstreams]` block:
 ```toml
 [models]
 orchestrator = "anthropic:passthrough" # brain stays on Claude
-flagship = "codex:gpt-5.3-codex" # subagents run on your ChatGPT subscription
+flagship = "codex:gpt-5.5" # subagents run on your ChatGPT subscription
 ```
 
 modelmux reads `access_token` and `account_id` from `~/.codex/auth.json`
-(honoring `CODEX_HOME` if you've set it) and sends them as `Authorization:
-Bearer …` plus the `ChatGPT-Account-ID` header the backend requires. If the file
-is missing or malformed you get a clear error naming the path — not a confusing
-401 from upstream. For the model slugs available on your plan, check `codex`'s
-own configuration; modelmux passes whatever you name straight through.
+(honoring `CODEX_HOME` if you've set it). If the file is missing or malformed you
+get a clear error naming the path — not a confusing 401 from upstream.
+
+**Models — every one of these probed against the live endpoint on 2026-07-25:**
+
+| ✅ Works | ❌ Rejected (`400 … not supported … with a ChatGPT account`) |
+|---|---|
+| `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark` | `gpt-5.3-codex`, `gpt-5.4-pro`, `gpt-5.3-instant` |
+
+Your plan may expose a different set — `~/.codex/models_cache.json` is the list
+*your* account sees. One trap in that file: its `supported_in_api` flag refers to
+the **platform** API, not this endpoint. `gpt-5.3-codex-spark` is marked `false`
+there and works perfectly here, so don't filter on it.
+
+> **`max_tokens`, `temperature` and `top_p` are NOT honoured on this upstream.**
+> The subscription backend *rejects* all three (`400 Unsupported parameter`)
+> rather than ignoring them, so modelmux strips them — without that, every
+> request would fail, since Anthropic **requires** `max_tokens`. The model will
+> stop when it stops. If you need those knobs, use an API-key upstream.
 
 **Three things this built-in does *not* promise:**
 
@@ -300,7 +314,7 @@ endpoint inside a purpose-built gateway you run yourself — point a plain
 litellm = { base = "http://localhost:4000", auth = "none" }
 
 [models]
-flagship = "litellm:chatgpt/gpt-5.3-codex"
+flagship = "litellm:chatgpt/gpt-5.5"
 ```
 
 ## Wire formats: what modelmux can talk to

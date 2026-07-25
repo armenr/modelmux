@@ -5,7 +5,7 @@ import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
 import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } from "./openai.ts";
-import { responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
+import { collectResponsesOutput, responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
 import { normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
@@ -67,7 +67,7 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       const wantsStream = body?.stream === true;
       const outboundBody = isOpenAI
         ? toOpenAIRequest(body, def.maxTokensField)
-        : isResponses ? toResponsesRequest(body) : body;
+        : isResponses ? toResponsesRequest(body, def.codexSubscription === true) : body;
 
       const url = new URL(req.url);
       const path = isOpenAI
@@ -122,7 +122,14 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         return new Response(translated, { status: upstream.status, headers: sseHeaders });
       }
 
-      const oaiJson = await upstream.json().catch(() => null);
+      // An SSE-ONLY upstream (the ChatGPT-subscription Codex backend) was sent
+      // stream:true regardless of what the caller asked for, because it rejects
+      // anything else. Drain that stream back into one response object so a
+      // non-streaming caller still gets the JSON reply it asked for.
+      const forcedStream = isResponses && def.codexSubscription === true;
+      const oaiJson = forcedStream
+        ? await collectResponsesOutput(upstream.body).catch(() => null)
+        : await upstream.json().catch(() => null);
       if (oaiJson == null)
         return new Response("upstream returned an unparseable body", { status: 502 });
       const jsonHeaders = passthroughHeaders(upstream.headers);

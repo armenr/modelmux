@@ -55,6 +55,9 @@ export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
     stripBeta: true,
     format: "responses",
     maxTokensField: "max_tokens",
+    // Not generic Responses — see UpstreamDef.codexSubscription for the three
+    // measured 400s and the empty-`output` aggregation trap.
+    codexSubscription: true,
   },
 };
 
@@ -165,7 +168,15 @@ function applyAuth(
   if (auth.kind === "codex") {
     const { accessToken, accountId } = readCodexAuth(auth.path, env);
     out.set("authorization", `Bearer ${accessToken}`);
-    // Load-bearing: without ChatGPT-Account-ID the backend answers 401/403.
+    // Sent because the official client sends it and it is the documented way to
+    // disambiguate which ChatGPT account a request bills to.
+    //
+    // HONESTY NOTE: an earlier comment here claimed this header was load-bearing
+    // ("without it the backend answers 401/403"). MEASURED 2026-07-25 against the
+    // live endpoint, that is FALSE — omitting it still returns 200 on a
+    // single-account login. It is retained because a multi-account/workspace
+    // login is exactly the case a single-account test cannot observe, and the
+    // cost of sending it is nil. Do not re-derive "required" from its presence.
     out.set("chatgpt-account-id", accountId);
     return;
   }
