@@ -38,6 +38,23 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   never patch the kit-owned hook. (Measured firsthand 2026-07-25; reproduced upstream by
   `fieldbook`, rewrite pending.)
 
+- 🔌 `the-proxy-is-not-running-on-the-development-machine.md` — **Open when:** you are about to reason
+  about which model answers a request from this repo, describe this project's capability to anyone, or
+  infer runtime behaviour from `routes.toml` / the `<<route:>>` tags. **Carry-away:** modelmux is built
+  here, not run here — sessions in this tree are ordinary Claude Code on subscription auth, so routing
+  config is specification and not observation; four peers manufactured false operational conclusions
+  from exactly this confusion. (Stated by the operator 2026-07-25.)
+
+- 🔍 `doc-lint-clean-is-a-partial-claim-kit-template-provenance-disables-four-rules.md` — **Open when:**
+  you are about to cite "doc-lint clean — N files" as evidence, or wondering why a reference/annotation
+  defect went unreported. **Carry-away:** `lint-docs.py` skips rules 8/15/21/12 on any doc whose
+  `provenance:` is `kit-template` regardless of path, which is **17 of our 37 files** and is permanent
+  by construction (that provenance is *correct* for verbatim kit copies and will never be bumped) — an
+  armed-vs-control diff found 2 real hidden findings here, both kit-owned and not ours to patch. Hit
+  count is not debt (17→2 here vs 4→6 on another tree), and a subset control is only evidence if you can
+  say why the subset is representative. (Measured firsthand 2026-07-25; kit-side confirmed by
+  `fieldbook`, fix queued behind v0.8.3.)
+
 ## Maintenance
 
 UPDATE-IN-PLACE; adding/retiring a memory updates this index in the same change. Carry-away claims

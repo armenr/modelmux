@@ -18,6 +18,85 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-25 | WU-0003 committed — cleanup closed, and the README was wronger than the plan said
+
+Shipped the three-item cleanup, then committed WU-0003 as `7ef2d4c` (work) and `fd08a9a` (README).
+ADR-0003 supersedes ADR-0002 and records that the operator reversed the no-built-in call on explicit
+request — with an honest provenance banner noting the ADR was reconstructed *after* the code, which is
+the lapse that let ADR-0002 sit contradicted by shipped code for a whole cycle.
+
+**The plan said "fix the stale README Codex section (~lines 260–295)". Reading found five stale spots,
+not one** — and recon-before-build is why. The one that mattered was not on the list: the **Security &
+scope** section asserted modelmux "is not a tool for using a Claude/ChatGPT *subscription* outside its
+official client", which the `codex` built-in makes flatly false. That is the section a cautious reader
+uses to decide whether to trust the tool. Rewritten to state the real bright line (no pooling, no
+reselling, no harvesting or forging) and to name the grey area plainly rather than soften it: the codex
+path sends a token the official CLI obtained, from a process that is not that CLI, to an endpoint
+OpenAI does not document. Also stale and fixed: the "OpenAI-format runners need LiteLLM in front"
+advice — falsified by the *already-committed* `03bcc2e`, not by this session's work.
+
+Also noted: the pre-commit hook **skipped** both commits (`.pre-commit-config.yaml` not found), so the
+manual gate runs were the only verification, not a backstop. Worth knowing before trusting it.
+
+## 2026-07-25 | decision | Codex is the ONLY upstream with an expiring credential — and OQ-002 overstated the gap
+
+Operator asked whether token refresh affects anything besides Codex. Verified against
+`BUILTIN_UPSTREAMS`: no. `anthropic` is passthrough (modelmux never holds it), and
+`openrouter`/`zai`/`kimi` are console-issued API keys with no clock. Console key vs OAuth grant is the
+whole distinction.
+
+Verifying it corrected a filed doc: OQ-002 said there was "no recovery path from inside modelmux". Too
+strong. `rewriteHeaders` runs inside the request handler and `readCodexAuth` does an **uncached**
+`readFileSync` per call, so modelmux re-reads `auth.json` on every request and picks up a
+CLI-refreshed token on the next call with no restart. The gap only bites a modelmux-only user.
+
+The fork is now sharp, and option (a) carries a hazard worth recording before anyone implements it: if
+OpenAI issues **rotating** refresh tokens, redeeming ours consumes it and invalidates the copy in
+`auth.json` — breaking the user's own `codex` CLI, the tool we depend on for credentials. That also
+kills the otherwise-clean in-memory-only variant, and it cannot be tested while the endpoint is
+circuit-broken. So (a) is gated on OQ-001; (b) fail-loud-on-401 is safe now. Opened OQ-005 for the
+sync `readFileSync` on the request path, which is the price of the free-refresh-pickup behaviour.
+
+## 2026-07-25 | memory | "doc-lint clean — N files" is a partial claim on this tree
+
+Measured after a fieldbook finding: `lint-docs.py` skips rules 8/15/21/12 on any doc whose
+`provenance:` is `kit-template`, path-independently — **17 of our 37 files**, permanently, because that
+provenance is *correct* for verbatim kit copies and will never be bumped. Armed-vs-control found 2 real
+hidden findings, both kit-owned (do not patch; the fix arrives on upgrade).
+
+Two things worth keeping. **Hit count is not debt**: 17 hits → 2 findings here, versus another tree's
+4 → 6. And a near-miss of my own — the first control flipped *one* of the 17 (`log.md`, whose refs are
+all live ids, making it the file least able to produce a finding), found zero, and nearly went out as
+"latent on this tree". A negative control on a subset is only evidence if you can say why the subset is
+representative; "it was the first one I tried" is not that.
+
+## 2026-07-25 | handoff | WU-0003 — modelmux speaks OpenAI wire formats natively; Responses+Codex uncommitted
+
+Session turned on one operator challenge: *"modelmux is fully self-contained… are we not expecting users
+to have a second tool running to daisy-chain with it?"* That was right, and the inconsistency was already
+shipped — the README told users to front LM Studio/llama.cpp/vLLM with LiteLLM. Fixed by making the proxy
+speak the formats itself. Chat Completions adapter committed (`03bcc2e`) and field-tested end-to-end
+against local Ollama (gemma4:31b): non-streaming tool call, streaming tool call whose `input_json_delta`
+fragments reassemble to valid JSON, and the `tool_result` round trip. Responses adapter + `codex` auth
+built and green but UNCOMMITTED.
+
+Method note worth keeping: the operator asked whether the adapter was written from confirmed spec or from
+memory. It was memory plus one secondary source. Checking the primary specs then caught THREE real
+defects — missing `stream_options.include_usage` (token counts structurally always zero), reading usage
+after a `choices[0]` guard when the usage chunk carries an EMPTY choices array, and `max_tokens` being
+rejected by newer OpenAI models. Each now has a test that fails against the memory version.
+
+## 2026-07-25 | decision | PR #15 gets retitled, not split
+
+The branch outgrew its title (subscription work + the whole Chat Completions adapter). Splitting costs
+another rebase for no real gain — the commits are coherent as "modelmux speaks more wire formats".
+
+## 2026-07-25 | ingest | obligations swept; two debts settled
+
+Settled and journaled: the fieldbook install report card (accepted; its finding 1 booked upstream as a
+kit defect) and partyline's audit of this repo's install (ruled SOUND). New receivable: operator ruling
+on `OQ-003`. New debt: the three-item cleanup before any new feature work.
+
 ## 2026-07-25 | WU-0002 — flat-rate subscriptions: Kimi built in, Codex ruled out
 
 Request was "subscription support for GLM 5.2, GPT Codex, Kimi K3". Checked each against vendor primary

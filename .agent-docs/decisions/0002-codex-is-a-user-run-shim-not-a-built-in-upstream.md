@@ -1,17 +1,26 @@
 ---
 provenance: llm-reviewed
-status: accepted
+status: superseded
 template-version: 1.0.0
 created: 2026-07-25
 last-modified: 2026-07-25
 work-unit: WU-0002
 supersedes: []
-superseded-by: null
-related: []
+superseded-by: ADR-0003
+related: [ADR-0003]
 tags: [upstreams, subscriptions, codex, scope]
 ---
 
 # ADR-0002 — Codex is supported as a user-run shim, not a built-in upstream
+
+> **SUPERSEDED 2026-07-25 by `ADR-0003` — do not act on this record.** modelmux now speaks the OpenAI
+> Chat Completions and Responses wire formats natively and ships a `codex` built-in. Read this ADR for
+> the reasoning that *held*, not for current behaviour. The short version of what moved: this record
+> cited the README's existing "front LM Studio/llama.cpp with LiteLLM" advice as *precedent* for a Codex
+> shim, when it was better read as evidence that the single-binary promise was already broken for local
+> runners. Fixing that pays for the Responses adapter on its own, after which Codex costs an auth mode
+> rather than the subsystem this ADR rightly refused to build. The deciding axis below was not refuted —
+> it was outranked.
 
 ## Context
 
