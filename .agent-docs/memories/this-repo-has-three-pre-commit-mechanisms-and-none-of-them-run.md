@@ -35,9 +35,17 @@ check was available: is the binary resolvable, is a hook actually registered.
 
 **Workaround / fix:** pick ONE mechanism — they are mutually exclusive, since `core.hooksPath` and
 lefthook's `.git/hooks/` registration cannot both win:
-- **Fieldbook dispatcher (recommended):** `bash .claude/hooks/install-hooks.sh` — sets
-  `core.hooksPath=.githooks` *and* disables the stale `.git/hooks/pre-commit` so it can't resurface.
-  Path-aware, so doc commits run doc-lint and code commits run `bun run lint`.
+- **Fieldbook dispatcher (recommended):** `bash .claude/hooks/install-hooks.sh`. **Script read
+  firsthand 2026-07-25**, so this recommendation is not a relayed claim: it sets
+  `core.hooksPath=.githooks` (**local config, never committed** — every clone re-runs it),
+  **RENAMES** the stale `.git/hooks/pre-commit` to `…stale-disabled-<timestamp>` rather than deleting
+  it — specifically so a later `git config --unset core.hooksPath` cannot silently reactivate an old
+  divergent gate — then **self-verifies and exits 1** if `core.hooksPath` didn't take. Idempotent.
+  Undo is one line: `git config --unset core.hooksPath`. Path-aware in use, so doc commits run
+  doc-lint and code commits run `bun run lint`.
+  - *Caveat:* this renames the **pre-commit.com** shim. Harmless here (it does nothing), and it is
+    repo-local so other repos are unaffected — but if pre-commit.com is ever wanted in THIS repo it
+    needs a `.pre-commit-config.yaml`, which is what it has always been missing.
 - **lefthook:** `bun add -d lefthook && bunx lefthook install`. Then `core.hooksPath` must stay unset,
   and the `.githooks/` dispatcher stays dormant.
 
