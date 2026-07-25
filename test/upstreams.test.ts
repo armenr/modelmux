@@ -1,6 +1,6 @@
 import type { Decision } from "../src/types.ts";
 import { expect, test } from "bun:test";
-import { forwardUrl, MissingKeyError, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
+import { forwardUrl, MissingKeyError, normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "../src/upstreams.ts";
 
 const toOR: Decision = { alias: "flagship", upstream: "openrouter", model: "z-ai/glm-5.2", matchedRule: "tag:flagship" };
 const toAnthropic: Decision = { alias: "orchestrator", upstream: "anthropic", model: "passthrough", matchedRule: "default" };
@@ -85,14 +85,14 @@ test("passthroughHeaders defaults content-type when the upstream omits it", () =
 test("resolveUpstream falls back to built-ins and honors config overrides", () => {
   expect(resolveUpstream("anthropic").base).toBe("https://api.anthropic.com");
   expect(resolveUpstream("openrouter").auth).toEqual({ kind: "bearer", envKey: "OPENROUTER_API_KEY" });
-  const custom = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true } };
+  const custom = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const } };
   expect(resolveUpstream("local", custom).base).toBe("http://localhost:11434");
   expect(() => resolveUpstream("nope")).toThrow(/unknown upstream/);
 });
 
 test("a local (none-auth) upstream sends no auth and forwards to its configured base", () => {
   const toLocal: Decision = { alias: "flagship", upstream: "local", model: "qwen3-coder:30b", matchedRule: "anySubagent" };
-  const upstreams = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true } };
+  const upstreams = { local: { base: "http://localhost:11434", auth: { kind: "none" as const }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const } };
   const inbound = new Headers({ "authorization": "Bearer oauth-tok", "x-api-key": "sk-ant", "anthropic-beta": "x", "content-type": "application/json" });
   const out = rewriteHeaders(toLocal, inbound, {}, upstreams);
   expect(out.get("authorization")).toBeNull(); // no Claude auth leaked to the local server
@@ -104,7 +104,7 @@ test("a local (none-auth) upstream sends no auth and forwards to its configured 
 
 test("a config-defined bearer upstream injects its own env key", () => {
   const toGw: Decision = { alias: "x", upstream: "gw", model: "m", matchedRule: "tag:x" };
-  const upstreams = { gw: { base: "https://gw.example", auth: { kind: "bearer" as const, envKey: "GW_KEY" }, stripBeta: true } };
+  const upstreams = { gw: { base: "https://gw.example", auth: { kind: "bearer" as const, envKey: "GW_KEY" }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const } };
   expect(rewriteHeaders(toGw, new Headers(), { GW_KEY: "secret" }, upstreams).get("authorization")).toBe("Bearer secret");
   expect(() => rewriteHeaders(toGw, new Headers(), {}, upstreams)).toThrow(MissingKeyError);
 });
@@ -127,4 +127,47 @@ test("built-in zai upstream sends Bearer ZAI_API_KEY, drops Claude auth, strips 
 
 test("built-in zai upstream throws MissingKeyError without ZAI_API_KEY", () => {
   expect(() => rewriteHeaders(toZai, new Headers(), {})).toThrow(MissingKeyError);
+});
+
+// --- Kimi Code (flat-rate coding subscription) --------------------------------
+
+const toKimi: Decision = { alias: "flagship", upstream: "kimi", model: "k3", matchedRule: "tag:flagship" };
+
+test("built-in kimi upstream targets the Kimi Code endpoint", () => {
+  expect(resolveUpstream("kimi").base).toBe("https://api.kimi.com/coding");
+  expect(forwardUrl("kimi", "/v1/messages", "")).toBe("https://api.kimi.com/coding/v1/messages");
+});
+
+test("built-in kimi upstream sends Bearer KIMI_API_KEY, drops Claude auth, strips betas", () => {
+  const inbound = new Headers({ "authorization": "Bearer claude-oauth", "x-api-key": "sk-ant", "anthropic-beta": "x" });
+  const out = rewriteHeaders(toKimi, inbound, { KIMI_API_KEY: "kc-secret" });
+  expect(out.get("authorization")).toBe("Bearer kc-secret");
+  expect(out.get("x-api-key")).toBeNull(); // Claude auth never leaked to Moonshot
+  expect(out.get("anthropic-beta")).toBeNull();
+});
+
+test("built-in kimi upstream throws MissingKeyError without KIMI_API_KEY", () => {
+  expect(() => rewriteHeaders(toKimi, new Headers(), {})).toThrow(MissingKeyError);
+});
+
+test("kimi and zai keys are independent — one set does not satisfy the other", () => {
+  // Both are flat-rate subscriptions, and it would be easy to assume one key
+  // covers both. It does not: each upstream demands its own env var.
+  expect(() => rewriteHeaders(toKimi, new Headers(), { ZAI_API_KEY: "zk" })).toThrow(MissingKeyError);
+  expect(() => rewriteHeaders(toZai, new Headers(), { KIMI_API_KEY: "kc" })).toThrow(MissingKeyError);
+});
+
+// --- base normalization -------------------------------------------------------
+
+test("normalizeBase strips trailing slashes so paths do not double up", () => {
+  expect(normalizeBase("https://api.kimi.com/coding/")).toBe("https://api.kimi.com/coding");
+  expect(normalizeBase("https://api.kimi.com/coding///")).toBe("https://api.kimi.com/coding");
+  expect(normalizeBase("https://api.kimi.com/coding")).toBe("https://api.kimi.com/coding");
+});
+
+test("a user-declared upstream with a trailing-slash base still builds a clean URL", () => {
+  // Providers publish bases both ways (Kimi Code's own docs show the slash), so
+  // a pasted base must not yield "//v1/messages".
+  const upstreams = { shim: { base: "http://localhost:4000/anthropic/", auth: { kind: "none" as const }, stripBeta: true, format: "anthropic" as const, maxTokensField: "max_tokens" as const } };
+  expect(forwardUrl("shim", "/v1/messages", "", upstreams)).toBe("http://localhost:4000/anthropic/v1/messages");
 });

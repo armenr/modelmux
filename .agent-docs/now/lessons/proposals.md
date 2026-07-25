@@ -1,7 +1,7 @@
 ---
-provenance: kit-template
+provenance: llm-draft
 created: 2026-07-03
-last-modified: 2026-07-03
+last-modified: 2026-07-25
 tags: [current, lessons, proposals, staging]
 related: [MOC, ../../lessons/index]
 ---
@@ -20,24 +20,11 @@ human-gated.
 
 ## Staged candidates
 
-<!-- New candidates appended below as fenced lesson stubs (provenance: llm-draft, maturity: seedling).
-     EXAMPLE stub (delete on first real candidate):
+<!-- New candidates appended below as fenced lesson stubs (provenance: llm-draft, maturity: seedling). -->
 
-LP-001 — <one-line claim>
-provenance: llm-draft · maturity: seedling · severity: medium · module: process · type: gotcha
-Trigger:  <the concrete situation that should trigger the behavior>.
-Claim:    <when X, do Y, because Z — the stable, reusable rule>.
-Evidence: <a date + a commit / log entry / trace that grounds the claim>.
--->
-
-## Lifecycle
-
-- **accept** → moved to `../../lessons/<id>.md`, gains a `lessons/index.md` entry (+ a `MOC.md` row if
-  Tier-1/evergreen); removed from here.
-- **defer** → stays here for the next `/handoff`.
-- **reject** → removed, with a one-line reason logged to `../../log.md`.
-
-## Maintenance
-
-UPDATE-IN-PLACE; the distillation pass appends, `/handoff` drains. `last-modified` staleness is
-lint-checked.
+*(Staging is empty — LP-001..004 were adjudicated 2026-07-25 and promoted to `../../lessons/`.
+LP-001 was ACCEPTED WITH AN AMENDMENT: as staged it claimed "implement from the primary spec, not
+memory", which the same day's Responses adapter refuted as sufficient — it WAS spec-derived and still
+shipped five defects against an undocumented backend. The promoted claim is "the spec is the FLOOR,
+not the proof". LP-004 was NEWLY RAISED during adjudication: the empty-result class recurred four
+times firsthand in one day and had no lesson.)*

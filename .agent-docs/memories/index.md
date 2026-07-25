@@ -38,6 +38,37 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   never patch the kit-owned hook. (Measured firsthand 2026-07-25; reproduced upstream by
   `fieldbook`, rewrite pending.)
 
+- 🔌 `the-proxy-is-not-running-on-the-development-machine.md` — **Open when:** you are about to reason
+  about which model answers a request from this repo, describe this project's capability to anyone, or
+  infer runtime behaviour from `routes.toml` / the `<<route:>>` tags. **Carry-away:** modelmux is built
+  here, not run here — sessions in this tree are ordinary Claude Code on subscription auth, so routing
+  config is specification and not observation; four peers manufactured false operational conclusions
+  from exactly this confusion. (Stated by the operator 2026-07-25.)
+
+- 🔍 `doc-lint-clean-is-a-partial-claim-kit-template-provenance-disables-four-rules.md` — **Open when:**
+  you are about to cite "doc-lint clean — N files" as evidence, or wondering why a reference/annotation
+  defect went unreported. **Carry-away:** `lint-docs.py` skips rules 8/15/21/12 on any doc whose
+  `provenance:` is `kit-template` regardless of path — **17 of our 37 files**, so a clean headline means
+  "clean on the rules that ran". Those 17 split two ways: **10 SEED-THEN-LIVE** (every `index.md`, plus
+  `log.md` and `glossary.md`) that the *adopter writes* — rule 13 mandates adding index rows, and the
+  label then exempts exactly what you wrote — and **7 static-normative** that are genuinely verbatim.
+  An armed-vs-control diff found 2 real hidden findings here, both in the static-normative bucket, both
+  kit-owned. **Do not patch, and do not self-bump the seed files** (zero findings gained, manifest
+  `sha256` divergence risk). Hit count is not debt (17→2 here vs 4→6 on another tree), the buckets are
+  **not filename-separable** (`MOC.md` is seed-then-live despite its name), and a subset control is only
+  evidence if you can say why the subset is representative. (Measured firsthand 2026-07-25; kit-side
+  confirmed and the two-class taxonomy corrected by `fieldbook`; fix queued behind v0.8.3.)
+
+- 🪝 `this-repo-has-three-pre-commit-mechanisms-and-none-of-them-run.md` — **Open when:** you are about
+  to rely on the pre-commit hook to catch a lint/test failure, or wondering why commits print
+  "Skipping `pre-commit`". **Carry-away:** `lefthook.yml` exists but lefthook is **not installed**;
+  `.githooks/pre-commit` is tracked but `core.hooksPath` is unset; the hook git actually runs is a
+  pre-commit.com shim that skips on missing config and **exits 0 every time** — so commits pass a gate
+  that does nothing and the repo only *looks* gated. Run the four gates by hand until
+  `bash .claude/hooks/install-hooks.sh` is run. Root cause worth generalizing: the install read a
+  **config file's presence as evidence its tool was live**. (Diagnosed firsthand 2026-07-25 after nine
+  commits skipped.)
+
 ## Maintenance
 
 UPDATE-IN-PLACE; adding/retiring a memory updates this index in the same change. Carry-away claims

@@ -22,7 +22,9 @@ any lesson lives in `../../lessons/<id>.md`; route there via `lessons/index.md`.
 
 | Lesson (id) | Claim — "when X, do Y, because Z" | Module | Sev | Last-applied |
 |---|---|---|---|---|
-<!-- EXAMPLE row (delete on the first real promotion):
+| `LP-001` | When implementing against an external API contract, probe the LIVE endpoint before believing it — the spec is the floor, not the proof | upstreams/wire-formats | high | 2026-07-25 |
+| `LP-003` | When adding any test/gate/guard, break it on purpose and watch it fail for the right reason — a guard never seen failing is not a guard | testing | high | 2026-07-25 |
+| `LP-004` | When any empty/silent result is about to become a verdict, run a known-positive control first — empty and broken are the same bytes | verification | high | 2026-07-25 |<!-- EXAMPLE row (delete on the first real promotion):
 | `example-when-x-do-y.md` | <the "when X, do Y, because Z" compressed to one line> | process | high | 2026-07-03 |
 -->
 

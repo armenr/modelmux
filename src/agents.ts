@@ -1,8 +1,9 @@
 import type { Config } from "./types.ts";
 import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const TAG_RE = /<<route:[\w-]+>>/i;
-const AGENTS_DIR = ".claude/agents";
+const AGENTS_DIR = join(".claude", "agents");
 
 // Agent files in `dir` carrying no <<route:>> tag, sorted. A missing or
 // unreadable directory yields none — a project without .claude/agents/ is the
@@ -19,7 +20,7 @@ export function untaggedAgents(dir: string = AGENTS_DIR): string[] {
     .filter(f => f.endsWith(".md"))
     .filter((f) => {
       try {
-        return !TAG_RE.test(readFileSync(`${dir}/${f}`, "utf8"));
+        return !TAG_RE.test(readFileSync(join(dir, f), "utf8"));
       }
       catch {
         return false; // unreadable file: not our business to claim it is untagged

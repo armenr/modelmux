@@ -8,15 +8,17 @@
 
 modelmux is a tiny proxy you run in front of Claude Code. It keeps your
 orchestrator on Claude and reroutes the subagents *you choose* to cheaper or
-specialized models (GLM, Qwen, DeepSeek, MiniMax) via OpenRouter, a flat-rate
-**Z.ai GLM subscription**, or your own local model. It ships as a single
-self-contained binary: download one file and run it, no Bun, Docker, or toolchain.
+specialized models — via OpenRouter, a flat-rate **subscription you already pay
+for** (Z.ai GLM, Kimi Code, or ChatGPT/Codex), or a model on your own machine.
+It ships as a single self-contained binary: download one file and run it, no Bun,
+Docker, or toolchain.
 
 - **Orchestrator stays Claude** — the main loop never leaves Anthropic.
 - **Subagents go where you point them** — by a route tag, a work-type, or "any subagent."
-- **Flat-rate, not per-token** — send GLM subagents to a [Z.ai GLM Coding Plan](#flat-rate-glm-bring-a-zai-subscription) subscription (the built-in `zai` upstream) instead of OpenRouter's per-token meter, or to a local model.
+- **Flat-rate, not per-token** — put subagents on a [subscription](#subscription-backed-models) you already have: `zai`, `kimi` and `codex` are built in, no `[upstreams]` block needed.
+- **Three wire formats, one binary** — Anthropic Messages, OpenAI [Chat Completions and Responses](#wire-formats-what-modelmux-can-talk-to). LM Studio, llama.cpp and vLLM need **no proxy in front**.
 - **One file runs it** — [`routes.toml`](routes.toml) maps friendly aliases to models, hot-reloaded on save.
-- **Your keys, the sanctioned way** — your OpenRouter key plus Claude Code's own auth passed through. No impersonation.
+- **Your keys, your account** — your own credentials, nothing pooled, no impersonation. The Codex path has [caveats worth reading](#gpt--codex-bring-a-chatgpt-subscription).
 
 ## Install
 
@@ -150,9 +152,50 @@ claude-review = "anthropic:claude-sonnet-5"
 ```
 
 The slugs above are illustrative — run `modelmux check-latest` to see which
-models actually exist on OpenRouter right now.
+models actually exist on OpenRouter right now. (It checks **OpenRouter only**;
+the Anthropic, Z.ai, Kimi and Codex slugs below are verified by hand.)
 
-## Flat-rate GLM: bring a Z.ai subscription
+### Claude models
+
+The orchestrator uses `anthropic:passthrough`, which forwards whatever model
+Claude Code already picked — so you normally don't name a Claude model at all.
+You only need one for an alias like `claude-review`, where you want a **Claude
+second opinion** on work a cheaper model did. Verified against the Anthropic
+Models API on 2026-07-25:
+
+| Model | API ID | Context | Notes |
+|---|---|---|---|
+| Claude Opus 5 | `claude-opus-5` | 1M | **Newest — released 2026-07-24.** Strongest reviewer |
+| Claude Sonnet 5 | `claude-sonnet-5` | 1M | Best speed/intelligence balance — the default here |
+| Claude Fable 5 | `claude-fable-5` | 1M | Most capable widely released; slower, pricier |
+| Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 200k | Fastest, cheapest |
+
+```toml
+[models]
+claude-review = "anthropic:claude-opus-5" # strongest second opinion
+```
+
+Older generations (`claude-opus-4-8`, `claude-sonnet-4-6`, …) still work.
+`claude-opus-4-1-20250805` is **deprecated and retires 2026-08-05**.
+
+## Subscription-backed models
+
+Per-token pricing adds up fast. Several vendors now sell **flat-rate coding
+subscriptions**, and all three below are built-in upstreams — no `[upstreams]`
+block, just a credential and a bare slug.
+
+| Subscription | Upstream | Credential | Slugs |
+|---|---|---|---|
+| Z.ai GLM Coding Plan | `zai` (built in) | `ZAI_API_KEY` | `glm-5.2`, `glm-5-turbo`, `glm-4.7` |
+| Kimi Code (Moonshot) | `kimi` (built in) | `KIMI_API_KEY` | `k3-256k` (256K, half quota — start here), `k3` (~1M), `kimi-for-coding`, `kimi-for-coding-highspeed` |
+| GPT / Codex (ChatGPT) | `codex` (built in) | `codex login` — [caveats](#gpt--codex-bring-a-chatgpt-subscription) | `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.4`, … ([verified list](#gpt--codex-bring-a-chatgpt-subscription)) |
+
+Z.ai and Kimi are your own key against the vendor's **own documented** endpoint —
+no impersonation, nothing pooled, nothing to translate. **Codex is the exception
+and carries real caveats** — an undocumented endpoint, a terms question that's
+yours to answer, and no token refresh yet. Read that section before wiring it.
+
+### Flat-rate GLM: bring a Z.ai subscription
 
 If you lean on GLM, OpenRouter's per-token pricing adds up fast. **Z.ai's GLM
 Coding Plan** is a flat monthly subscription (see [z.ai](https://z.ai) for
@@ -179,15 +222,169 @@ Two things to know: use Z.ai's **bare** slug (`zai:glm-5.2`), not OpenRouter's
 by default (safe). If you'd rather keep them, override with
 `[upstreams]`: `zai = { base = "https://api.z.ai/api/anthropic", auth = "bearer:ZAI_API_KEY", stripBeta = false }`.
 
+### Kimi K3: bring a Kimi Code subscription
+
+**Kimi Code** is Moonshot's flat-rate coding plan — quota-based (refreshing on a
+rolling window) rather than per-token. It speaks the Anthropic Messages API, so
+`kimi` is a **built-in upstream** too:
+
+```bash
+export KIMI_API_KEY=<key from the Kimi Code console>
+```
+
+```toml
+[models]
+orchestrator = "anthropic:passthrough"
+flagship = "kimi:k3-256k" # 256K context at HALF the quota of k3
+```
+
+K3 is a **1,048,576-token (~1M) context** model, and `k3-256k` is the **capped**
+262,144-token variant — *not* a bigger one, which is the way round most people
+guess wrong.
+
+**But capped is the one to reach for by default.** Moonshot's own docs recommend
+`k3-256k` for most work: it delivers the same results inside the smaller window
+while consuming **half the quota** of full `k3`. Save plain `k3` for when you
+genuinely need more than 256K of context. Model access is also tiered by plan.
+
+| Model id | Context |
+|---|---|
+| `k3` | 1,048,576 |
+| `k3-256k` | 262,144 |
+| `kimi-for-coding` | 262,144 |
+| `kimi-for-coding-highspeed` | 262,144 |
+
+**Mind the split — this is the one thing that will bite you.** Moonshot sells two
+different products and they are not interchangeable:
+
+| | Host | Model ids | Key |
+|---|---|---|---|
+| **Kimi Code** (subscription) | `api.kimi.com/coding` | `k3`, `k3-256k`, `kimi-for-coding`, `kimi-for-coding-highspeed` | Kimi Code console |
+| Moonshot API (metered) | `api.moonshot.ai/anthropic` | `kimi-k3` | `MOONSHOT_API_KEY` |
+
+A subscription key will not authenticate against the metered host, and the model
+ids differ (`k3` vs `kimi-k3`). The built-in `kimi` upstream is the
+**subscription**. For the metered API, declare it yourself:
+
+```toml
+[upstreams]
+moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
+```
+
+### GPT / Codex: bring a ChatGPT subscription
+
+Codex is a **built-in upstream**, but it's the one with caveats — read them, they
+are not boilerplate.
+
+Unlike Z.ai and Kimi, Codex doesn't speak Anthropic Messages. Subscription access
+goes to an **undocumented** ChatGPT backend speaking OpenAI's **Responses**
+schema, so modelmux translates rather than forwards (`format = "responses"`, see
+[wire formats](#wire-formats-what-modelmux-can-talk-to)). And it authenticates
+with a ChatGPT session rather than an API key.
+
+**modelmux reads the credentials the `codex` CLI already wrote. It never logs in
+and never writes that file.** Install and authenticate [Codex](https://developers.openai.com/codex)
+once:
+
+```bash
+codex login     # writes ~/.codex/auth.json
+```
+
+Then point an alias at it — no env var, no `[upstreams]` block:
+
+```toml
+[models]
+orchestrator = "anthropic:passthrough" # brain stays on Claude
+flagship = "codex:gpt-5.5" # subagents run on your ChatGPT subscription
+```
+
+modelmux reads `access_token` and `account_id` from `~/.codex/auth.json`
+(honoring `CODEX_HOME` if you've set it). If the file is missing or malformed you
+get a clear error naming the path — not a confusing 401 from upstream.
+
+**Models — every one of these probed against the live endpoint on 2026-07-25:**
+
+| ✅ Works | ❌ Rejected (`400 … not supported … with a ChatGPT account`) |
+|---|---|
+| `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark` | `gpt-5.3-codex`, `gpt-5.4-pro`, `gpt-5.3-instant` |
+
+Your plan may expose a different set — `~/.codex/models_cache.json` is the list
+*your* account sees. One trap in that file: its `supported_in_api` flag refers to
+the **platform** API, not this endpoint. `gpt-5.3-codex-spark` is marked `false`
+there and works perfectly here, so don't filter on it.
+
+> **`max_tokens`, `temperature` and `top_p` are NOT honoured on this upstream.**
+> The subscription backend *rejects* all three (`400 Unsupported parameter`)
+> rather than ignoring them, so modelmux strips them — without that, every
+> request would fail, since Anthropic **requires** `max_tokens`. The model will
+> stop when it stops. If you need those knobs, use an API-key upstream.
+
+**Three things this built-in does *not* promise:**
+
+1. **The endpoint is undocumented and can change without notice.** OpenAI owes us
+   no stability here. If it breaks, it breaks on their schedule.
+2. **The terms question is yours, not ours.** OpenAI treats ChatGPT subscriptions
+   and the API as separate products, and programmatic use of a subscription sits
+   somewhere between "endorsed for your own personal use" and "against the terms"
+   depending on the reading. Pooling or reselling is clearly out. Anthropic
+   enforced against this same shape on their own plans in January 2026, so this is
+   live, not theoretical. **Check the current terms and decide for your own
+   account** — shipping a built-in is a convenience, not a legal opinion.
+3. **Token refresh is not implemented yet.** modelmux reads the credential but
+   never renews it. When the access token lapses, re-run `codex login`.
+
+> **Status: unverified.** As of the last release, every request to this endpoint
+> returned `503 circuit_open` from OpenAI's side — including from OpenAI's *own*
+> `codex` CLI, so the fault isn't modelmux. That means the auth pair is
+> **spec-correct but never confirmed accepted end-to-end**; a circuit breaker can
+> trip before auth is evaluated. Treat this path as experimental until you've seen
+> it return real output.
+
+**Prefer a gateway instead?** [LiteLLM](https://docs.litellm.ai) also serves this
+subscription behind an Anthropic-compatible endpoint via an OAuth device-code
+flow. That's a legitimate alternative if you'd rather keep the undocumented
+endpoint inside a purpose-built gateway you run yourself — point a plain
+`[upstreams]` entry at it and skip the built-in:
+
+```toml
+[upstreams]
+litellm = { base = "http://localhost:4000", auth = "none" }
+
+[models]
+flagship = "litellm:chatgpt/gpt-5.5"
+```
+
+## Wire formats: what modelmux can talk to
+
+modelmux is **one binary with no daisy-chained second process**. It speaks three
+wire formats natively, declared per upstream with `format`:
+
+| `format` | Protocol | Use it for |
+|---|---|---|
+| `"anthropic"` *(default)* | Anthropic Messages | Anthropic, OpenRouter, Z.ai, Kimi Code, Ollama v0.14+ |
+| `"openai"` | OpenAI Chat Completions | LM Studio, llama.cpp, vLLM, and most OpenAI-compatible servers |
+| `"responses"` | OpenAI Responses | Codex on a ChatGPT subscription |
+
+Claude Code always speaks Anthropic Messages to modelmux; the translation happens
+on the upstream side and streaming, tool calls and token accounting are carried
+across. `"anthropic"` is the default and stays a straight forward — declaring
+nothing costs nothing.
+
+One field usually travels with `format`: **`maxTokensField`**, either
+`"max_tokens"` (default) or `"max_completion_tokens"`. Newer OpenAI models reject
+`max_tokens`, while many local runners only understand it — there's no safe guess,
+so it's explicit. If you get a 400 mentioning one of those names, switch it.
+
 ## Local & self-hosted models
 
-`anthropic`, `openrouter`, and `zai` are built in, but you can point an alias at
-any **Anthropic-Messages-compatible** endpoint by declaring it under
-`[upstreams]`, then using it like any other model (`<name>:<slug>`).
+`anthropic`, `openrouter`, `zai`, `kimi` and `codex` are built in, but you can
+point an alias at **any** endpoint speaking one of the three formats above by
+declaring it under `[upstreams]`, then using it like any other model
+(`<name>:<slug>`).
 
-The obvious use is a **local model**. Recent Ollama (v0.14+) speaks the Anthropic
-Messages API natively, so no translation shim is needed — run your grunt-work
-subagents on a local Qwen while the orchestrator stays on Claude:
+Recent Ollama (v0.14+) speaks the Anthropic Messages API natively, so it needs no
+`format` at all — run your grunt-work subagents on a local Qwen while the
+orchestrator stays on Claude:
 
 ```toml
 [upstreams]
@@ -199,14 +396,22 @@ flagship = "local:qwen3-coder:30b" # subagents run on your local Qwen
 cheap = "local:qwen3:8b"
 ```
 
+Runners that speak only the **OpenAI format** — LM Studio, llama.cpp, vLLM, and
+older Ollama — just declare `format = "openai"`. **No LiteLLM, no second process:**
+
+```toml
+[upstreams]
+lmstudio = { base = "http://localhost:1234", auth = "none", format = "openai" }
+vllm = { base = "http://localhost:8000", auth = "bearer:VLLM_API_KEY", format = "openai" }
+
+[models]
+flagship = "lmstudio:qwen3-coder-30b"
+```
+
 `auth` is one of `passthrough` (forward Claude Code's own auth), `bearer:ENV_VAR`
 (send `Authorization: Bearer $ENV_VAR`), or `none`. modelmux never forwards your
 Claude auth to a `none`/`bearer` upstream, so your Anthropic token stays out of
 the local process.
-
-Runners that only speak the OpenAI format (LM Studio, llama.cpp, vLLM) need a
-[LiteLLM](https://github.com/BerriAI/litellm) proxy in front to expose an
-Anthropic endpoint; point the upstream `base` at that.
 
 ## Managing config from the CLI
 
@@ -274,6 +479,8 @@ Everything is controlled by `routes.toml` and a few environment variables:
 |----------|---------|---------|
 | `OPENROUTER_API_KEY` | unset | Required for any `openrouter:` route. If a request routes to OpenRouter while it's unset, that request fails with HTTP 400. |
 | `ZAI_API_KEY` | unset | Required for any `zai:` route (Z.ai GLM Coding Plan). Same 400 behavior when unset. |
+| `KIMI_API_KEY` | unset | Required for any `kimi:` route (Kimi Code subscription — **not** a metered `MOONSHOT_API_KEY`). Same 400 behavior when unset. |
+| `CODEX_HOME` | `~/.codex` | Where modelmux looks for the `auth.json` that `codex login` wrote. Read-only; modelmux never writes it. |
 | `PORT` | `8787` | Listen port. |
 | `MUX_ROUTES` | `./routes.toml` | Path to the routes config (also the first-run bootstrap target). |
 | `MUX_LOG` | `./decisions.jsonl` | Path to the JSONL decision log — one line per proxied request. |
@@ -297,14 +504,28 @@ Download the newer asset, mark it executable, and replace the old file. Your
 
 ## Security & scope — what this is (and isn't)
 
-modelmux authenticates the **sanctioned** way: your own **OpenRouter API key**
-for non-Claude routes, and **passthrough of Claude Code's own auth** for
-Anthropic. It impersonates nothing.
+modelmux uses **your own credentials, for your own account**. Every upstream is
+either an API key you hold (`OPENROUTER_API_KEY`, `ZAI_API_KEY`, `KIMI_API_KEY`),
+**passthrough** of Claude Code's own auth to Anthropic, or a credential another
+official client already wrote to your machine. It never harvests, mints, or
+forges a credential.
 
-It is **not** a tool for using a Claude/ChatGPT *subscription* outside its
-official client, nor for pooling multiple subscriptions — those rely on
-reverse-engineered first-party impersonation that violates provider terms and
-risks account bans. Keep your keys in the environment; never commit them. See
+**The bright line: no pooling, no reselling, no sharing a subscription across
+users.** Those rely on impersonation at scale, violate provider terms, and get
+accounts banned. modelmux gives you no mechanism for any of it and never will.
+
+**Where the grey area actually is — stated plainly rather than buried.** The
+`codex` upstream sends the token that the official `codex` CLI obtained, from a
+process that is not the `codex` CLI, to an endpoint OpenAI does not document.
+That is still your account and your subscription, and nothing is pooled — but the
+client making the request is not the client that obtained the credential, and
+that distinction is exactly why [that section](#gpt--codex-bring-a-chatgpt-subscription)
+carries caveats and why **the terms call is yours, not ours**. Every other
+upstream is a documented endpoint with a key issued for programmatic use; Codex
+is the one that isn't. If that trade doesn't suit your account, don't route to it
+— nothing else in modelmux depends on it.
+
+Keep your keys in the environment; never commit them. See
 [SECURITY.md](.github/SECURITY.md).
 
 ## Build from source / contribute

@@ -1,7 +1,7 @@
 ---
-provenance: kit-template
+provenance: llm-reviewed
 created: 2026-07-10
-last-modified: 2026-07-10
+last-modified: 2026-07-25
 tags: [current, obligations]
 related: [status, work-plan, open-questions, handoff]
 ---
@@ -52,10 +52,7 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Trigger / by-when | Default-if-silent | Source |
 |---|---|---|---|---|---|
-<!-- example:start · delete these rows on your first real entry — lint rule 17 skips table rows between these markers -->
-| repo-b | the shared event-schema doc (blocks `OQ-014`) | HARD | Stage-2 start | chase-once, then apply-default: proceed against the v1 schema and file the drift as a new `OQ-` | msg 7f3a-c2 (2026-07-08) |
-| operator | release-or-hold on the fenced experimental flag | SOFT | before the demo cut | never-chase-never-peek — silence = "held, operator-keyed, no action" | charter §4 |
-<!-- example:end -->
+| fieldbook | comes to me at kit cut-time to use this tree as the settings deep-merge test case | SOFT | fieldbook's next kit cut | never-chase-never-peek — silence = they cut without it; nothing of ours is blocked | room msg `683fbb1b` + their acceptance (2026-07-25) |
 
 ## Owed by me (debts)
 
@@ -66,9 +63,6 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Due / trigger | Source |
 |---|---|---|---|---|
-<!-- example:start · delete this row on your first real entry — lint rule 17 skips table rows between these markers -->
-| repo-c | the migration runbook I promised (`WU-0031`) | HARD | before repo-c's cut-over rehearsal | log 2026-07-08 — "I'll draft the runbook" |
-<!-- example:end -->
 
 ## Tripwires (watched — nobody owes)
 
@@ -77,10 +71,10 @@ related: [status, work-plan, open-questions, handoff]
 > restate that trigger's action here (the cited row holds it). At Full these graduate to typed `RV`
 > anchors (ADR-0007).
 
-<!-- example:start · delete on your first real entry -->
-- the deferred index-split lands → see `WU-0042` (its flip-condition reopens the doc-size-cap decision)
-- a second consumer adopts the API → see the versioning `DEFER` row in traceability
-<!-- example:end -->
+- OpenAI's Codex endpoint stops returning `circuit_open` → see `OQ-001` (unblocks acceptance testing)
+- the Codex `access_token` passes its 2026-07-28 expiry → see `OQ-002`
+- fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
+  latent-on-Standard case clears
 
 ## Settled (do not re-chase)
 
@@ -93,6 +87,18 @@ related: [status, work-plan, open-questions, handoff]
 > *silently* delete a row — the log entry is the preserved audit trail; a row that vanished with no
 > journal entry reads as a *dropped* obligation, not a discharged one.
 
-<!-- example:start · delete on your first real entry (a settlement, before it folds to log.md) -->
-- ~~repo-b · shared event-schema doc~~ — SETTLED 2026-07-09 (received; filed as `reference/event-schema.md`; closes `OQ-014`) — msg 9c1d-40
-<!-- example:end -->
+- ~~fieldbook · install report card (kit-version, profile, manifest, doc-lint COUNT)~~ — SETTLED
+  2026-07-25 (delivered; accepted, and finding 1 booked upstream as a kit defect) — room msg `683fbb1b`
+- ~~partyline · audit of this repo's partyline install/config~~ — SETTLED 2026-07-25 (delivered; ruled
+  SOUND, cursor-seeding ruled correct) — room msg `98896e54`
+- ~~operator · ruling on `OQ-003`, the public-repo `CLAUDE.md` paths~~ — SETTLED 2026-07-25: chose
+  strip-and-skip-worktree from four options — commit `docs: ship CLAUDE.md without the machine-specific
+  partyline block`
+- ~~operator · ruling on the `OQ-002` token-refresh fork~~ — SETTLED 2026-07-25: operator said "knock
+  those out", option (b) implemented (fail loud on 401 with the remedy) — commit `df9347b`
+- ~~operator · ADR-0003 + README Codex fix + PR #15 retitle, then commit WU-0003~~ — SETTLED
+  2026-07-25, all four delivered; README scope was 5 stale spots not 1, incl. a false security claim —
+  commits `7ef2d4c`, `fd08a9a`
+- ~~fieldbook · the two citing file paths for `0014-docs-impact-gate` / `0012-obligations-ledger`~~ —
+  SETTLED 2026-07-25 (answered NONE, reference-field grep run with a positive control; accepted and
+  recorded as mine-or-nobody's) — room msg `e088ccf0`, their ack in the 09:43:44Z broadcast

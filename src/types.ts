@@ -6,12 +6,39 @@ export type Upstream = string;
 export type AuthMode
   = | { kind: "passthrough"; envKey?: string } // forward Claude Code's own inbound auth; if envKey is set and present, send it as x-api-key instead
     | { kind: "bearer"; envKey: string } // Authorization: Bearer <env[envKey]>
+    | { kind: "codex"; path?: string } // read the Codex CLI's own OAuth credentials (default ~/.codex/auth.json)
     | { kind: "none" }; // send no auth (e.g. a local model server)
+
+// The wire format an upstream speaks. "anthropic" forwards untouched (the
+// default and the fast path); "openai" routes the request and response through
+// the Chat Completions adapter in openai.ts; "responses" through the Responses
+// adapter in responses.ts (OpenAI's newer schema — different request shape,
+// FLAT tools, and named SSE events rather than delta chunks).
+export type WireFormat = "anthropic" | "openai" | "responses";
+
+// Which token-cap field the OpenAI-format leg should send. There is no safe
+// universal default: OpenAI's newer models REJECT `max_tokens` outright
+// ("Unsupported parameter"), while support for `max_completion_tokens` across
+// local runners is still uneven. Only meaningful when format is "openai".
+export type MaxTokensField = "max_tokens" | "max_completion_tokens";
 
 export interface UpstreamDef {
   base: string; // base URL, e.g. https://api.anthropic.com or http://localhost:11434
   auth: AuthMode;
   stripBeta: boolean; // drop anthropic-beta — non-Anthropic endpoints don't understand Claude Code's betas
+  format: WireFormat;
+  maxTokensField: MaxTokensField;
+  // The ChatGPT-subscription Codex backend is NOT generic Responses. Measured
+  // against it 2026-07-25, it rejects three otherwise-legal request shapes:
+  //   store: true / absent -> 400 "Store must be set to false"
+  //   stream: false        -> 400 (subscription OAuth is SSE-ONLY; there is no
+  //                          non-streaming mode at all)
+  //   instructions empty   -> 400 (must be a non-empty string)
+  // and its terminal `response.completed` event carries an EMPTY `output` array,
+  // so a non-streaming reply must be aggregated from the per-item events rather
+  // than read off the completed event. Off by default: a self-hosted or Azure
+  // Responses endpoint has none of these constraints.
+  codexSubscription?: boolean;
 }
 
 export interface ModelRef {
@@ -52,4 +79,10 @@ export interface Decision {
   upstream: Upstream;
   model: string; // resolved slug or "passthrough"
   matchedRule: string; // "tag:flagship" | "workType:background" | "anySubagent" | "default"
+}
+
+// Anthropic's token-usage shape, the target of every adapter's usage mapping.
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
 }

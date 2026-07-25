@@ -42,6 +42,9 @@ interface RawUpstream {
   base?: string;
   auth?: string;
   stripBeta?: boolean;
+  format?: string;
+  maxTokensField?: string;
+  codexSubscription?: boolean;
 }
 
 // Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
@@ -50,6 +53,10 @@ export function parseAuth(spec: string): AuthMode {
     return { kind: "none" };
   if (spec === "passthrough")
     return { kind: "passthrough" };
+  if (spec === "codex")
+    return { kind: "codex" };
+  if (spec.startsWith("codex:"))
+    return { kind: "codex", path: spec.slice("codex:".length) };
   if (spec.startsWith("passthrough:"))
     return { kind: "passthrough", envKey: spec.slice("passthrough:".length) };
   if (spec.startsWith("bearer:")) {
@@ -58,10 +65,11 @@ export function parseAuth(spec: string): AuthMode {
       throw new Error("bearer auth needs an env var, e.g. auth = \"bearer:MY_API_KEY\"");
     return { kind: "bearer", envKey };
   }
-  throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | none)`);
+  throw new Error(`unknown auth "${spec}" (use passthrough | passthrough:ENV | bearer:ENV | codex | codex:PATH | none)`);
 }
 
-// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter, zai).
+// Merge any user-declared [upstreams] over the built-ins (anthropic, openrouter,
+// zai, kimi, codex).
 function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<string, UpstreamDef> {
   const out: Record<string, UpstreamDef> = { ...BUILTIN_UPSTREAMS };
   for (const [name, u] of Object.entries(raw ?? {})) {
@@ -69,7 +77,23 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
       throw new Error(`upstream "${name}" needs a base URL, e.g. base = "http://localhost:11434"`);
     const auth = parseAuth(u.auth ?? "none");
     const stripBeta = u.stripBeta ?? (auth.kind !== "passthrough");
-    out[name] = { base: u.base, auth, stripBeta };
+    const format = u.format ?? "anthropic";
+    if (format !== "anthropic" && format !== "openai" && format !== "responses")
+      throw new Error(`upstream "${name}" has unknown format "${format}" (use "anthropic", "openai" or "responses")`);
+    const maxTokensField = u.maxTokensField ?? "max_tokens";
+    if (maxTokensField !== "max_tokens" && maxTokensField !== "max_completion_tokens") {
+      throw new Error(`upstream "${name}" has unknown maxTokensField "${maxTokensField}" `
+        + `(use "max_tokens" or "max_completion_tokens")`);
+    }
+    // Opt-in, and it defaults ON for a user-declared upstream that uses codex
+    // auth: that auth kind exists only for the ChatGPT-subscription backend, so
+    // someone pointing their own alias at it needs the same three quirks or every
+    // request 400s. An explicit false still wins. Only SET when true, so an
+    // ordinary upstream's shape stays exactly as it was before this field existed.
+    const codexSubscription = u.codexSubscription ?? auth.kind === "codex";
+    out[name] = codexSubscription
+      ? { base: u.base, auth, stripBeta, format, maxTokensField, codexSubscription: true }
+      : { base: u.base, auth, stripBeta, format, maxTokensField };
   }
   return out;
 }
@@ -134,7 +158,7 @@ export function loadConfig(
   // Every model's upstream must be built in or declared in [upstreams].
   for (const [alias, ref] of Object.entries(resolved.models)) {
     if (!resolved.upstreams?.[ref.upstream])
-      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are anthropic, openrouter, and zai; add others under [upstreams]`);
+      throw new Error(`model "${alias}" uses unknown upstream "${ref.upstream}" — built-ins are ${Object.keys(BUILTIN_UPSTREAMS).join(", ")}; add others under [upstreams]`);
   }
   return resolved;
 }

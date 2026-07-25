@@ -4,9 +4,11 @@ import process from "node:process";
 import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
+import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } from "./openai.ts";
+import { collectResponsesOutput, responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
-import { forwardUrl, passthroughHeaders, rewriteBody, rewriteHeaders } from "./upstreams.ts";
+import { normalizeBase, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
 
 export interface ServerOpts {
   config?: Config; // static config (tests); ignored if configHolder is set
@@ -55,18 +57,33 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       rewriteBody(decision, body);
       logDecision(opts.logPath, signals, decision);
 
+      // An upstream that speaks OpenAI Chat Completions needs the body, the
+      // path and (below) the response translated. "anthropic" is the fast path
+      // and forwards untouched, exactly as before.
+      const def = resolveUpstream(decision.upstream, config.upstreams);
+      const isOpenAI = def.format === "openai";
+      const isResponses = def.format === "responses";
+      const translates = isOpenAI || isResponses;
+      const wantsStream = body?.stream === true;
+      const outboundBody = isOpenAI
+        ? toOpenAIRequest(body, def.maxTokensField)
+        : isResponses ? toResponsesRequest(body, def.codexSubscription === true) : body;
+
       const url = new URL(req.url);
+      const path = isOpenAI
+        ? openaiPath(url.pathname)
+        : isResponses ? responsesPath(url.pathname) : url.pathname;
       const base = opts.baseOverride?.[decision.upstream];
       const target = base
-        ? base + url.pathname + url.search
-        : forwardUrl(decision.upstream, url.pathname, url.search, config.upstreams);
+        ? base + path + url.search
+        : normalizeBase(def.base) + path + url.search;
 
       let upstream: Response;
       try {
         upstream = await fetch(target, {
           method: req.method,
           headers,
-          body: JSON.stringify(body),
+          body: JSON.stringify(outboundBody),
           signal: req.signal, // propagate client cancellation so we don't keep billing
         });
       }
@@ -79,9 +96,67 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
         return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
       }
 
-      return new Response(upstream.body, {
+      // Anthropic-format upstreams stream straight through, untouched.
+      if (!translates) {
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: passthroughHeaders(upstream.headers),
+        });
+      }
+
+      // A lapsed Codex credential is the ONE upstream error we can diagnose
+      // better than the provider can. modelmux reads `~/.codex/auth.json` but
+      // never refreshes it (OQ-002), so once the access token expires every
+      // request 401s — and the raw ChatGPT-backend body does not tell you that
+      // re-running `codex login` is the fix. Fail LOUD with the actual remedy
+      // instead of forwarding an opaque 401. Only for the codex auth kind: any
+      // other upstream's 401 means a wrong API key, which is a different fix.
+      if (def.auth.kind === "codex" && (upstream.status === 401 || upstream.status === 403)) {
+        const detail = await upstream.text().catch(() => "");
+        const msg = `codex upstream rejected the credential (HTTP ${upstream.status}).\n`
+          + `The access token in ~/.codex/auth.json has most likely expired — modelmux READS that file `
+          + `but never refreshes it.\nFix: re-run \`codex login\`, then retry. No modelmux restart is `
+          + `needed; the credential is re-read on every request.\nUpstream said: ${detail.slice(0, 500)}`;
+        logError(opts.logPath, signals, new Error(`codex auth rejected (${upstream.status})`));
+        return new Response(msg, { status: upstream.status, headers: { "content-type": "text/plain" } });
+      }
+
+      // Every other upstream ERROR body is provider-shaped either way — pass it
+      // along rather than translating it into a well-formed message that says nothing.
+      if (!upstream.ok || !upstream.body) {
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: passthroughHeaders(upstream.headers),
+        });
+      }
+
+      if (wantsStream) {
+        const sseHeaders = passthroughHeaders(upstream.headers);
+        sseHeaders.set("content-type", "text/event-stream");
+        const translated = isResponses
+          ? toAnthropicStreamFromResponses(upstream.body, decision.model)
+          : toAnthropicStream(upstream.body, decision.model);
+        return new Response(translated, { status: upstream.status, headers: sseHeaders });
+      }
+
+      // An SSE-ONLY upstream (the ChatGPT-subscription Codex backend) was sent
+      // stream:true regardless of what the caller asked for, because it rejects
+      // anything else. Drain that stream back into one response object so a
+      // non-streaming caller still gets the JSON reply it asked for.
+      const forcedStream = isResponses && def.codexSubscription === true;
+      const oaiJson = forcedStream
+        ? await collectResponsesOutput(upstream.body).catch(() => null)
+        : await upstream.json().catch(() => null);
+      if (oaiJson == null)
+        return new Response("upstream returned an unparseable body", { status: 502 });
+      const jsonHeaders = passthroughHeaders(upstream.headers);
+      jsonHeaders.set("content-type", "application/json");
+      const anthropicJson = isResponses
+        ? toAnthropicFromResponses(oaiJson, decision.model)
+        : toAnthropicResponse(oaiJson, decision.model);
+      return new Response(JSON.stringify(anthropicJson), {
         status: upstream.status,
-        headers: passthroughHeaders(upstream.headers),
+        headers: jsonHeaders,
       });
     },
   });

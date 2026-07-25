@@ -30,7 +30,7 @@ backup being lost too.
 |---|---|
 | The whole kit payload: `.agent-docs/` seed tree, `.claude/{rules,skills,hooks}`, `.githooks/pre-commit`, `scripts/{wu-refs,doc-refs}.sh` | Re-run the concierge from the kit pinned at `kit_ref` in `.agent-docs/.kit-manifest.json` (`30a0259`, tag `v0.8.2`), profile `standard`, stack `node-ts`. Clone the kit **fresh at that tag** — never from a working tree. |
 | `.claude/settings.json` | Rebuilt by the concierge. Also now **tracked in git**, so git history is its second copy. |
-| `.claude/settings.local.json` | `partyline wire /home/v3ct0r/Development/Personal/modelmux` rewrites it from scratch. Regenerate, do not restore. Ignored by BOTH this repo's `.gitignore` and a machine-level rule at `~/.config/git/ignore`. |
+| `.claude/settings.local.json` | `partyline wire <repo>` rewrites it from scratch. Regenerate, do not restore. Ignored by BOTH this repo's `.gitignore` and a machine-level rule at `~/.config/git/ignore`. |
 | `CLAUDE.md` | Partyline block from `partyline wire`; kit block from the kit's `base/minimal/CLAUDE.md.template` filled with the twelve scalars recorded in the manifest. |
 | `.kit-backups/` | Pre-merge originals only. Redundant once `CLAUDE.md` is regenerable. |
 
@@ -59,14 +59,14 @@ and a recovery plan that assumes them without naming them fails at the moment it
 
 | Dependency | Why it matters | If it is gone |
 |---|---|---|
-| `~/.local/bin/partyline` | Baked as an **absolute path** into `settings.local.json` — both hooks and every allowlist entry | Rebuild from `~/Development/Personal/partyline`: `go build -o bin/partyline ./cmd/partyline && ./bin/partyline install`. Hooks fail closed-ish (they simply do not run), so the loss is SILENT. |
-| `~/Documents/fieldbook` | The kit source this file's regeneration table tells you to clone at tag `v0.8.2` (`30a0259`) | **Not our repo** — another agent's tree. If it moves or is pruned, every "regenerable" row above becomes irrecoverable. The pinned SHA is worthless without a repo to fetch it from. |
-| `~/rooms/crates/cursors/modelmux` | This agent's partyline read cursor — single-copy state, 7 bytes | Losing it re-delivers the entire room backlog on the next read (measured at 76 messages when this agent joined). Recovery is to re-seed it to the room file's current byte length, not to restore it. |
+| the partyline binary (operator-local, absolute path) | Baked as an **absolute path** into `settings.local.json` — both hooks and every allowlist entry | Rebuild from the partyline checkout: `go build -o bin/partyline ./cmd/partyline && ./bin/partyline install`. Hooks fail closed-ish (they simply do not run), so the loss is SILENT. |
+| the Fieldbook kit checkout (operator-local) | The kit source this file's regeneration table tells you to clone at tag `v0.8.2` (`30a0259`) | **Not our repo** — another agent's tree. If it moves or is pruned, every "regenerable" row above becomes irrecoverable. The pinned SHA is worthless without a repo to fetch it from. |
+| this agent's partyline cursor (operator-local) | This agent's partyline read cursor — single-copy state, 7 bytes | Losing it re-delivers the entire room backlog on the next read (measured at 76 messages when this agent joined). Recovery is to re-seed it to the room file's current byte length, not to restore it. |
 | `~/.config/git/ignore` | Machine-level ignore rule (`**/.claude/settings.local.json`) affecting this repo's posture | Harmless here — this repo carries its own `.gitignore:31` rule, so the posture is reproducible for other clones rather than machine-dependent. Verified with `check-ignore -v`, which names the deciding source; the `core.excludesFile` config lookup is a FALSE NEGATIVE on this machine and must not be used to rule it out. |
 
 ## Current second copy
 
-`~/modelmux-backups/2026-07-25T-fieldbook-install/` — 87 files, byte-verified against source
+a dated backup directory outside the repo — 87 files, byte-verified against source
 with `cmp` rather than assumed. **Honest limit:** same machine, same disk. It protects
 against a tree-level accident, not against machine loss.
 

@@ -25,6 +25,9 @@ routes = [
   # by default — uncomment any of these (before the anySubagent catch-all) to
   # enable size-/type-based routing:
   #   { when = { workType = "longContext" }, use = "max" },
+  #     ^ pairs well with a 1M-context model on a flat-rate plan — e.g. point
+  #       `max` at "kimi:k3" so oversized requests go somewhere they fit and
+  #       don't cost per-token.
   #   { when = { workType = "think" }, use = "reasoner" },
   #   { when = { workType = "webSearch" }, use = "review" },
   { when = { workType = "background" }, use = "cheap" },
@@ -38,17 +41,67 @@ max = "openrouter:qwen/qwen3.7-max"
 reasoner = "openrouter:deepseek/deepseek-v4-pro"
 review = "openrouter:minimax/minimax-m3"
 cheap = "openrouter:deepseek/deepseek-v4-flash"
+# A Claude second opinion. Verified live 2026-07-25 against the Models API:
+#   claude-opus-5   newest (released 2026-07-24), 1M ctx — strongest reviewer
+#   claude-sonnet-5 1M ctx, cheaper and fast — the default here
+#   claude-fable-5  most capable widely released, slower/pricier
+#   claude-haiku-4-5-20251001  fastest, 200k ctx
+# Run `mux check-latest` for the OpenRouter slugs above (it does not check these).
 claude-review = "anthropic:claude-sonnet-5"
 
 # --- upstreams (optional) ---------------------------------------------------
-# "anthropic" (passthrough), "openrouter" (Bearer OPENROUTER_API_KEY), and "zai"
-# (Z.ai GLM Coding Plan, Bearer ZAI_API_KEY) are built in. Add your own
-# Anthropic-Messages-compatible endpoints here, then use them like any other
-# alias: <name>:<slug>. auth = passthrough | passthrough:ENV | bearer:ENV | none.
+# Built in: "anthropic" (passthrough), "openrouter" (Bearer OPENROUTER_API_KEY),
+# "zai" (Z.ai GLM Coding Plan), "kimi" (Kimi Code) and "codex" (ChatGPT
+# subscription). Add your own endpoints here, then use them like any other
+# alias: <name>:<slug>.
+#   auth   = passthrough | passthrough:ENV | bearer:ENV | codex | codex:PATH | none
+#   format = "anthropic" (default) | "openai" (Chat Completions) | "responses"
+# modelmux speaks all three natively — an OpenAI-format runner needs NO proxy
+# in front of it, just format = "openai".
 #
-# Z.AI SUBSCRIPTION (flat-rate, not per-token): set ZAI_API_KEY and point an alias
-# at the built-in zai upstream (no [upstreams] block needed). Use the BARE slug:
-#   flagship = "zai:glm-5.2"    # in [models] above — not "z-ai/glm-5.2"
+# ── FLAT-RATE SUBSCRIPTIONS ──────────────────────────────────────────────────
+# Both are quota-based rather than per-token, and both speak the Anthropic
+# Messages API directly, so they need no [upstreams] block — just an env var and
+# a BARE slug in [models] above.
+#
+#   Z.ai GLM Coding Plan       export ZAI_API_KEY=...
+#     flagship = "zai:glm-5.2"        # not "z-ai/glm-5.2" (that's OpenRouter's)
+#     cheap    = "zai:glm-5-turbo"    # faster/cheaper tier Z.ai promotes for coding
+#     # glm-4.7 is still available if you want the older generation.
+#
+#   Kimi Code (Moonshot)       export KIMI_API_KEY=...   (Kimi Code console key)
+#     flagship = "kimi:k3-256k"       # 262,144 ctx — HALF the quota of k3
+#     # k3 is the same model with the full 1,048,576 window and costs ~2x the
+#     # quota per call, so Moonshot's own docs recommend k3-256k for most work
+#     # and k3 only when you actually need >256K of context.
+#     # Other ids: kimi-for-coding, kimi-for-coding-highspeed (both 262,144).
+#     # Model access is tiered by plan.
+#
+# NOTE the Kimi split: the Kimi Code SUBSCRIPTION is api.kimi.com/coding with
+# console keys and the model ids above. The METERED Moonshot API is a different
+# host and different ids (kimi-k3) — a subscription key will not work there and
+# vice versa. For the metered one:
+#   [upstreams]
+#   moonshot = { base = "https://api.moonshot.ai/anthropic", auth = "bearer:MOONSHOT_API_KEY" }
+#   # then in [models]:  flagship = "moonshot:kimi-k3"
+#
+# ── GPT / CODEX (built in — read the caveats) ────────────────────────────────
+# Run `codex login` once; modelmux READS the credentials the Codex CLI wrote to
+# ~/.codex/auth.json (honors CODEX_HOME) and never writes that file.
+#
+#     flagship = "codex:gpt-5.5"
+#
+# Verified working 2026-07-25: gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna,
+# gpt-5.5, gpt-5.4, gpt-5.4-mini, gpt-5.3-codex-spark.
+# Rejected by a ChatGPT account: gpt-5.3-codex, gpt-5.4-pro, gpt-5.3-instant.
+#
+# THREE CAVEATS, none of them boilerplate:
+#   1. The endpoint is UNDOCUMENTED and can change without notice.
+#   2. The terms question is YOURS — OpenAI treats subscriptions and the API as
+#      separate products. Read them for your own account.
+#   3. max_tokens / temperature / top_p are NOT honoured. That backend rejects
+#      all three outright, so modelmux strips them.
+# See the README section "GPT / Codex" before wiring it.
 #
 # LOCAL MODELS: recent Ollama (v0.14+) speaks the Anthropic Messages API
 # natively, so no translation shim is needed — point an alias at it and run your
@@ -60,6 +113,11 @@ claude-review = "anthropic:claude-sonnet-5"
 #   # then in [models] above:
 #   flagship = "local:qwen3-coder:30b"    # subagents run on your local Qwen
 #
-# (Non-Ollama runners like LM Studio / llama.cpp / vLLM speak the OpenAI format;
-# put a LiteLLM proxy in front to expose an Anthropic endpoint, then point the
-# upstream base at that.)
+# Runners that speak only the OpenAI format (LM Studio, llama.cpp, vLLM, older
+# Ollama) just declare format = "openai" — NO LiteLLM, no second process:
+#
+#   [upstreams]
+#   lmstudio = { base = "http://localhost:1234", auth = "none", format = "openai" }
+#
+#   # then in [models] above:
+#   flagship = "lmstudio:qwen3-coder-30b"
