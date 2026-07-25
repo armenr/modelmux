@@ -24,6 +24,12 @@ dist/
 # ESLint cache
 .eslintcache
 
-# Claude Code: active routing config is opt-in (copy from .example); local is personal
-.claude/settings.json
+# Fieldbook writes pre-merge originals here before touching a file. Local safety
+# net for an install/upgrade; redundant once the merged result is committed.
+.kit-backups/
+
+# Claude Code: settings.json IS tracked — it carries the Fieldbook hook registrations
+# and permission allowlist, which must travel with a clone or the enforcement layer
+# silently does not exist (every path in it is ${CLAUDE_PROJECT_DIR}-relative, no secrets).
+# settings.local.json stays personal: machine-absolute paths, per-operator allowances.
 .claude/settings.local.json

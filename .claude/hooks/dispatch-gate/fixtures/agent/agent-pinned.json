@@ -1,0 +1,9 @@
+{
+  "tool_name": "Agent",
+  "tool_input": {
+    "prompt": "<!-- fieldbook:dispatch\narchetype: review\ncontract: v1\nstation: lens\nmodel-tier: standard\n-->\nReview the staged diff for scope creep against the named files only; report findings, do not fix.",
+    "model": "standard",
+    "subagent_type": "reviewer",
+    "description": "clean-context lens review"
+  }
+}

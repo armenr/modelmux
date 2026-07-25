@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# Fieldbook path-aware pre-commit dispatcher (generalized, stack-agnostic).
+#
+# Routes each commit's STAGED changes to the gate that fits them, instead of
+# running every gate on every commit (which is untenable once a repo also holds
+# a live in-repo docs system that gets committed constantly):
+#
+#   staged .agent-docs/**/*.md  -> doc-schema lint (lint-docs.py) + index-completeness lint
+#   staged CODE files           -> bun run lint +   (guarded — see below)
+#
+# Any failing gate BLOCKS the commit (exit 1). Passing / skipped gates exit 0.
+#
+# ── WIRING ────────────────────────────────────────────────────────────────
+# This file is tracked at .githooks/pre-commit. Git does NOT run it until the
+# repo is pointed at .githooks/ — a one-time, per-clone LOCAL step:
+#     bash .claude/hooks/install-hooks.sh
+# (sets core.hooksPath=.githooks). A FRESH CLONE RUNS NO HOOKS until that runs —
+# that is git's design, not a bug. The install script also disables any stale
+# .git/hooks/pre-commit so it can't resurface.
+#
+# ── PORTABILITY (the colleague may be on macOS/BSD/WSL) ─────────────────────
+# Pure bash 3.2+; NO jq; NO GNU-only grep/sed/find flags. Every optional gate
+# DEGRADES TO A NO-OP with a clear message when its linter or tool is absent or
+# not yet wired — a missing tool never hard-fails the commit.
+#
+# ── ESCAPE HATCH (documented, VISIBLE — genuine emergencies only) ──────────
+#     FIELDBOOK_PRECOMMIT_BYPASS=1 git commit ...
+# prints a loud warning and skips ALL gates. Prefer fixing the failing gate.
+# This is deliberately NOT `git commit --no-verify` (which silently skips every
+# hook and leaves no trace) — our bypass announces itself in the commit output.
+#
+# Note: build/test are intentionally NOT run here (too slow for every commit) —
+# run those in CI or by hand. Pre-commit gates the fast checks only.
+
+set -u
+
+# ── escape hatch ───────────────────────────────────────────────────────────
+if [ -n "${FIELDBOOK_PRECOMMIT_BYPASS:-}" ]; then
+  {
+    echo "pre-commit: !! FIELDBOOK_PRECOMMIT_BYPASS set -> ALL gates SKIPPED (emergency bypass)."
+    echo "pre-commit: !! the doc + code gates did NOT run for this commit."
+  } >&2
+  exit 0
+fi
+
+# ── run from the repo root (git invokes hooks there, but be explicit) ──────
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$repo_root" ]; then
+  cd "$repo_root" || { echo "pre-commit: could not cd to repo root -> gates skipped" >&2; exit 0; }
+fi
+
+# Docs live under .agent-docs/ (the kit default). Change here if your context
+# system lives elsewhere.
+DOC_ROOT=".agent-docs"
+
+# ── required-tool policy (REQUIRED_GATE_TOOLS) ──────────────────────────────
+# Space-separated list of GATE LABELS (e.g. "lint format") whose tool MUST be
+# present. DEFAULT EMPTY -> today's behavior is byte-preserved: an absent tool
+# still degrades to a graceful skip. When a label is listed and its tool is NOT
+# on PATH, run_gate FAILs the commit LOUDLY instead of skipping — a repo that
+# has DECLARED a gate required does not get to pass by silently not running it.
+# Overridable from the environment (REQUIRED_GATE_TOOLS="lint" git commit ...).
+#
+# VERSIONS-CHECK-FIRST: the tool-absence check sits BEFORE the gate is executed
+# (and a required-absent gate returns non-zero, which no later gate's green can
+# clear), so a required-but-missing tool can never be masked by a subsequent
+# gate going vacuously green.
+#
+# ENTAILMENT — a green run now means "clean UNDER THE DECLARED-REQUIRED
+# TOOLCHAIN" (every required tool was present AND its gate passed). It still
+# does NOT mean the tool VERSIONS match any expectation — a present-but-drifted
+# tool (wrong major version, stale linter ruleset) passes this check. Pinning
+# tool VERSIONS is deliberately out of scope here (future work).
+REQUIRED_GATE_TOOLS="${REQUIRED_GATE_TOOLS:-}"
+
+# membership test: is gate label $1 declared required?
+gate_required() {
+  case " $REQUIRED_GATE_TOOLS " in
+    *" $1 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)"
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# ── classify staged files ──────────────────────────────────────────────────
+# docs = markdown under the context-docs tree
+docs_staged="$(printf '%s\n' "$staged" | grep -E "^${DOC_ROOT}/.*\.md$" || true)"
+
+# code = anything staged that is NOT under the docs tree and NOT an obvious
+# doc / config / asset file. Whole-project bun run lint/ run over the
+# repo regardless of which files changed, so this only decides WHETHER to bother
+# running them for this commit. Tune CODE_EXCLUDE_RE for your repo if needed.
+CODE_EXCLUDE_RE='(\.(md|markdown|txt|rst|adoc|json|ya?ml|toml|cfg|ini|lock|png|jpe?g|gif|svg|ico|pdf)$|(^|/)(LICENSE|COPYING|NOTICE|\.gitignore|\.gitattributes|\.editorconfig)$)'
+code_staged="$(printf '%s\n' "$staged" \
+  | grep -v -E "^${DOC_ROOT}/" \
+  | grep -v -E "$CODE_EXCLUDE_RE" \
+  || true)"
+
+rc=0
+
+# ── code-gate helper ───────────────────────────────────────────────────────
+# run_gate <label> <command-string>
+#   Skips gracefully (exit 0) when the command is an unsubstituted placeholder,
+#   empty, or names a tool that is not on PATH. Otherwise runs it and returns
+#   its exit status.
+run_gate() {
+  gate_label="$1"
+  gate_cmd="$2"
+
+  # unsubstituted placeholder -> the colleague has not wired this gate yet
+  case "$gate_cmd" in
+    *'{{'*'}}'*)
+      echo "pre-commit: $gate_label gate not wired (placeholder unset) -> skipped"
+      return 0
+      ;;
+  esac
+
+  # empty / whitespace-only -> nothing to run
+  gate_trim="$(printf '%s' "$gate_cmd" | tr -d '[:space:]')"
+  if [ -z "$gate_trim" ]; then
+    echo "pre-commit: $gate_label gate empty -> skipped"
+    return 0
+  fi
+
+  # first whitespace-delimited token = the executable to probe
+  gate_tool="${gate_cmd%%[[:space:]]*}"
+  if ! command -v "$gate_tool" >/dev/null 2>&1; then
+    # A wired gate (past the placeholder/empty skips above) whose tool is missing.
+    # If this label is DECLARED REQUIRED, that absence FAILS the commit loudly —
+    # otherwise it degrades to the historical graceful skip (byte-preserved default).
+    if gate_required "$gate_label"; then
+      {
+        echo "pre-commit: x $gate_label gate is REQUIRED but its tool '$gate_tool' is NOT on PATH -> commit blocked"
+        echo "pre-commit:   required by policy REQUIRED_GATE_TOOLS='$REQUIRED_GATE_TOOLS' -> install '$gate_tool' or amend the policy"
+      } >&2
+      return 1
+    fi
+    echo "pre-commit: $gate_label gate tool '$gate_tool' not on PATH -> skipped (install it or wire the gate)"
+    return 0
+  fi
+
+  echo "pre-commit: code staged -> $gate_label gate"
+  echo "+ $gate_cmd"
+  bash -c "$gate_cmd"
+  gate_rc=$?
+  if [ "$gate_rc" -ne 0 ]; then
+    echo "pre-commit: x $gate_label gate FAILED (exit $gate_rc) -> commit blocked" >&2
+    return 1
+  fi
+  return 0
+}
+
+# ── DOC gate ───────────────────────────────────────────────────────────────
+if [ -n "$docs_staged" ]; then
+  # (1) doc-schema linter (Standard+ profile; may be absent on a Minimal install).
+  #     Contract: default-scans the docs tree, exits non-zero on any violation.
+  schema_linter=""
+  for cand in ".claude/hooks/lint-docs.py" "scripts/lint-docs.py"; do
+    [ -f "$cand" ] && { schema_linter="$cand"; break; }
+  done
+  if [ -n "$schema_linter" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      echo "pre-commit: .agent-docs staged -> doc-schema lint ($schema_linter)"
+      python3 "$schema_linter" || rc=1
+    else
+      echo "pre-commit: python3 not found -> doc-schema lint skipped (install python3 to enable)"
+    fi
+  else
+    echo "pre-commit: doc-schema linter not installed -> skipped"
+  fi
+
+  # (2) index-completeness lint (Minimal+; the always-on structural gate).
+  index_lint=".claude/hooks/lint-agent-docs-indexes.sh"
+  if [ -f "$index_lint" ]; then
+    echo "pre-commit: .agent-docs staged -> index-completeness lint (--strict)"
+    bash "$index_lint" --strict || rc=1
+  else
+    echo "pre-commit: index-lint not installed ($index_lint) -> skipped"
+  fi
+fi
+
+# ── CODE gate ──────────────────────────────────────────────────────────────
+if [ -n "$code_staged" ]; then
+  run_gate "lint"   'bun run lint' || rc=1
+  run_gate "format" ''  || rc=1
+fi
+
+# ── DOCS-IMPACT lane (ADVISORY — the third lane; framework-rationale/0014) ──
+# The two lanes above leave human docs (README, design docs, generated-doc SOURCE
+# comments, CLI help) classified neither-doc-nor-code, hence ungated. This lane
+# runs the doc-refs sweep over the STAGED set to surface potential drift at commit
+# time. It is ADVISORY BY CONTRACT: the gate triages, never blocks — it NEVER
+# touches rc, so a rows-present sweep and an empty sweep both let the commit through.
+# A missing/unwired script degrades to a no-op notice (never a hard fail).
+#
+# ROUTING: skip the dispatcher's hot path — a commit that stages ONLY .agent-docs
+# markdown (checkpoints/log.md/now-*) has no changed referent to sweep. Fire only
+# when something OUTSIDE the context-docs tree is staged (code, or a human-doc /
+# config / LICENSE in the neither-lane). This preserves the dispatcher's founding
+# route-don't-run-everything contract while still covering the neither-lane hole.
+outside_docroot="$(printf '%s\n' "$staged" | grep -v -E "^${DOC_ROOT}/" || true)"
+docrefs=""
+for cand in "scripts/doc-refs.sh" ".claude/hooks/doc-refs.sh"; do
+  [ -f "$cand" ] && { docrefs="$cand"; break; }
+done
+if [ -n "$docrefs" ] && [ -n "$outside_docroot" ]; then
+  # Advisory: the sweep prints its own worksheet and is QUIET-ON-EMPTY (a zero-referent
+  # staged set emits a single terse line, not a header) — so constant-commit repos are
+  # not trained to tune it out. Do NOT gate on it (rc untouched).
+  # A non-zero here is a TOOL failure (fail-loud) surfaced to stderr, still non-blocking.
+  bash "$docrefs" --staged || echo "pre-commit: !! doc-refs sweep errored (advisory) -> triage by hand" >&2
+elif [ -z "$docrefs" ] && [ -n "$outside_docroot" ]; then
+  echo "pre-commit: doc-refs sweep not installed -> docs-impact advisory lane skipped (manual read)"
+fi
+
+exit "$rc"

@@ -1,6 +1,7 @@
 import type { ConfigHolder } from "./config.ts";
 import type { Config, Decision, Upstream } from "./types.ts";
 import process from "node:process";
+import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
 import { logDecision, logError } from "./log.ts";
 import { route } from "./route.ts";
@@ -89,12 +90,18 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
 // Boot the proxy from a routes file (used by `bun run proxy` and the compiled
 // binary). watchConfig enables `mux set` / live routes.toml edits without a restart.
 export function startProxy(routesPath = process.env.MUX_ROUTES ?? "routes.toml"): Bun.Server<never> {
+  const holder = watchConfig(routesPath);
   const server = buildServer({
-    configHolder: watchConfig(routesPath),
+    configHolder: holder,
     env: process.env,
     logPath: process.env.MUX_LOG ?? "decisions.jsonl",
   });
   console.log(`modelmux listening on ${server.url.origin}`);
+  // Say out loud which agents the anySubagent rule will divert. Silent unless
+  // there is something to act on; see untaggedAgentWarning for the three cases.
+  const warning = untaggedAgentWarning(holder.current);
+  if (warning)
+    process.stderr.write(warning);
   return server;
 }
 

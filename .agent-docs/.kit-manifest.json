@@ -1,0 +1,577 @@
+{
+  "kit-version": "0.8.2",
+  "kit_ref": "30a0259",
+  "multi_party": true,
+  "profile": "standard",
+  "stack": "node-ts",
+  "created": "2026-07-24T22:30:00Z",
+  "tokens": {
+    "{{PROJECT_NAME}}": "modelmux",
+    "{{PROJECT_ONE_LINER}}": "A batteries-included template for heterogeneous agent routing in Claude Code \u2014 keep the orchestrator on Claude, route chosen subagents to OpenRouter models via a small owned proxy.",
+    "{{PRIMARY_LANGUAGE}}": "node-ts",
+    "{{BUILD_CMD}}": "bun run build",
+    "{{TEST_CMD}}": "bun test test/",
+    "{{LINT_CMD}}": "bun run lint",
+    "{{FMT_CMD}}": "",
+    "{{CODE_INTEL_TOOL}}": "the TypeScript language server",
+    "{{DEFAULT_BRANCH}}": "main",
+    "{{WORKSPACE_LAYOUT}}": "single-package",
+    "{{PACKAGE_REGISTRY}}": "npm",
+    "{{PANIC_EQUIVALENT}}": "an unhandled promise rejection"
+  },
+  "files": [
+    {
+      "path": ".agent-docs/CONVENTIONS.md",
+      "action": "create",
+      "sha256": "c478c20e507d1f97ec524938efae4b9f541039f9688daeaecb166b0b0fe27173",
+      "backup": null,
+      "source": "base/minimal/agent-docs/CONVENTIONS.md"
+    },
+    {
+      "path": ".agent-docs/charter.md",
+      "action": "create",
+      "sha256": "644d072eb250f52ee85df7504fb2d3903728da49777860b893a00d24ac5a7b2f",
+      "backup": null,
+      "source": "base/minimal/agent-docs/charter.template.md"
+    },
+    {
+      "path": ".agent-docs/glossary.md",
+      "action": "create",
+      "sha256": "4d22c1bb58ba9d18be622d108a9e46e92e3ee96b62708c2339b440c64031706a",
+      "backup": null,
+      "source": "base/minimal/agent-docs/glossary.md"
+    },
+    {
+      "path": ".agent-docs/index.md",
+      "action": "create",
+      "sha256": "98fb5441803d6e203ecde8d371059b3fcff8daefd7e2cb1a0f7bcccb75f6c730",
+      "backup": null,
+      "source": "base/minimal/agent-docs/index.md"
+    },
+    {
+      "path": ".agent-docs/log.md",
+      "action": "create",
+      "sha256": "85390e8d93ac8dbbf43123d7e7a26d597965fcf052b4c5ac14d1978d3ed37a2d",
+      "backup": null,
+      "source": "base/minimal/agent-docs/log.md"
+    },
+    {
+      "path": ".agent-docs/decisions/index.md",
+      "action": "create",
+      "sha256": "bd1b129a2dbc85cf9d97a0e5bd8b109c551ef3cd1986005e75ec14ae8850909e",
+      "backup": null,
+      "source": "base/minimal/agent-docs/decisions/index.md"
+    },
+    {
+      "path": ".agent-docs/lessons/index.md",
+      "action": "create",
+      "sha256": "9eb072fdb73b981ca24885ba762c7a72a1d36a507a1869965496c8310f9840ee",
+      "backup": null,
+      "source": "base/minimal/agent-docs/lessons/index.md"
+    },
+    {
+      "path": ".agent-docs/now/handoff.md",
+      "action": "create",
+      "sha256": "fd5f527fa0582f0fb041adea3f41888f2a8aab92ba7ab15841f18244a3a21325",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/handoff.template.md"
+    },
+    {
+      "path": ".agent-docs/now/index.md",
+      "action": "create",
+      "sha256": "1a76917da548a6f3521bec24cf92a05b5e19a8681220b28290121cfa1a81453a",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/index.md"
+    },
+    {
+      "path": ".agent-docs/now/open-questions.md",
+      "action": "create",
+      "sha256": "065e991d75e08f31eb25c6da3d679a1b007a36f34ee76b6e02ace2887d9c58b7",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/open-questions.template.md"
+    },
+    {
+      "path": ".agent-docs/now/status.md",
+      "action": "create",
+      "sha256": "a32be849e44ba23cc0723ce0c9b2729bd65c868f57c362d219d3c9c23b0eba01",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/status.template.md"
+    },
+    {
+      "path": ".agent-docs/now/work-plan.md",
+      "action": "create",
+      "sha256": "146986284f6907259a90b5a61224475cd0c6ceacf8ad841733685decef0a9444",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/work-plan.template.md"
+    },
+    {
+      "path": ".agent-docs/now/lessons/MOC.md",
+      "action": "create",
+      "sha256": "1d33303d70048b1feaa67aefaf35629f1d77e653415f959ab313dcaf8951e11c",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/lessons/MOC.template.md"
+    },
+    {
+      "path": ".agent-docs/now/lessons/proposals.md",
+      "action": "create",
+      "sha256": "01826cfc7f13f421027ef5da98f392846807a32ae2bfc4fe65c2d7cbabcfd00e",
+      "backup": null,
+      "source": "base/minimal/agent-docs/now/lessons/proposals.template.md"
+    },
+    {
+      "path": ".agent-docs/templates/adr-template.md",
+      "action": "create",
+      "sha256": "ae5ea8ee12834de804e9b885fd67eb0fe0c8ec3c3ea6d3cdec116dac810e4be5",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/adr-template.md"
+    },
+    {
+      "path": ".agent-docs/templates/checkpoint-template.md",
+      "action": "create",
+      "sha256": "9d83a36038ef96cd7f3bb6cb19db81ead5e863a7df703d32e17a4b7c864e28de",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/checkpoint-template.md"
+    },
+    {
+      "path": ".agent-docs/templates/handoff-template.md",
+      "action": "create",
+      "sha256": "b908ebcadc0518a7d2f23abb3d850eab88e9e224cce5cff286a34a941b2ee59c",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/handoff-template.md"
+    },
+    {
+      "path": ".agent-docs/templates/index-template.md",
+      "action": "create",
+      "sha256": "c0a03be28d17b114870d44c355ad6b1c944dce18c292b64f6e63d8b2049f8908",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/index-template.md"
+    },
+    {
+      "path": ".agent-docs/templates/index.md",
+      "action": "create",
+      "sha256": "a1fbdf5ede33ceb6f436d2473af8f54c2767dd1e5a9a8a6c2088e427a9a42b40",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/index.md"
+    },
+    {
+      "path": ".agent-docs/templates/lesson-template.md",
+      "action": "create",
+      "sha256": "3edf7c9dd6cf0811f83abef397525b772409cbe74cb1afa9a7a97457b8477fda",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/lesson-template.md"
+    },
+    {
+      "path": ".agent-docs/templates/memory-template.md",
+      "action": "create",
+      "sha256": "15663203fc21e209d96dc5e088d924ae9614541ccd070bdb523f2f7314c1719f",
+      "backup": null,
+      "source": "base/minimal/agent-docs/templates/memory-template.md"
+    },
+    {
+      "path": ".agent-docs/checkpoints/index.md",
+      "action": "create",
+      "sha256": "693e6968d2fd91144e015e28f9ee08a437e6c576555758d7ab985bf752b75e00",
+      "backup": null,
+      "source": "base/standard/agent-docs/checkpoints/index.md"
+    },
+    {
+      "path": ".agent-docs/memories/index.md",
+      "action": "create",
+      "sha256": "5da68dae30bcc6bacd9c89d8060aca1ce4319fecfc471356420150a774f16b88",
+      "backup": null,
+      "source": "base/standard/agent-docs/memories/index.md"
+    },
+    {
+      "path": ".agent-docs/reference/baseline-mechanism.md",
+      "action": "create",
+      "sha256": "39643f5549a26a283a577bc41f88c402392358e0831f89b6054ec46d549da1f1",
+      "backup": null,
+      "source": "base/standard/agent-docs/reference/baseline-mechanism.md"
+    },
+    {
+      "path": ".agent-docs/reference/doc-refs-contract.md",
+      "action": "create",
+      "sha256": "2ee9abbf73ffb697f8c440adb473dc8fee1cac33d1d8895f2fb0d0627e0bcbe4",
+      "backup": null,
+      "source": "base/standard/agent-docs/reference/doc-refs-contract.md"
+    },
+    {
+      "path": ".agent-docs/reference/fail-loud-dispatch-contract.md",
+      "action": "create",
+      "sha256": "39305777cf485a78cd671de2ac28a27d628b8f619233de71264b39e07499a6e6",
+      "backup": null,
+      "source": "base/standard/agent-docs/reference/fail-loud-dispatch-contract.md"
+    },
+    {
+      "path": ".agent-docs/reference/index.md",
+      "action": "create",
+      "sha256": "0d2c7589aeb66546560bb564bff2d2ebdec43e63fee3c708f9d466687113e993",
+      "backup": null,
+      "source": "base/standard/agent-docs/reference/index.md"
+    },
+    {
+      "path": ".agent-docs/reference/observation-integrity.md",
+      "action": "create",
+      "sha256": "33940b75ca2b842ae86b54cb58e575b291dedaa789dd56297801e2d79d8bf53f",
+      "backup": null,
+      "source": "base/standard/agent-docs/reference/observation-integrity.md"
+    },
+    {
+      "path": ".agent-docs/reviews/index.md",
+      "action": "create",
+      "sha256": "cedb82970ba0eeaeb8ab4d04eb0e98b56f66d73a4f66c6bf4ff1e2046fa50eb3",
+      "backup": null,
+      "source": "base/standard/agent-docs/reviews/index.md"
+    },
+    {
+      "path": ".agent-docs/templates/review-template.md",
+      "action": "create",
+      "sha256": "9552b77c44e95dbbbe34cce0a4e599d9daa7420a2c3598f44cb11af88cd19e0e",
+      "backup": null,
+      "source": "base/standard/agent-docs/templates/review-template.md"
+    },
+    {
+      "path": ".agent-docs/now/obligations.md",
+      "action": "create",
+      "sha256": "d5d0f2cae21a0806fce9a57dc82fe7aa9b2b46af5f1347ca1c826c27404001bd",
+      "backup": null,
+      "source": "base/standard/agent-docs/now/obligations.template.md"
+    },
+    {
+      "path": ".claude/rules/agent-docs.md",
+      "action": "create",
+      "sha256": "a183b46fe5829b788e7259a2949915d9956316de8d326254f179a4362f0bc924",
+      "backup": null,
+      "source": "base/minimal/claude/rules/agent-docs.md"
+    },
+    {
+      "path": ".claude/rules/sensitive-data.md",
+      "action": "create",
+      "sha256": "32e36394de4ede3600bd5abec525189a6fe6fc415b32f4647a1a2a58fcbf7aa7",
+      "backup": null,
+      "source": "base/minimal/claude/rules/sensitive-data.md"
+    },
+    {
+      "path": ".claude/rules/standing-rules-core.md",
+      "action": "create",
+      "sha256": "0dc5a85bb3b944efbfd73e5a8b0eff7dc70486111e14e76d6af09a633000f6a3",
+      "backup": null,
+      "source": "base/standard/claude/rules/standing-rules-core.md"
+    },
+    {
+      "path": ".claude/rules/standing-rules-rationale.md",
+      "action": "create",
+      "sha256": "67abd34bf7d4e53ae27e3b387f02472a85e1c5d293a55f2ac14bbf41e7927c18",
+      "backup": null,
+      "source": "base/standard/claude/rules/standing-rules-rationale.md"
+    },
+    {
+      "path": ".claude/rules/node-ts-rules.md",
+      "action": "create",
+      "sha256": "600d2d3df7629f4e48fc9419a4ee488a2708eb9270d5f74c129b3c733326382d",
+      "backup": null,
+      "source": "stacks/node-ts/rules.md"
+    },
+    {
+      "path": ".claude/rules/node-ts-code-intel.md",
+      "action": "create",
+      "sha256": "1f15dec44e87151b0d344b1e7277227434912621aee2dc53cb558ce1b8922c4f",
+      "backup": null,
+      "source": "stacks/node-ts/code-intel.md"
+    },
+    {
+      "path": "scripts/wu-refs.sh",
+      "action": "create",
+      "sha256": "0be2cfb7d96f7974f3543056251e4290f14cca99c949660364cf80bad2d860f2",
+      "backup": null,
+      "source": "base/standard/scripts/wu-refs.sh"
+    },
+    {
+      "path": "scripts/doc-refs.sh",
+      "action": "create",
+      "sha256": "a0e32e2f7722bfb254595bab0d89b1bf1a3af3a30047a172a8150912e820eb9c",
+      "backup": null,
+      "source": "base/standard/scripts/doc-refs.sh"
+    },
+    {
+      "path": ".claude/skills/orient/SKILL.md",
+      "action": "create",
+      "sha256": "a03a3344d6025fad342ddd93a85b6d62baa72f669ffc52ff5630d8f06266c427",
+      "backup": null,
+      "source": "base/minimal/claude/skills/orient/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/flush/SKILL.md",
+      "action": "create",
+      "sha256": "36a56ea5f8b1f2a357dd38da1d30c70ea2ec3a265231450b05763f144c7272aa",
+      "backup": null,
+      "source": "base/minimal/claude/skills/flush/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/handoff/SKILL.md",
+      "action": "create",
+      "sha256": "871806eafadd7bf5942adcd3aac04b9faa53770fefc32bd90e0c8379dee351c6",
+      "backup": null,
+      "source": "base/minimal/claude/skills/handoff/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/sitrep/SKILL.md",
+      "action": "create",
+      "sha256": "c5f6c4626b2d535f5b30d5c69413347489b5cb1e2de790129c80429c7b7f8ebe",
+      "backup": null,
+      "source": "base/standard/claude/skills/sitrep/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/debrief/SKILL.md",
+      "action": "create",
+      "sha256": "04ec7afec3ea696fdd0b8897f2590f2173d579eebc490afbabe16594fb30c1db",
+      "backup": null,
+      "source": "base/standard/claude/skills/debrief/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/distill-lessons/SKILL.md",
+      "action": "create",
+      "sha256": "57e95f181604fe5aa1be34649cabcccdef03e633f354126de0275ca4a028153f",
+      "backup": null,
+      "source": "base/standard/claude/skills/distill-lessons/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/kit-doctor/SKILL.md",
+      "action": "create",
+      "sha256": "e8a7e520678d8d918a5e9709ab38b981079beb41f8fe56d74bf8eb26e520a9da",
+      "backup": null,
+      "source": "base/standard/claude/skills/kit-doctor/SKILL.md"
+    },
+    {
+      "path": ".claude/skills/kit-upgrade/SKILL.md",
+      "action": "create",
+      "sha256": "852839c2c7c009b4278bf10de6fde3cce2bf6293504d3899e821f34584dc0b81",
+      "backup": null,
+      "source": "base/standard/claude/skills/kit-upgrade/SKILL.md"
+    },
+    {
+      "path": ".claude/hooks/sessionstart-state-router.sh",
+      "action": "create",
+      "sha256": "74092b49cb195e6ffbf808a10d05d146f3ac51dabd5bd10933f11a41013a15ae",
+      "backup": null,
+      "source": "base/minimal/claude/hooks/sessionstart-state-router.sh"
+    },
+    {
+      "path": ".claude/hooks/precompact-handoff-trigger.sh",
+      "action": "create",
+      "sha256": "e306ba65791187929a71e57dbcd809bafb9f14965855c4989c8307ae51dae50b",
+      "backup": null,
+      "source": "base/minimal/claude/hooks/precompact-handoff-trigger.sh"
+    },
+    {
+      "path": ".claude/hooks/lint-docs.py",
+      "action": "create",
+      "sha256": "ebffa78e205febe4ba104f16b1787c586766fadecfb3bf4d16894d2f6b138991",
+      "backup": null,
+      "source": "base/standard/claude/hooks/lint-docs.py"
+    },
+    {
+      "path": ".claude/hooks/lint-docs.README.md",
+      "action": "create",
+      "sha256": "237e123c22f8f6a1d1f83145983228d1ee7af10c114783ad11ee7b7d5ce0076f",
+      "backup": null,
+      "source": "base/standard/claude/hooks/lint-docs.README.md"
+    },
+    {
+      "path": ".claude/hooks/lint-agent-docs-indexes.sh",
+      "action": "create",
+      "sha256": "dc9cca462478ebfb739e8abf2cea1943bf0594d85123c527ce2f3c2d8567f1a9",
+      "backup": null,
+      "source": "base/standard/claude/hooks/lint-agent-docs-indexes.sh"
+    },
+    {
+      "path": ".claude/hooks/install-hooks.sh",
+      "action": "create",
+      "sha256": "fd56aaa9e83d42d2fba2b911092b0a873b151152e37401fb4d71baa7b2049a6f",
+      "backup": null,
+      "source": "base/standard/claude/hooks/install-hooks.sh"
+    },
+    {
+      "path": ".claude/hooks/README.md",
+      "action": "create",
+      "sha256": "b0cb342781d40c30349b429ab527f0a52324edcf0c26bc3e577234c04c88ea52",
+      "backup": null,
+      "source": "base/standard/claude/hooks/README.md"
+    },
+    {
+      "path": ".claude/hooks/subagentstart-prefix.sh",
+      "action": "create",
+      "sha256": "f20c9a689ec0f73b7741a5eb69640d9a69746e4f72c6caa2264457b1a87d4131",
+      "backup": null,
+      "source": "base/standard/claude/hooks/subagentstart-prefix.sh"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/README.md",
+      "action": "create",
+      "sha256": "19a7d083668255907dee597d9dce41c8491f536c58849456c9b5e59e41168997",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/README.md"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/dispatch-gate.py",
+      "action": "create",
+      "sha256": "d2906bf55688bbd23a3dafc0a25d2b954724d314d3054fb1eefa133958ce5fd7",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/dispatch-gate.py"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/dispatch-gate.sh",
+      "action": "create",
+      "sha256": "ae33fc25d83482cfdd56daa20ee63e629d19a217e275e3f2f12c17592298ff49",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/dispatch-gate.sh"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/make-preamble.sh",
+      "action": "create",
+      "sha256": "9e8541cbab708006765c53064ef911f32efe42259a2cdfa52135826487ffa599",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/make-preamble.sh"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/preamble.js",
+      "action": "create",
+      "sha256": "d25b253fc2acd1056dce3791ff77f7f73b26cc21201cbea94c4f3abda05321ff",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/preamble.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/self-test.py",
+      "action": "create",
+      "sha256": "3c8eadcbda5518bd0ae91f86021a29be936cccfc406ba302e556504e8be2a210",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/self-test.py"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/smoke-runtime.cjs",
+      "action": "create",
+      "sha256": "7ac2296bed642d3e3bc80f7bafed62e4a1b03933b9febdb64a2f0d695c574d88",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/smoke-runtime.cjs"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/agent/agent-declared-no-model.json",
+      "action": "create",
+      "sha256": "cc5a4425a0b9007594c38f94f0f876c78b082e60b38324aab2e65a4f4f580bbf",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/agent/agent-declared-no-model.json"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/agent/agent-pinned.json",
+      "action": "create",
+      "sha256": "85f65d948f731c7ed9c9d8eda2865156dee12d2f7b1865780d8528e945f44590",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/agent/agent-pinned.json"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/agent/agent-undeclared-no-model.json",
+      "action": "create",
+      "sha256": "7284135a27783f8f068801c7d7782b05cd65cd09c3d3778f3c442717f0e4665f",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/agent/agent-undeclared-no-model.json"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/bare-return.js",
+      "action": "create",
+      "sha256": "65acc727b4612a1558a56b7c1d5a72fd429c6451fce6c5bfa784455518aa877c",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/bare-return.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/clean-floor.js",
+      "action": "create",
+      "sha256": "705cd05b9b2c039dec72d0fb1ff38dbea7fbf366483a2814791d6d35dc2034c3",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/clean-floor.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/declared-degraded-ok.js",
+      "action": "create",
+      "sha256": "5fdf621bcf2471403c038e6f43b6a96625252035c320953b657ac18baccc3197",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/declared-degraded-ok.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/degraded-but-complete.js",
+      "action": "create",
+      "sha256": "6d9d65438a1acbac942ee804e4af80194d6270639aa37b88c99fdb09c603a1e8",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/degraded-but-complete.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/escape-hatch-malformed.js",
+      "action": "create",
+      "sha256": "6335cc9052112ad9ee073ee86b84d1bde8b25a074df387195ff04717e2e11c6a",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/escape-hatch-malformed.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/escape-hatch-ok.js",
+      "action": "create",
+      "sha256": "1dea518fcdbc05bcc3053206b1af7daaea36ce75f6878d81481b804173227faf",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/escape-hatch-ok.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/filter-boolean.js",
+      "action": "create",
+      "sha256": "60529fcc64313801d0b2f2cf4b8ef9f8d1efdb849114b73474fb21d8426a01dd",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/filter-boolean.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/missing-preamble.js",
+      "action": "create",
+      "sha256": "a3613d8ed3ab6388a8c81ee9438de1d4def6296fbed8131ea238cd664333e2cd",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/missing-preamble.js"
+    },
+    {
+      "path": ".claude/hooks/dispatch-gate/fixtures/workflow/tampered-preamble.js",
+      "action": "create",
+      "sha256": "1e965ac9349b6a6446fa528d299a35bb3c7a10c384953ccbeb7ff0ed1b060a54",
+      "backup": null,
+      "source": "base/standard/claude/hooks/dispatch-gate/fixtures/workflow/tampered-preamble.js"
+    },
+    {
+      "path": ".githooks/pre-commit",
+      "action": "create",
+      "sha256": "dcd1b937a1a17ad18c66032611f3346696a94f85a5495741b31be140917ed353",
+      "backup": null,
+      "source": "base/standard/githooks/pre-commit"
+    },
+    {
+      "path": "CLAUDE.md",
+      "action": "merge",
+      "source": null,
+      "sha256": "39ffb2a71dcaa596812a142f56588ee184a9478cb0e7dd4122f8c65ed92bfedb",
+      "backup": ".kit-backups/2026-07-24T22-30-00Z/CLAUDE.md"
+    },
+    {
+      "path": ".claude/hooks/pretooluse-safety-gates.sh",
+      "action": "create",
+      "sha256": "a6ba0f533c544408b91c8c8a588b4359ff6ff619f7670cc20453d03422967ae7",
+      "backup": null,
+      "source": "base/standard/claude/hooks/pretooluse-safety-gates.base.sh + stacks/node-ts/gate-fragment.sh"
+    },
+    {
+      "path": ".claude/settings.json",
+      "action": "create",
+      "sha256": "77bb0488592339cd15c7b44bccda2326b149822ae3124a635339ad5140db7098",
+      "backup": null,
+      "source": "base/minimal/claude/settings.json.template + stacks/node-ts/allowlist.json"
+    }
+  ],
+  "modules": [],
+  "status": "complete",
+  "notes": [
+    "Phase 6.2 (install-hooks.sh / core.hooksPath=.githooks) DELIBERATELY SKIPPED: target uses lefthook, whose pre-commit lives in .git/hooks/. Setting core.hooksPath would disable lefthook's eslint/commitlint/pre-push gates. .githooks/pre-commit is installed as a tracked file but git is NOT pointed at it.",
+    "Phase 4 gate scalars: FMT_CMD deliberately EMPTY (no format/fmt script in package.json; empty-is-honest per parameters.md). LINT_CMD/typecheck currently exit 127 in this checkout because node_modules is absent (deps never installed) \u2014 the commands are correct, the environment lacks them. Run `bun install` before wiring any gate that invokes them."
+  ],
+  "completed": "2026-07-24T22:32:00Z"
+}

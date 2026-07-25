@@ -1,0 +1,8 @@
+{
+  "tool_name": "Agent",
+  "tool_input": {
+    "prompt": "<!-- fieldbook:dispatch\narchetype: build\ncontract: v1\nstation: build-leg\nmodel-tier: standard\n-->\nImplement the feature in the named file. Return discoveries[] and the expected/received/missing accounting.",
+    "subagent_type": "builder",
+    "description": "build leg — NO model pin (the planted positive)"
+  }
+}

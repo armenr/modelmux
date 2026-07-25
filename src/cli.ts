@@ -24,6 +24,28 @@ export function retargetAgentTag(text: string, alias: string): string {
   return text.replace(re, `<<route:${alias}>>`);
 }
 
+// Insert a FIRST <<route:alias>> tag into an agent file that has none — the
+// counterpart to retargetAgentTag, which deliberately refuses to create one.
+// Third-party agents (a docs kit, a starter pack) ship untagged by
+// construction, so under an `anySubagent` catch-all they silently route to
+// whatever that rule names; `use` cannot fix them because it only retargets.
+//
+// Guards are symmetric with retargetAgentTag: that one refuses to CREATE, this
+// one refuses to OVERWRITE. Neither can report a false success.
+//
+// Placement: immediately after YAML front matter when present (the tag must sit
+// in the agent's prompt body, which is what the proxy reads — front matter is
+// not sent), else at the very top.
+export function tagAgent(text: string, alias: string): string {
+  if (/<<route:[\w-]+>>/i.test(text))
+    throw new Error("agent already has a <<route:...>> tag; use `use` to retarget it");
+  const tag = `<<route:${alias}>>`;
+  const fm = /^(---\r?\n[\s\S]*?\r?\n---)\r?\n/.exec(text);
+  if (fm)
+    return `${fm[1]}\n\n${tag}\n\n${text.slice(fm[0].length).replace(/^(\r?\n)+/, "")}`;
+  return `${tag}\n\n${text}`;
+}
+
 export function listModels(config: Config): string {
   const rows = Object.entries(config.models).map(
     ([alias, ref]) => `  ${alias.padEnd(16)} ${ref.upstream}:${ref.slug}`,
@@ -59,11 +81,21 @@ export async function runCli(argv: string[]): Promise<number> {
       console.log(`agent ${a} now uses <<route:${b}>>`);
       return 0;
     }
+    if (cmd === "tag") {
+      if (!a || !b) {
+        console.error("usage: modelmux tag <agent-name> <alias>");
+        return 1;
+      }
+      const path = `.claude/agents/${a}.md`;
+      writeFileSync(path, tagAgent(readFileSync(path, "utf8"), b));
+      console.log(`agent ${a} tagged <<route:${b}>>`);
+      return 0;
+    }
     if (cmd === "check-latest") {
       const { run } = await import("../scripts/check-latest.ts");
       return run(ROUTES); // honor MUX_ROUTES like every other command
     }
-    console.log("commands: serve | models | set <alias> <upstream:slug> | use <agent> <alias> | check-latest");
+    console.log("commands: serve | models | set <alias> <upstream:slug> | tag <agent> <alias> | use <agent> <alias> | check-latest");
     return 0;
   }
   catch (e) {
