@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-25
+last-modified: 2026-07-27
 tags: [current, open-questions]
 related: [status, work-plan, obligations]
 ---
@@ -39,6 +39,41 @@ related: [status, work-plan, obligations]
   likely not derivable without credentials — and have it **say which providers it could not check**
   rather than implying full coverage. Deliberately NOT done on a branch that is ready to merge; adding
   provider probes is feature scope. Relates: WU-0003, `LP-001`.
+
+- **OQ-009** (🟠 gate integrity; surfaced 2026-07-26 triaging PR #19) — **dependabot groups MAJOR
+  bumps into routine `dev-deps` updates, and a merge would disarm two gates at once.** PR #19 pairs
+  `typescript ^6.0.3 → ^7.0.2` with three harmless patch/minor bumps; CI fails with
+  `typescript-eslint does not support TS 7.0`. A tired reviewer merging a green-looking "dev-deps
+  bump" is exactly how `lint` and `typecheck` both go dark. **Resolve:** split the group (take
+  `@antfu/eslint-config`, `@commitlint/cli`, `eslint`; hold `typescript`), then add a
+  `dependabot.yml` `ignore` rule for `typescript` **major** so the pairing cannot recur. Open
+  sub-question: should ALL majors be split out of the dev-deps group by policy, not just TypeScript?
+  Relates: `memories/this-repo-has-three-pre-commit-mechanisms-and-none-of-them-run.md`.
+
+- **OQ-010** (🟡 mechanism debt; filed 2026-07-27 as the work item `LP-005`'s acceptance owes) —
+  **Three traps documented in this repo fired again anyway; which of them can be moved from prose
+  into the Bash safety gate?** `LP-005`'s rule is that a *second* firing makes the doc disproven
+  evidence and buys a mechanism, not a re-wording. The operative surface already exists and is
+  designed for exactly this: `.claude/hooks/pretooluse-safety-gates.sh` is registered `PreToolUse`
+  on `Bash`, and its kit-owned base carries a documented **STACK-FRAGMENT INSERTION POINT** where
+  repo-local rules are spliced *before* the universal ones — so this is an additive fragment, not a
+  patch to a kit-owned file. Grade each candidate:
+  1. **`pkill -f <pattern>` kills its own shell here** (exit 144; the harness wrapper embeds the
+     command string so the pattern matches the shell running it). Bitten ≥2×. Cleanest candidate —
+     a command-position-anchored `ask` with the remedy ("kill by PID") in the reason string.
+  2. **`partyline read` inside a pipeline or `$( )`** — it MUTATES the cursor, so a status-shaped
+     use silently consumes mail. Bitten once, but recovery depended on `room.jsonl` happening to be
+     append-only (luck, not design), so cost-of-recurrence carries it. Low false-positive rate:
+     match `partyline read` co-occurring with `|` or `$(`.
+  3. **`for v in $VAR` under fish/zsh** — no word-splitting, and it printed a **false green**. This
+     is the one that may *not* be cleanly mechanizable: the pattern is common and legitimate under
+     `bash`, so a gate risks noise. Honest possible outcome is a **measured deferral** (an accepted
+     recurrence, explicitly recorded) rather than a forced rule.
+  **Resolve:** author the fragment for (1) and (2) with a non-vacuous control each — write the
+  foot-gun, watch the gate fire for the right reason, restore — and either implement (3) or record
+  it as a deferral with its reason. Open sub-question: does a repo-local fragment survive a
+  `kit-upgrade` reconcile, or does the insertion point get rewritten? Verify before relying on it.
+  Relates: `LP-005`, `LP-003` (the non-vacuity requirement), `.claude/hooks/README.md`.
 
 ## Recently resolved
 

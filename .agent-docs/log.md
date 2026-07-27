@@ -18,6 +18,78 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-27 | decision | `LP-005` ACCEPTED and promoted evergreen — with a work item, not a note
+
+Adjudicated on the operator's delegation ("use your best judgement"). `LP-005` — *a trap you have
+written down is not a trap you have disarmed* — accepted at **evergreen** (MOC row + `lessons/index.md`
+entry), promoted to `lessons/a-written-down-trap-is-not-a-disarmed-trap.md`, staging cleared.
+
+**Why evergreen on first sighting**, when `LP-002` sits at budding with comparable evidence: the
+index's own rule allows severity/cost-of-recurrence to carry a promotion, and this one has a real
+*control* rather than only instances — in the same session the traps backed by mechanisms (armed
+pre-commit gate, reachability population floor, `USAGE`→README test) fired **zero** times while three
+documented-only traps fired again on the agent that wrote them down. Same agent, same fatigue; the
+variable was the mechanism. It is also distinct from `LP-004` — that one is about reading an
+instrument's output, this is about whether a rule reaches the point of use at all.
+
+**The disposition had to be more than filing.** A lesson claiming that written sentences do not change
+behavior, promoted as a written sentence, demonstrates its own claim. So acceptance shipped
+**`OQ-010`**: grade the three cited traps for a mechanism in
+`.claude/hooks/pretooluse-safety-gates.sh`, which is already registered `PreToolUse` on `Bash` and
+carries a documented stack-fragment insertion point for exactly this (additive — not a patch to a
+kit-owned file). `pkill -f` and `partyline read`-in-a-pipeline look cleanly gateable; the fish
+word-splitting case may honestly end as a **measured deferral** rather than a forced rule.
+
+## 2026-07-27 | memory | room mail re-notified on monitor arm was ALREADY consumed — widen before concluding
+
+Arming the room monitor after the reboot fired "MAIL — 4 new". `partyline read` returned
+**"(no unread messages)"** — an empty result, and per `LP-004` that is evidence about the query
+(cursor state), not the world. Widened to `room.jsonl` directly: exactly **one** message exists after
+my last post (`482bd6db`, filemage-gen2's cell-three ruling, 2026-07-25T14:41Z), it is already folded
+into `OQ-008`, and it closes with "Nothing owed." Room silent since. The monitor's "new" is keyed to
+its arming baseline, **not** to the read cursor — the two disagree after a reboot and the disagreement
+looks like unread mail. No reply posted: a bare acknowledgement is exactly what the room protocol forbids.
+
+## 2026-07-26 | handoff | v0.5.0 + v0.5.1 shipped; seven OQs closed; four lessons promoted
+
+Session end. `main` at `8b989bb`, clean, 0 ahead. Two releases cut and **artifact-verified** — not
+just CI-green: downloaded the linux-x64 binary for each, checked it against the published
+`SHA256SUMS`, ran it, and confirmed the feature was in the shipped bytes (v0.5.0 accepts
+`codex:gpt-5.5` and `format="openai"` and rejects an invalid format with exit 1; v0.5.1's
+`check-latest` disclosure line is present).
+
+**Obligations journaled and pruned** (the audit trail for rows removed from `now/obligations.md`
+this cycle): fieldbook · install report card — settled, accepted, finding 1 booked upstream (room
+`683fbb1b`) · partyline · audit of this repo's partyline install — settled, ruled SOUND (`98896e54`)
+· operator · ADR-0003 + README fix + PR #15 retitle + commit WU-0003 — all four delivered
+(`7ef2d4c`, `fd08a9a`) · operator · the OQ-002 token-refresh fork — settled, option (b) shipped
+(`df9347b`) · operator · the OQ-003 ruling — settled, strip-and-skip-worktree chosen from four
+options · fieldbook · the two citing file paths for `0014`/`0012` — answered NONE with a
+positive-controlled grep, accepted (`e088ccf0`). **No operator gate remains open.**
+
+Filed `OQ-009`: dependabot groups a MAJOR typescript bump into a routine dev-deps group, and merging
+PR #19 would disarm `lint` and `typecheck` together. That is the next action and it is a *hold*, not
+a merge.
+
+## 2026-07-26 | decision | a release's version must match its user-facing reality
+
+PR #17 was titled `feat(...)`, which release-please would have cut as **v0.6.0**. Checked the actual
+diff first: `USAGE` prints the identical string and `forwardUrl` builds the identical URL — **zero**
+user-visible behaviour change, confirmed by 156 tests including the URL-building ones passing
+unchanged. Retitled to `fix(server): …` and it cut **v0.5.1**. A minor bump would have advertised a
+feature that does not exist. The version number is a public contract; it gets the same
+measure-before-you-claim treatment as everything else.
+
+## 2026-07-26 | memory | two documented traps caught me AGAIN in one session
+
+Recording because the recurrence is the finding, not the traps. (a) I put `partyline read` — a
+**cursor-advancing** call — inside a status pipeline and piped it to `grep -c`, consuming 4 messages
+into a discarded count. Recovered from `room.jsonl`: exactly one message existed after my last post
+and I had already processed it, so nothing was lost — but the recovery was luck, not design.
+(b) `pkill -f` killed my own shell (exit 144), which is trap #4 in this repo's own handoff, written
+down and walked into anyway. Both are now in `LP-004`'s orbit: a rule you have written down is not a
+rule you have applied.
+
 ## 2026-07-25 | OQ sweep — pre-commit gate finally armed, three OQs closed
 
 **The pre-commit gate now actually gates.** Root cause of 16 silent skips: `.git/hooks/pre-commit` was

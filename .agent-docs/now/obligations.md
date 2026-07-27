@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-10
-last-modified: 2026-07-25
+last-modified: 2026-07-26
 tags: [current, obligations]
 related: [status, work-plan, open-questions, handoff]
 ---
@@ -71,8 +71,8 @@ related: [status, work-plan, open-questions, handoff]
 > restate that trigger's action here (the cited row holds it). At Full these graduate to typed `RV`
 > anchors (ADR-0007).
 
-- OpenAI's Codex endpoint stops returning `circuit_open` → see `OQ-001` (unblocks acceptance testing)
-- the Codex `access_token` passes its 2026-07-28 expiry → see `OQ-002`
+- the Codex `access_token` passes its **2026-07-28** expiry → `OQ-002`'s fail-loud path fires; re-run `codex login`
+- `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on the typescript bump lifts
 - fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
   latent-on-Standard case clears
 
@@ -87,18 +87,4 @@ related: [status, work-plan, open-questions, handoff]
 > *silently* delete a row — the log entry is the preserved audit trail; a row that vanished with no
 > journal entry reads as a *dropped* obligation, not a discharged one.
 
-- ~~fieldbook · install report card (kit-version, profile, manifest, doc-lint COUNT)~~ — SETTLED
-  2026-07-25 (delivered; accepted, and finding 1 booked upstream as a kit defect) — room msg `683fbb1b`
-- ~~partyline · audit of this repo's partyline install/config~~ — SETTLED 2026-07-25 (delivered; ruled
-  SOUND, cursor-seeding ruled correct) — room msg `98896e54`
-- ~~operator · ruling on `OQ-003`, the public-repo `CLAUDE.md` paths~~ — SETTLED 2026-07-25: chose
-  strip-and-skip-worktree from four options — commit `docs: ship CLAUDE.md without the machine-specific
-  partyline block`
-- ~~operator · ruling on the `OQ-002` token-refresh fork~~ — SETTLED 2026-07-25: operator said "knock
-  those out", option (b) implemented (fail loud on 401 with the remedy) — commit `df9347b`
-- ~~operator · ADR-0003 + README Codex fix + PR #15 retitle, then commit WU-0003~~ — SETTLED
-  2026-07-25, all four delivered; README scope was 5 stale spots not 1, incl. a false security claim —
-  commits `7ef2d4c`, `fd08a9a`
-- ~~fieldbook · the two citing file paths for `0014-docs-impact-gate` / `0012-obligations-ledger`~~ —
-  SETTLED 2026-07-25 (answered NONE, reference-field grep run with a positive control; accepted and
-  recorded as mine-or-nobody's) — room msg `e088ccf0`, their ack in the 09:43:44Z broadcast
+*(Previous cycle's settled rows pruned 2026-07-26 — journaled in `log.md`, see the 2026-07-25 entries.)*

@@ -1,7 +1,7 @@
 ---
 provenance: kit-template
 created: 2026-07-03
-last-modified: 2026-07-09
+last-modified: 2026-07-27
 tags: [meta, index, routing, lessons]
 related: [CONVENTIONS]
 ---
@@ -65,6 +65,14 @@ cost-of-recurrence can justify promotion on first sighting — it need not wait 
   instrument, a mis-scoped query, a tool that never ran and an empty world are byte-identical in output
   — run a known-positive control first; `command -v` answers "is it on my PATH", a directory check
   answers "is it installed", only a known-positive probe answers "does it have anything to say".
+  *(evergreen · high · process.)*
+- `a-written-down-trap-is-not-a-disarmed-trap.md` (**LP-005**) — **Open when:** you are about to add a
+  gotcha to a doc or anti-assumption list, or you have just been bitten by one that was already
+  written down. **Carry-away:** a documented trap still fires at its normal rate, because a reminder
+  only works on someone already looking; first firing → write it down, **second firing of the same
+  trap → the doc is disproven evidence, so open a work item for a MECHANISM at the point of use** (a
+  gate, a test, a lint, a wrapper) rather than re-wording it — measured in-session, the traps with
+  mechanisms behind them fired zero times while three documented-only traps fired again.
   *(evergreen · high · process.)*
 
 ## Maintenance

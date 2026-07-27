@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-25
+last-modified: 2026-07-26
 tags: [current, work-plan, decisions]
 related: [status, open-questions, obligations]
 ---
@@ -10,26 +10,37 @@ related: [status, open-questions, obligations]
 
 ## Immediate next
 
-> **🎯 CURRENT — PR #15 is ready to merge. That is the next real decision, and it is the operator's.**
+> **🎯 CURRENT — triage PR #19 (dependabot). DO NOT MERGE AS-IS.**
 >
-> 21 commits ahead of `main`, CI green, mergeable, working tree clean. Contents: **3 `feat` + 2 `fix`**,
-> so release-please would cut **v0.5.0** on merge and build the 5 cross-compiled binaries.
+> It groups a **MAJOR TypeScript bump** (`^6.0.3` → `^7.0.2`) into a routine `dev-deps` group, and CI
+> fails with an unambiguous incompatibility:
 >
-> Everything that was open is closed: WU-0003 shipped and field-tested, **all six OQs resolved**, the
-> model lists verified against primary sources, and the pre-commit gate armed and proven by a
-> deliberate failure. No operator gate remains in `obligations.md`.
+> ```
+> Error: typescript-eslint does not support TS 7.0.
+> ```
 >
-> **Two cheap things that do NOT block the merge:**
-> 1. Adjudicate the three staged lessons in `now/lessons/proposals.md` (`LP-001..003`) — accept / defer /
->    reject. All three were reinforced hard by this session; `LP-001` also needs an amendment (see below).
-> 2. `LP-001` says "implement from the primary spec, not memory". Today proved that is **necessary but
->    not sufficient**: the Responses adapter WAS spec-derived and still shipped five defects, because
->    the ChatGPT-subscription backend is undocumented and diverges from the published Responses spec.
->    The stronger claim is *spec first, then a live probe before you believe it*.
+> Merging it **disarms `lint` AND `typecheck` at once** — exactly the looks-live-but-isn't gate class
+> this repo spent 2026-07-25 fixing. The group also carries `eslint-plugin-unicorn ^68 → ^72`,
+> another major.
 >
-> **Do NOT:** redeem the Codex refresh token to find out whether it rotates (the test IS the dangerous
-> act — it would break the operator's `codex` CLI); reopen the kit safety-gate enumeration; or patch
-> kit-owned files to clear the doc-lint suppression (fieldbook owns that fix, it arrives on upgrade).
+> **Do:** split the group — take `@antfu/eslint-config` (9.1→9.2), `@commitlint/cli` (21.2.0→21.2.1)
+> and `eslint` (10.6→10.8); **hold `typescript`** until typescript-eslint supports 7.x. Then add a
+> `dependabot.yml` `ignore` rule for `typescript` majors so this does not re-open weekly.
+> **Verify after:** `bun run check` must pass locally before pushing — CI proved the failure, but the
+> split is what needs confirming.
+>
+> **THEN, pick one — both are small and independent:**
+> - **`OQ-010`** (cheap, high leverage) — splice a repo-local fragment into
+>   `.claude/hooks/pretooluse-safety-gates.sh` at its documented insertion point so `pkill -f` and
+>   `partyline read`-in-a-pipeline are gated rather than merely documented. This is the work item
+>   `LP-005`'s acceptance bought; each rule owes a non-vacuous control (`LP-003`).
+> - **`OQ-008` remainder** — extend `check-latest` to probe per-provider (Anthropic via the Models
+>   API; Codex via the on-disk `~/.codex/models_cache.json`, no network). The date-column half
+>   shipped in v0.5.1; run-time probing is genuine feature scope and wants its own branch.
+>
+> **Do NOT:** merge #19 unsplit · redeem the Codex refresh token to learn whether it rotates (the test
+> IS the dangerous act — it would break the operator's `codex` CLI) · patch kit-owned files to clear
+> the doc-lint suppression (fieldbook owns that; it arrives on upgrade).
 
 ## The plan (phases / milestones)
 
@@ -43,6 +54,8 @@ related: [status, open-questions, obligations]
 | README / security-claim correction | ✅ committed `fd08a9a` |
 | Codex acceptance verification | ✅ RESOLVED — auth accepted, field-tested live (`OQ-001`/`OQ-004`) |
 | Codex refresh-token handling | ✅ fail-loud-on-401 shipped (`OQ-002`); renewal deliberately not done |
+| Reachability oracle in CI (`OQ-007`) | ✅ shipped `v0.5.1` — knip + a population floor; found `forwardUrl` dead on first run |
+| Release v0.5.0 · v0.5.1 | ✅ both cut, 5 binaries each, **artifact-verified** (downloaded, checksummed, run) |
 
 ## Locked decisions (this cycle)
 
@@ -54,6 +67,14 @@ related: [status, open-questions, obligations]
 - Adapters are written **against published specs, not memory** — this caught three real defects
   (ADR-0003 §Consequences; see also `log.md` 2026-07-25).
 - PR #15: retitle rather than split.
+- **A release's version must match its user-facing reality.** PR #17 was retitled `feat(` → `fix(`
+  before merge because its diff had **zero** user-visible behaviour change; it cut `v0.5.1`, not
+  `v0.6.0`. A minor bump advertises a feature that does not exist.
+- Tests are **not** reachability entrypoints — admitting them makes the oracle report clean forever.
+- **A trap's SECOND firing buys a mechanism, not a re-wording** (`LP-005`, accepted evergreen
+  2026-07-27). Docs are the correct first response; once a documented trap fires again, the doc is
+  disproven evidence and the remedy moves to the operative surface — or the recurrence is recorded
+  as a measured deferral. Applied to itself: acceptance shipped `OQ-010`, not a note-to-self.
 
 ## Work-unit spine
 

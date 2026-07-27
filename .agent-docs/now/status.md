@@ -1,70 +1,62 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-25
+last-modified: 2026-07-27
 tags: [current, status]
 related: [work-plan, open-questions, handoff, obligations]
 ---
 
-# Status — modelmux · three wire formats native, WU-0003 committed; cleanup done · 2026-07-25
+# Status — modelmux · v0.5.1 shipped, board clear, nothing in flight · 2026-07-26
 
 ## TL;DR
 
-modelmux now **speaks three wire formats natively**, which was the point: one binary, users bring
-their own subscriptions and local runners, no second daisy-chained process. Landed this session:
-`v0.4.0` released (tag + 5 binaries, fully automated), Fieldbook installed, Kimi Code built in, and
-both OpenAI adapters — **Chat Completions** and **Responses** — plus Codex subscription auth.
-**WU-0003 is now COMMITTED**; the three shipping inconsistencies (dangling ADR-0003 citation, the
-ADR-0002 contradiction, the stale LiteLLM README advice) are **all closed**. Codex auth *acceptance*
-remains **unverifiable** — OpenAI's endpoint is circuit-broken and their own CLI fails identically.
+**Two releases shipped and artifact-verified.** `v0.5.0` made modelmux speak three wire formats
+natively — one binary, no daisy-chained second process, which was the whole point. `v0.5.1` gated
+reachability in CI and fixed the dead code that gate found on its first run. **Seven of eight open
+questions closed**; four lessons promoted to the ledger. Working tree clean, nothing uncommitted,
+nothing in flight. The one open item is a **dependabot PR that must not be merged as-is**.
 
 ## Branch / working tree
 
-- Branch `feat/subscription-upstreams` (base: `main`), **5 commits ahead of `origin/main`**,
-  PR **#15 OPEN**, retitled to *"speak OpenAI wire formats natively — Chat Completions, Responses, and
-  flat-rate subscriptions"*. `main` is at `cd4ac71` (release 0.4.0).
-- `7ef2d4c` — WU-0003 work: `src/responses.ts`, `test/codexauth.test.ts`, `codex` auth kind + built-in,
-  three `node:path.join` portability fixes.
-- `fd08a9a` — README: wire-format docs, Codex section rewrite, **and a security-claim correction** (the
-  section asserted modelmux "is not a tool for using a ChatGPT subscription outside its official
-  client", which the `codex` built-in makes false; it now states the real bright line and names the
-  grey area).
-- Uncommitted: `.agent-docs/` only.
+- On **`main`** at `8b989bb`, **0 commits ahead of origin**, working tree **clean**.
+- Tags: **`v0.5.1`** (latest) · `v0.5.0` · `v0.4.0`.
+- `CLAUDE.md` carries the **skip-worktree** bit (`git ls-files -v` → `S`): the committed copy has no
+  partyline block, the local copy does. See `OQ-003` for the branch-switch procedure.
 
 ## Build / test state
 
-- Gates all green: `bun run lint` ✅ · `bun run typecheck` ✅ · `bun test test/` ✅ **148 pass** ·
-  `bun run build` ✅ compiles · doc-lint ✅ clean 39 files · index-lint ✅ rc=0.
-- **Reachability oracle wired** (`bun run reachability`, ~169 ms) — in `check` and in CI. Tests are
-  deliberately NOT entrypoints; `test/reachability-config.test.ts` guards that, because admitting
-  them makes the oracle report clean forever.
-- **The pre-commit gate is now ARMED** (`core.hooksPath=.githooks`) and proven by a deliberate
-  failure — it blocked a staged lint violation with the right gate named. Before this it was a
-  pre-commit.com shim that skipped and exited 0 on every commit. Undo: `git config --unset core.hooksPath`.
-- **Toolchain note:** `bun install --frozen-lockfile` must have run or `lint`/`typecheck` exit **127**
-  (`eslint`/`tsc` not found) while `bun test` still passes — a partial green that looks fine.
+- Gates all green, **measured 2026-07-26**: `bun run lint` ✅ · `bun run typecheck` ✅ ·
+  `bun run reachability` ✅ · `bun run build` ✅ · `bun test test/` ✅ **156 pass** ·
+  doc-lint ✅ 43 files.
+- **The pre-commit gate is ARMED and proven** (`core.hooksPath=.githooks`). It had silently skipped
+  16 commits before this session. Undo: `git config --unset core.hooksPath`.
+- **Caveat on the doc-lint number:** 17 of the 43 files carry `provenance: kit-template`, which
+  disables rules 8/15/21/12 on them — see
+  `memories/doc-lint-clean-is-a-partial-claim-kit-template-provenance-disables-four-rules.md`.
 
 ## Runtime state (delta)
 
-- **Three wire formats:** `format = "anthropic"` (default, untouched fast path) · `"openai"`
-  (`src/openai.ts`) · `"responses"` (`src/responses.ts`).
-- **Five built-in upstreams:** `anthropic`, `openrouter`, `zai`, `kimi`, `codex` — all committed and,
-  for `codex`, field-tested live end-to-end (`OQ-001`/`OQ-004` resolved).
-- **New auth kind `codex`** — READS the credentials `codex login` already wrote; modelmux never
-  performs the login and never writes that file.
+- **Three wire formats:** `"anthropic"` (default, untouched fast path) · `"openai"` (Chat
+  Completions) · `"responses"`.
+- **Five built-in upstreams:** `anthropic`, `openrouter`, `zai`, `kimi`, `codex` — all shipped, and
+  `codex` field-tested live end-to-end (non-streaming, streaming, tool call, tool-result round trip,
+  streaming tool-call fragment reassembly).
+- **Reachability oracle** (`bun run reachability`, ~169 ms) in `check` and CI. Tests are deliberately
+  NOT entrypoints; `test/reachability-config.test.ts` guards that.
+- **The proxy is NOT running here** — routing config is specification, not observation. See
+  `memories/the-proxy-is-not-running-on-the-development-machine.md`.
 
 ## Context-system state
 
-Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0003** (ADR-0002 `superseded` by it).
-Memories: **3**. Reference docs: 5. Work-units: WU-0001..0003. No `checkpoints/` sitrep.
-Open questions: **OQ-003 only** — OQ-001/002/004/005/006 all resolved 2026-07-25.
-**Caveat on the doc-lint number:** 17 of the 39 files carry `provenance: kit-template`, which silently
-disables rules 8/15/21/12 on them — see `memories/doc-lint-clean-is-a-partial-claim-*`.
+Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0003** (ADR-0002 superseded).
+Memories: **3**. Lessons: **5** (`LP-001..005`; **four** evergreen with MOC rows — `LP-005` accepted
+2026-07-27). Reference docs: 5. Work-units: WU-0001..0003, all ✅ WIRED. **Open questions: `OQ-008`,
+`OQ-009`, `OQ-010`** — OQ-001..007 all resolved 2026-07-25. Lesson staging is empty. No
+`checkpoints/` sitrep exists for this session.
 
 ## What this means for next steps
 
-Three inconsistencies are **currently shipping** and are the agreed next action: the dangling ADR-0003
-citation, the ADR-0002 contradiction, and a README section still telling users to run LiteLLM for Codex.
-Fix those, then commit WU-0003 onto PR #15 and retitle the PR honestly. Codex acceptance-testing and
-refresh-token handling are parked behind OpenAI's outage, not behind us. See `work-plan.md`
-§Immediate next.
+Nothing is blocked and nothing is half-done. The immediate action is **triaging PR #19**, which
+groups a *major* TypeScript bump into a routine dev-deps update and fails CI — merging it would
+disarm lint and typecheck at once. After that, the `OQ-008` remainder (per-provider probing in
+`check-latest`) is the only substantive open work. See `work-plan.md` §Immediate next.
