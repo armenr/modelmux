@@ -65,6 +65,15 @@ related: [status, work-plan, obligations]
      use silently consumes mail. Bitten once, but recovery depended on `room.jsonl` happening to be
      append-only (luck, not design), so cost-of-recurrence carries it. Low false-positive rate:
      match `partyline read` co-occurring with `|` or `$(`.
+     > **PARTIALLY ANSWERED 2026-07-28 — the mechanism already existed and nobody had named it.**
+     > `room unread --for <agent> --room <room>` is the **non-mutating** probe: measured, it prints
+     > pending mail and leaves the cursor byte-for-byte unchanged. Verified with a known-positive
+     > control (`LP-004`), because an empty `unread` on a drained room is the ambiguous shape:
+     > rewound the cursor one message → `unread` **printed** it and did NOT advance the cursor →
+     > restored, restore verified. So trap #1's remedy is cheaper than a gate — **`unread` for
+     > status, `read` only to consume** — and `CLAUDE.md` currently names only `read`, which is why
+     > the status-shaped use reached for the mutating verb. Fix the doc's *verb choice* first, then
+     > the gate becomes defence-in-depth rather than the primary control.
   3. **`for v in $VAR` under fish/zsh** — no word-splitting, and it printed a **false green**. This
      is the one that may *not* be cleanly mechanizable: the pattern is common and legitimate under
      `bash`, so a gate risks noise. Honest possible outcome is a **measured deferral** (an accepted

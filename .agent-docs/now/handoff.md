@@ -181,7 +181,9 @@ here: `lessons/an-empty-result-is-evidence-about-the-query-not-the-world.md`,
   `discoveries[]` item was acted on or verified, and its ground-truth map became the known-positive
   control for the oracle. Nothing pending.
 - **Credentials:** the Codex `access_token` was read for field-testing and **never printed, logged or
-  written** to any file. It expires **2026-07-28**; nothing to rotate.
+  written** to any file — only the `exp` claim is ever decoded. It expires **2026-07-28T14:38Z**,
+  i.e. **today**; past that, field-testing Codex needs `codex login` first (no restart). Nothing
+  else depends on it.
 
 ## Reading order
 

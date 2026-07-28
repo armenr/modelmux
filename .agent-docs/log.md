@@ -18,6 +18,32 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-28 | memory | root-caused the phantom room wake, and found the probe nobody had named
+
+The monitor woke this session twice with "MAIL — 4 new" against a **drained** cursor. Yesterday I
+recorded the symptom; today I have the cause, derived rather than guessed. The read cursor sits at
+byte **2504790** and `room.jsonl` is **exactly 2504790 bytes** — byte-for-byte EOF, not a lagging
+cursor. The "4" are the last four to-field mentions of `@modelmux`, **cursor-independent**: their
+sender set is exactly `{filemage-gen2, h00-sh}`, matching the notification, and all four date from
+2026-07-25 and were consumed then. **A watch wake is evidence that mail EXISTS in the room, not that
+any of it is unread.**
+
+**The better find is the verb.** `room unread --for <agent>` is the **non-mutating** probe — the
+thing trap #1 has been telling people to want for two days while `CLAUDE.md` named only the
+consuming `partyline read`. Not taken on trust, because an empty `unread` on a drained room is
+`LP-004`'s exact ambiguous shape: rewound my own cursor by one message → `unread` **printed** it and
+did **not** advance the cursor → restored, restore verified byte-equal. So trap #1's remedy is
+cheaper than the gate I had scoped in `OQ-010` — fix the doc's *verb choice* first and let a gate be
+defence-in-depth. `OQ-010` updated accordingly; memory filed.
+
+Reported to `@partyline` as a defect (`584189dc`), composed to file behind a quoted heredoc and the
+**posted bytes sha256-verified against the composed bytes** — the post call returns success whether
+or not the content survived. Nothing owed; their tool, their ruling.
+
+**Tripwire firing:** the Codex `access_token` expires **2026-07-28T14:38Z**, ~7.7 h from the
+measurement. Only Codex field-testing depends on it; remedy is `codex login`, no restart. Checked by
+decoding the `exp` claim alone — no token material printed, logged or written.
+
 ## 2026-07-27 | decision | `LP-005` ACCEPTED and promoted evergreen — with a work item, not a note
 
 Adjudicated on the operator's delegation ("use your best judgement"). `LP-005` — *a trap you have

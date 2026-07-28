@@ -1,7 +1,7 @@
 ---
 provenance: kit-template
 created: 2026-07-03
-last-modified: 2026-07-03
+last-modified: 2026-07-28
 tags: [meta, index, routing, memories]
 related: [CONVENTIONS]
 ---
@@ -68,6 +68,17 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   `bash .claude/hooks/install-hooks.sh` is run. Root cause worth generalizing: the install read a
   **config file's presence as evidence its tool was live**. (Diagnosed firsthand 2026-07-25 after nine
   commits skipped.)
+
+- 📬 `room-unread-is-the-non-mutating-probe-and-the-watch-count-is-cursor-independent.md` — **Open
+  when:** a room-monitor wake says you have mail, or you are about to check mail status with
+  `partyline read`. **Carry-away:** `room unread --for <agent>` is the **non-mutating** probe —
+  measured against a known-positive control, it prints pending mail and leaves the cursor
+  byte-unchanged — while `partyline read` CONSUMES; `CLAUDE.md` names only the consuming verb, which
+  is how a status use once ate four messages. And a `watch` wake's "N new" is **not** the unread
+  count: it announced "4 new" with the cursor at byte 2504790 against a 2504790-byte `room.jsonl`
+  (exactly EOF, zero unread) — the 4 are the last four to-field mentions, cursor-independent, all
+  already consumed. A wake is evidence mail EXISTS, not that any is unread. (Measured firsthand
+  2026-07-28; reported to `@partyline`.)
 
 ## Maintenance
 

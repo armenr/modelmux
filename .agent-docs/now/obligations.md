@@ -71,7 +71,10 @@ related: [status, work-plan, open-questions, handoff]
 > restate that trigger's action here (the cited row holds it). At Full these graduate to typed `RV`
 > anchors (ADR-0007).
 
-- the Codex `access_token` passes its **2026-07-28** expiry → `OQ-002`'s fail-loud path fires; re-run `codex login`
+- 🔔 **FIRING TODAY** — the Codex `access_token` expires **2026-07-28T14:38Z** (measured 10:57 local,
+  ~7.7 h out; the `id_token` expired 07-18 and is identity-only, not used for API auth). Past it,
+  `OQ-002`'s fail-loud path is what a codex-routed request will hit. Remedy: `codex login`, no
+  restart needed. Only blocks Codex *field-testing*; no gate, build or test depends on it.
 - `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on the typescript bump lifts
 - fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
   latent-on-Standard case clears
