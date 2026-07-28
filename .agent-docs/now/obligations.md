@@ -76,6 +76,12 @@ related: [status, work-plan, open-questions, handoff]
   `OQ-002`'s fail-loud path is what a codex-routed request will hit. Remedy: `codex login`, no
   restart needed. Only blocks Codex *field-testing*; no gate, build or test depends on it.
 - `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on the typescript bump lifts
+- **partyline ships the wired-block edit** (`unread --count` + the lease/liveness probe + `tail -F -n 0`;
+  taken to their operator 2026-07-28) → re-running `partyline wire` REWRITES `CLAUDE.md`, which here
+  carries the **skip-worktree** bit per `OQ-003`. Take the edit deliberately: `--no-skip-worktree` →
+  re-wire → confirm the committed copy still has **zero** machine paths → re-set the bit. Also note the
+  block's liveness advice is **watch-wired only** — a room-side probe cannot see a harness-side
+  follower, which is fine for us (we are watch-wired) but is not a general claim
 - fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
   latent-on-Standard case clears
 
