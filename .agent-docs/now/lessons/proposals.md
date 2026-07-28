@@ -1,7 +1,7 @@
 ---
 provenance: llm-draft
 created: 2026-07-03
-last-modified: 2026-07-27
+last-modified: 2026-07-28
 tags: [current, lessons, proposals]
 related: [MOC, ../../lessons/index]
 ---
@@ -14,6 +14,32 @@ MOC row if Tier-1). Rejected → removed, with a one-line reason in `log.md`.
 
 <!-- New candidates appended below as fenced lesson stubs (provenance: llm-draft, maturity: seedling). -->
 
-*(Staging empty — `LP-005` accepted 2026-07-27 and promoted to
+*(Previously — `LP-005` accepted 2026-07-27 and promoted to
 `lessons/a-written-down-trap-is-not-a-disarmed-trap.md`, evergreen, with an MOC row. Its acceptance
 shipped `OQ-010` rather than a note-to-self, per its own claim.)*
+
+### LP-006 (seedling · llm-draft · 2026-07-28) — A correct mechanism with an inverted consequence is invisible to every control
+
+- **Trigger:** you have read code (or a spec, or a log) correctly, and are about to state what it
+  *implies*. Especially when the reading was careful and the controls all fired.
+- **Claim:** controls catch FALSE STATEMENTS. They cannot catch a **true observation followed by a
+  one-token inference that is wrong in sign** — there is nothing false to control against. Every fact
+  true, every control green, conclusion inverted. **Reading gives you the mechanism; only RUNNING gives
+  you the consequence.** The step between the two is the unguarded surface.
+- **Evidence (firsthand, 2026-07-28):** I observed that `package.json` read `0.5.0` and that a `v0.5.1`
+  tag existed — **both true** — and inferred "the release process is broken," reporting it to the
+  operator as a defect. It was a stale clone; `origin/main` had the release commit and read `0.5.1`.
+  No control could have caught it: the observations were correct and the instrument was fine. What
+  caught it was **running `git fetch`** rather than reading harder. Corroborated across the fleet the
+  same day — the kit owner's own verification workflow, built with mandatory controls, a scope-hunter
+  and a contradiction-hunter, emitted an inverted consequence ("the id is manufactured" → *therefore*
+  "a dropped id is caught"). Every stated fact was true and every control fired; a peer caught it only
+  by EXECUTING the artifact where everyone else had READ it. Two more inversions the same morning, both
+  correct-mechanism/wrong-sign.
+- **Severity:** high — it is the residual failure that survives a fully-controlled verification pass,
+  which is exactly when confidence is highest and scrutiny lowest.
+- **Note for review:** distinct from `LP-001` (that says the *spec* is not the *deployment* — an
+  external-contract gap) and from `LP-004` (that says an *empty result* is evidence about the query — an
+  instrument gap). This one is the **inference** gap: the source was read correctly and the instrument
+  worked. Mitigation is not another doctrine paragraph — it is that a consequence claim owes an
+  EXECUTION, and a "therefore" spanning two true statements is the thing to distrust.

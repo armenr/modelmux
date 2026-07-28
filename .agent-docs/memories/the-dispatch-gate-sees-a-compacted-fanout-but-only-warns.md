@@ -60,15 +60,25 @@ exists and its enforcement level is set to *reminder*.
   `.agent-docs/reference/fail-loud-dispatch-contract.md:118` use `checks: CB4, CW3` as the worked
   example. CW3 is WARN, so that documented waiver **cannot fire**. Reproduced independently on a
   second tree. Kit-owned — do not patch; it arrives on upgrade.
-- **RELAYED, NOT VERIFIED HERE — `fanout()` is reportedly BLIND to an id-dropping stage.** A peer
-  executed the real preamble with a runtime-faithful `parallel()` and controls both ways, and reports
-  that `preamble.js:164` **manufactures** each row's id from `inputs[i]` rather than reading it off the
-  result — so the row always exists, always carries the input's id, and `status` is `ok` because the
-  result is non-null. Their conclusion: the blindness is on **`fanout()`, the path the kit tells
-  everyone to use**, while a *direct* `manifestDiff` with result-derived rows does catch it (`:57`'s
-  `r.id === undefined → continue`). This **inverts** an earlier fleet claim that had it the other way.
-  **Not reproduced in this tree** — modelmux authors no Workflow scripts, so there was nothing here to
-  run it against. Treat as a lead, not a fact; re-derive before relying on it.
+- **`fanout()`'s DEFAULT path returns a manifest NO COMPUTATION PRODUCED — verified here.** Static
+  structure confirmed firsthand in this tree, with a control:
+
+  | probe | result |
+  |---|---|
+  | `.id` reads inside `fanout`'s body | **0** — the result's own id is never consulted |
+  | `.id` reads inside `manifestDiff`'s body | **4** — the control fires, so the zero is meaningful |
+  | `coverage: 'COMPLETE'` hardcoded in `fanout` | **yes** |
+  | `expected` / `received` both `inputs.length` | **yes** — structurally cannot differ |
+
+  The default (non-degrade) path runs `assertComplete` — which catches only **NULL slots** — and then
+  returns a literal `{expected: inputs.length, received: inputs.length, missing: [], …, coverage:
+  'COMPLETE'}`. So a stage that **normalizes to empty** returns non-null, passes `assertComplete`, and
+  receives a typed COMPLETE manifest that nothing computed. Because the row id is manufactured from
+  `inputs[i]`, an **id-dropping** stage is invisible on this path too; only a *direct* `manifestDiff`
+  with result-derived rows reaches the `r.id === undefined → continue` guard.
+  **Still relayed, not run here:** the end-to-end execution proof (a peer ran it with a runtime-faithful
+  `parallel()` and controls both directions). This repo authors no Workflow scripts, so there was
+  nothing local to execute — the static half is mine, the dynamic half is theirs. Kit-owned; not patched.
 - **Do not blanket-promote CW3 to FAIL.** `filter(Boolean)` is genuinely correct when downstream only
   ever touches ONE item; a blanket FAIL would false-positive on that independent case and get
   disabled. The safe discriminator is whether the **set** crosses the boundary (`.length`, a ratio, a
