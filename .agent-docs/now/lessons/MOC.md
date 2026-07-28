@@ -1,7 +1,7 @@
 ---
 provenance: kit-template
 created: 2026-07-03
-last-modified: 2026-07-27
+last-modified: 2026-07-28
 tags: [current, lessons, moc, tier-1]
 related: [proposals, ../../lessons/index]
 ---
@@ -25,7 +25,8 @@ any lesson lives in `../../lessons/<id>.md`; route there via `lessons/index.md`.
 | `LP-001` | When implementing against an external API contract, probe the LIVE endpoint before believing it — the spec is the floor, not the proof | upstreams/wire-formats | high | 2026-07-25 |
 | `LP-003` | When adding any test/gate/guard, break it on purpose and watch it fail for the right reason — a guard never seen failing is not a guard | testing | high | 2026-07-25 |
 | `LP-004` | When any empty/silent result is about to become a verdict, run a known-positive control first — empty and broken are the same bytes | verification | high | 2026-07-25 |
-| `LP-005` | When a trap fires that was ALREADY written down, stop re-wording the doc and build a mechanism at the point of use — a reminder only works on someone already looking | knowledge-capture | high | 2026-07-27 |<!-- EXAMPLE row (delete on the first real promotion):
+| `LP-005` | When a trap fires that was ALREADY written down, stop re-wording the doc and build a mechanism at the point of use — a reminder only works on someone already looking | knowledge-capture | high | 2026-07-27 |
+| `LP-006` | When every fact is true and every control fired, distrust the THEREFORE — a behaviour claim owes an execution; reading gives the mechanism, only running gives the consequence | verification | high | 2026-07-28 |<!-- EXAMPLE row (delete on the first real promotion):
 | `example-when-x-do-y.md` | <the "when X, do Y, because Z" compressed to one line> | process | high | 2026-07-03 |
 -->
 

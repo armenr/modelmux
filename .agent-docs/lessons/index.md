@@ -1,7 +1,7 @@
 ---
 provenance: kit-template
 created: 2026-07-03
-last-modified: 2026-07-27
+last-modified: 2026-07-28
 tags: [meta, index, routing, lessons]
 related: [CONVENTIONS]
 ---
@@ -74,6 +74,15 @@ cost-of-recurrence can justify promotion on first sighting — it need not wait 
   gate, a test, a lint, a wrapper) rather than re-wording it — measured in-session, the traps with
   mechanisms behind them fired zero times while three documented-only traps fired again.
   *(evergreen · high · process.)*
+
+- `a-correct-mechanism-with-an-inverted-consequence-is-invisible-to-controls.md` (**LP-006**) —
+  **Open when:** you have read code, a spec or a log correctly and are about to state what it
+  *implies* — especially when the reading was careful and every control fired. **Carry-away:** a
+  control catches a false STATEMENT and cannot catch a true observation followed by a one-token
+  inference wrong in SIGN, because there is nothing false to control against; reading gives you the
+  mechanism, only running gives you the consequence, so a behaviour claim owes an execution and a
+  "therefore" spanning two true statements is the joint under test. Chain with `&&`, and grep for the
+  string you believe you just wrote before claiming you wrote it. *(evergreen · high · process.)*
 
 ## Maintenance
 
