@@ -42,3 +42,24 @@ to disk as a byproduct of the work — knowledge that lives only in the conversa
 
 <!-- Installed by Fieldbook. See FIELD-GUIDE (in the kit) for the daily loop and "which doc type when". -->
 <!-- kit:end -->
+
+## Dispatch authorization (operator-granted · DATED · re-confirm when stale)
+
+**A recorded fact, not a self-grant.** On **2026-07-28** the operator instructed, in-session, in their
+own words: *"Fix both those OQs via some sub-agent or workflow or whatever. Unless they're really
+simple fixes, in which case you can do it yourself if you think it best."* — and, asked whether to
+record a standing line here, *"CLAUDE.md go for it."* This paragraph **reports** that instruction; it
+is not itself the instruction (see `standing-rules-core.md` §Interrupt triage — a rule you are carrying
+is not a request the operator made).
+
+**Pre-authorized:** sub-agent dispatch for **scoped, single-purpose** work under the full dispatch
+contract — recon, review, independent verification, and fenced single-track builds. Prefer inline for
+genuinely small things; the operator said so explicitly.
+
+**Still ASK first for:** wide fan-outs (more than ~3 concurrent agents), anything long-running or
+costly, and any dispatch that would mutate the tree outside one named track. One line with the
+classification already done; default-if-silent is **inline**.
+
+**This grant is dated and goes stale on purpose** — an instruction given in July is not consent in
+November. Re-confirm if it is more than ~90 days old. **The harness still outranks it:** where a
+session's harness forbids the Agent/Workflow tools, that wins and this degrades to an ask.
