@@ -21,7 +21,7 @@ export const VERSION: string = pkg.version;
 // Deliberately a lookup rather than more `cmd === "..."` branches: cli-docs.test.ts
 // derives the handled-verb set from that literal, and `--version` as a branch would
 // register as a verb USAGE must advertise. The canonical verbs are what we document.
-const FLAG_ALIASES: Record<string, string> = {
+export const FLAG_ALIASES: Record<string, string> = {
   "--version": "version",
   "-v": "version",
   "--help": "help",

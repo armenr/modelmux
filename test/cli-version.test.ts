@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "bun:test";
-import { CONFIG_VERBS, needsConfig, runCli, USAGE, VERSION } from "../src/cli.ts";
+import { CONFIG_VERBS, FLAG_ALIASES, needsConfig, runCli, USAGE, VERSION } from "../src/cli.ts";
 
 // `modelmux --version` used to print the usage banner and EXIT 0. Two defects in
 // one line: there was no way to learn which version you had installed, and an
@@ -119,3 +119,50 @@ test.each([["version"], ["--version"], ["-v"], ["help"], ["--help"], ["-h"], ["b
     expect(needsConfig(verb)).toBe(false);
   },
 );
+
+// ── the advertised-but-entrypoint-intercepted verb ───────────────────────────
+//
+// USAGE advertises `serve`, and runCli deliberately does NOT handle it: the proxy
+// is long-running while runCli's contract is to return an exit code, so a `serve`
+// branch there would let main.ts's `.then(code => process.exit(code))` kill the
+// server it just started. Interception is the ENTRYPOINT's job — and bin/mux used
+// to skip it, so `mux serve` printed the usage line and exited 0, silently doing
+// nothing while advertising the verb. (Found by an independent reviewer, not by
+// the author, after the exit-1 change turned that silent no-op into a hard error.)
+//
+// Textual, not semantic: this greps the two entrypoints. Recorded as such.
+
+const ENTRYPOINTS = [["src/main.ts"], ["bin/mux"]];
+
+test("the entrypoint sources are readable and non-trivial (non-vacuity)", () => {
+  // Reading an empty/missing file would make both assertions below vacuously pass.
+  for (const [p] of ENTRYPOINTS) expect(readFileSync(p!, "utf8").length).toBeGreaterThan(200);
+});
+
+test.each(ENTRYPOINTS)("%s intercepts `serve` before dispatch", (path) => {
+  const src = readFileSync(path, "utf8");
+  expect(src).toMatch(/cmd === "serve"/);
+  expect(src).toContain("startProxy");
+});
+
+test("runCli itself does NOT handle `serve` — that is the entrypoints' job", async () => {
+  // Pinned deliberately: if someone "fixes" this by adding a serve branch to
+  // runCli, main.ts's process.exit(code) will kill the proxy on startup.
+  const { code, err } = await capture(["serve"]);
+  expect(code).toBe(1);
+  expect(err).toContain("unknown command");
+});
+
+// ── flag aliases cannot smuggle in an undocumented verb ──────────────────────
+
+test("every FLAG_ALIAS maps to a verb USAGE advertises", () => {
+  // cli-docs.test.ts derives the handled-verb set from `cmd === "..."` literals and
+  // is structurally blind to this table, so an alias pointing at an unadvertised
+  // verb would be handled-but-undocumented with nothing to catch it.
+  const advertised = new Set(USAGE.split("|").map(s => s.trim().split(/\s+/)[0]!));
+  expect(Object.keys(FLAG_ALIASES).length).toBeGreaterThan(0); // non-vacuity
+  for (const [alias, verb] of Object.entries(FLAG_ALIASES)) {
+    expect({ alias, verb, advertised: advertised.has(verb) })
+      .toEqual({ alias, verb, advertised: true });
+  }
+});

@@ -1,7 +1,22 @@
 #!/usr/bin/env bun
 // Dev CLI alias. The compiled binary (src/main.ts) is the shipped entrypoint;
-// this just forwards to the same dispatcher for use from a checkout.
+// this forwards to the same dispatcher for use from a checkout.
+//
+// It MIRRORS src/main.ts's pre-dispatch interception of `serve`. USAGE advertises
+// `serve`, but runCli() deliberately does not handle it — the proxy is long-running
+// and runCli's contract is to return an exit code, so a `serve` branch there would
+// let main.ts's `.then(code => process.exit(code))` kill the server it just started.
+// Interception is therefore the entrypoint's job, and this file used to skip it:
+// `mux serve` fell through to the usage line and exited 0, silently doing nothing
+// while USAGE advertised the verb. test/cli-version.test.ts guards both mirrors.
 import process from "node:process";
 import { runCli } from "../src/cli.ts";
+import { startProxy } from "../src/server.ts";
 
-process.exit(await runCli(process.argv.slice(2)));
+const argv = process.argv.slice(2);
+const cmd = argv[0];
+
+if (!cmd || cmd === "serve")
+  startProxy();
+else
+  process.exit(await runCli(argv));

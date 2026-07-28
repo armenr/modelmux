@@ -106,16 +106,36 @@ related: [status, work-plan, obligations]
   carried on as though the command had run. Fixed: a `version` verb (aliases `--version`/`-v`) reporting
   `package.json`'s version — **derived, never transcribed**, since release-please owns that number — plus
   a `help` verb (`--help`/`-h`), and an unrecognised command now prints to **stderr** and exits **1**.
-  Both new verbs went through the existing `dispatch → USAGE → README` carrier, which **failed the build
-  until README documented them** — the mechanism working as designed.
+  Both new verbs went through the existing `dispatch → USAGE → README` carrier, which **failed the test
+  suite until README documented them** — the mechanism working as designed.
   > **The compiled binary found a defect 169 green tests did not.** `version` still bootstrapped a
   > `routes.toml` into the cwd, because `main.ts` writes the default config *before* dispatch. Asking a
   > binary its version is not consent to write a config file. Fixed with `needsConfig()`, whose verb set
   > is **derived from `USAGE`** so a new verb is config-consuming by default and an unrecognised one is
   > absent by construction — a typo no longer litters either. Verified per-verb in isolated clean dirs
   > against `dist/modelmux`; `models` still bootstraps (the control).
-  > **Three guards, each watched fail:** reverting the exit-1 → 4 red · hand-typing `VERSION` → 1 red ·
-  > `needsConfig` always-true → 8 red; each restored and **blob-hash verified**.
+  > **Four guards, each watched fail:** reverting the exit-1 → 4 red · hand-typing `VERSION` → 1 red ·
+  > `needsConfig` always-true → 8 red · removing `bin/mux`'s `serve` interception → 1 red; each
+  > restored and **blob-hash verified**.
+  >
+  > **INDEPENDENT REVIEW (reviewer ≠ builder) found a regression I introduced, and a false number.**
+  > All five findings dispositioned:
+  > 1. **`serve` regression — FIXED.** `USAGE` advertises `serve`; `runCli` deliberately does not handle
+  >    it (the proxy is long-running, `runCli` returns an exit code, so a branch there would let
+  >    `main.ts`'s `process.exit(code)` kill the server it just started) — interception is the
+  >    *entrypoint's* job, and **`bin/mux` never did it**. Pre-change `mux serve` printed usage and
+  >    exited 0: a silent no-op advertising a verb. My exit-1 change turned that into a hard error.
+  >    Fixed at the root — `bin/mux` now mirrors `main.ts` and actually serves; verified listening.
+  > 2. **The "169 tests" baseline was WRONG — FIXED.** The real parent (`1089d2e`) baseline is **156**,
+  >    re-derived twice by the reviewer in an isolated clone and once by me. 169 was an intermediate
+  >    figure I measured mid-change and then reported as the *before*. 156 → 189 is the true delta.
+  > 3. **`FLAG_ALIASES` invisible to the docs carrier — FIXED.** `cli-docs.test.ts` derives handled
+  >    verbs from `cmd === "…"` literals and is structurally blind to the alias table, so an alias
+  >    could point at an unadvertised verb undetected. Now guarded.
+  > 4. **Bare-invocation claim was imprecise — FIXED.** True for `runCli([])`/`bin/mux`; the *compiled
+  >    binary* with no args starts the proxy (by design, unchanged). The claim now says which.
+  > 5. **"failed the build" was loose — FIXED.** The gate that failed was the **test suite**, not
+  >    `bun run build`.
 
 - **NOT AN OQ — the "off-main `v0.5.1` tag" was MY STALE CLONE.** Reported earlier this session as a
   release-process defect (`main`'s `package.json` reading `0.5.0` against a `v0.5.1` tag). It was not.
