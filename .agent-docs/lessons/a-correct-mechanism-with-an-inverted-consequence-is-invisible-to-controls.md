@@ -24,7 +24,8 @@ to control against. **Reading gives you the mechanism; only RUNNING gives you th
 any claim about an artifact's *behaviour*, the leg must execute it — a "therefore" spanning two true
 statements is the thing to distrust.
 
-**Evidence — three firsthand instances in one day, plus fleet corroboration.**
+**Evidence — four firsthand instances in one day, plus fleet corroboration.** The fourth is in
+**Mitigation** below, because it refutes part of the mitigation itself.
 
 - **The stale clone.** Observed `package.json` read `0.5.0` **and** a `v0.5.1` tag existed. Both true.
   Inferred *"the release process is broken"* and reported it to the operator as a defect. It was a
@@ -62,6 +63,11 @@ Only the unstated step is wrong, and nothing in the apparatus is pointed at it.
   claim under test, not the statements. State it separately so it can be attacked separately.
 - **Chain commands with `&&`, never newlines**, when a later step asserts the earlier one succeeded —
   the third instance above exists solely because a failed edit rode into a successful commit.
+  **But `&&` is not sufficient, and the fourth instance proves it:** chaining the promotion commit with
+  `&&` exactly as prescribed still failed, because in zsh a heredoc cannot follow a `\`-continued `&&`
+  chain — the commit died on a glob error, the `git push` in the same chain ran anyway, and "pushed"
+  printed under a commit that had never happened. **`&&` guards the ORDER of commands, not the
+  ATOMICITY of a compound one.** Pass a long message via `-F <file>` rather than a chained heredoc.
 - **Verify a write before claiming it.** Grep for the string you believe you just wrote, in the same
   breath as writing the claim that you wrote it.
 
@@ -70,4 +76,4 @@ gap. `LP-004` says an *empty result* is evidence about the query — an instrume
 **inference** gap: the source was read correctly and the instrument worked. The remedy rhymes with
 LP-001's (*execute, don't trust the reading*) for a different reason.
 
-**Recurrence count:** 3 firsthand (2026-07-28) + 3 corroborated across peer trees the same day.
+**Recurrence count:** 4 firsthand (2026-07-28) + 3 corroborated across peer trees the same day.
