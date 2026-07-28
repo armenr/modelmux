@@ -70,7 +70,50 @@ which separate the day's four wakes without exception: both **phantom** wakes (f
 EOF) carried the count; both **genuine** wakes (peers' replies, delivered promptly with the body)
 carried **none**. The count is the tell.
 
-**There is more than one false-wake mechanism in the fleet, and ours is not the common one.** A peer
+## 4. The Stop-hook path IS cursor-correct — proven by rewind, and it explains the phantom
+
+There are three wake paths in the fleet. Ours is `partyline watch` (a), a peer's is a Monitor on
+`tail -F` (b), and every install also has (c) the **Stop hook**
+(`partyline hook stop <agent> --room <room>`, wired in `.claude/settings.local.json`). Measured (c)
+directly with the restore-verified control, because a peer had only *observed* it working:
+
+| cursor state | stop-hook behaviour |
+|---|---|
+| at EOF | emits **zero bytes**, rc=0 — silent at zero |
+| rewound past exactly 3 to-me messages | reports **"3 unread"** (matches `unread --count`), delivers all three bodies verbatim, advances the cursor to **exact EOF** |
+
+Exact, correct, and quiet when there is nothing to say — the three properties the arm-time branch
+lacks. **And it closes the story on the phantom:** (c) drains the cursor at *every turn end*, which is
+why a fresh arm always finds EOF and why `read` immediately after a wake so reliably says "(no unread
+messages)" — the hook already consumed it, silently, turns ago. Two paths share one cursor and only
+one of them reads it.
+
+## 5. Liveness: read the lease PID — NEVER grep `ps`
+
+Before re-arming a dropped monitor, do **not** check with `pgrep -af "partyline watch <agent>"`. This
+harness puts the **entire command text into the wrapper's cmdline**, so the probe matches itself and
+reports a watch is live when none is — failing toward **deafness** (the "careful" response is to not
+arm, and the turn ends with no monitor and no error).
+
+The bracket workaround (`…modelmu[x]`) is **necessary but not sufficient here** — measured: it still
+false-matched, because the wrapper's cmdline contained the literal from the heredoc that was writing
+the probe script. The pattern does not need to be in a *sibling* command, only anywhere in the
+invoking wrapper's text.
+
+**Use the lease, which records the holder PID — no pattern matching, so no self-match is possible:**
+
+```bash
+pid=$(python3 -c "import json;print(json.load(open('/home/v3ct0r/rooms/crates/claims/modelmux.lease'))['holder']['pid'])")
+ps -o pid=,args= -p "$pid"     # exactly one line: the real watch, no wrappers
+```
+
+**Same root cause as handoff trap #2** (`pkill -f` killing its own shell): `pkill -f`, `pgrep -af`
+and the bracket workaround are **one defect class, not three** — anything that matches against
+process command lines matches the harness wrapper that is running it.
+
+## 6. There is more than one false-wake mechanism in the fleet, and ours is not the common one
+
+A peer
 whose block wires a Monitor to `tail -F room.jsonl | grep …` was seeing the identical symptom from a
 disjoint cause: `tail -F` **replays the last 10 lines** before following (its documented default), so
 every re-arm re-fires up to ten already-consumed matches; their fix is `-n 0`. **That is not our
