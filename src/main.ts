@@ -7,16 +7,20 @@
 import { existsSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import DEFAULT_ROUTES from "../routes.toml" with { type: "text" };
-import { runCli } from "./cli.ts";
+import { needsConfig, runCli } from "./cli.ts";
 import { startProxy } from "./server.ts";
 
 const ROUTES = process.env.MUX_ROUTES ?? "routes.toml";
-if (!existsSync(ROUTES)) {
+const cmd = process.argv[2];
+
+// Bootstrap the config ONLY for invocations that go on to read it. `version` and
+// `help` answer from the binary itself, and an unrecognised verb is about to exit
+// 1 — neither is consent to write a routes.toml into the current directory.
+if (needsConfig(cmd) && !existsSync(ROUTES)) {
   writeFileSync(ROUTES, DEFAULT_ROUTES);
   process.stderr.write(`[modelmux] wrote default ${ROUTES} (edit it to change models)\n`);
 }
 
-const cmd = process.argv[2];
 if (!cmd || cmd === "serve")
   startProxy(ROUTES);
 else

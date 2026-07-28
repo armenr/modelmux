@@ -100,6 +100,32 @@ related: [status, work-plan, obligations]
 
 ## Recently resolved
 
+- **OQ-011** (🟠 silent success; surfaced + **RESOLVED 2026-07-28**) — *`modelmux --version` printed the
+  usage banner and **exited 0**.* Two defects on one line: no way to learn which version was installed,
+  and **every unrecognised command reported SUCCESS**, so a typo in a script exited clean and the script
+  carried on as though the command had run. Fixed: a `version` verb (aliases `--version`/`-v`) reporting
+  `package.json`'s version — **derived, never transcribed**, since release-please owns that number — plus
+  a `help` verb (`--help`/`-h`), and an unrecognised command now prints to **stderr** and exits **1**.
+  Both new verbs went through the existing `dispatch → USAGE → README` carrier, which **failed the build
+  until README documented them** — the mechanism working as designed.
+  > **The compiled binary found a defect 169 green tests did not.** `version` still bootstrapped a
+  > `routes.toml` into the cwd, because `main.ts` writes the default config *before* dispatch. Asking a
+  > binary its version is not consent to write a config file. Fixed with `needsConfig()`, whose verb set
+  > is **derived from `USAGE`** so a new verb is config-consuming by default and an unrecognised one is
+  > absent by construction — a typo no longer litters either. Verified per-verb in isolated clean dirs
+  > against `dist/modelmux`; `models` still bootstraps (the control).
+  > **Three guards, each watched fail:** reverting the exit-1 → 4 red · hand-typing `VERSION` → 1 red ·
+  > `needsConfig` always-true → 8 red; each restored and **blob-hash verified**.
+
+- **NOT AN OQ — the "off-main `v0.5.1` tag" was MY STALE CLONE.** Reported earlier this session as a
+  release-process defect (`main`'s `package.json` reading `0.5.0` against a `v0.5.1` tag). It was not.
+  `d561cd9 chore(main): release 0.5.1 (#18)` **is on `origin/main`** and `origin/main:package.json`
+  reads `0.5.1`. My local `main` was **6 ahead / 1 behind** — six local doc commits stacked on the stale
+  base `8b989bb`, with the release commit never pulled. Rebased (no overlapping files, clean); gates
+  re-verified green afterwards. **The error was reading local state as repo state without fetching** —
+  `/orient`'s trust-the-code rule assumes the code you are looking at is the *current* code, and a
+  diagnosis of a shared system from an unfetched clone is a claim about your disk, not the repo.
+
 - **OQ-007** — *the cited IMPL→WIRED oracle had never run.* → **RESOLVED 2026-07-25.** `knip@6.29.0`
   added as a devDependency (currency-checked against the npm registry: published 2026-01-22, actively
   maintained, first-class Bun plugin; `ts-prune` rejected as stalled since 2021). `knip.json` declares

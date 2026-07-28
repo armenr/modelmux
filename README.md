@@ -432,7 +432,14 @@ modelmux set flagship openrouter:z-ai/glm-6  # repoint an alias
 modelmux tag kit-agent control               # add a FIRST <<route:>> tag to an untagged agent
 modelmux use glm-researcher reasoner         # retarget an agent's existing <<route:>> tag
 modelmux check-latest                        # verify configured slugs exist on OpenRouter
+modelmux version                             # print the version (also --version, -v)
+modelmux help                                # print the command list (also --help, -h)
 ```
+
+`version` and `help` answer from the binary itself: they touch no files, so unlike
+every other subcommand they will **not** bootstrap a `routes.toml` into the current
+directory. An **unrecognised** command prints the command list to stderr and exits
+**1** — a typo does not exit clean.
 
 `modelmux models` prints the current menu:
 
