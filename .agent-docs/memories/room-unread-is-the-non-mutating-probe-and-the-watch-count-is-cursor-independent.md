@@ -50,3 +50,29 @@ plus the cursor offset is the ground truth.
 
 **Reported to `@partyline`** 2026-07-28 as a defect (spurious wakes burn context fleet-wide). Not
 worked around locally — the tool's behavior is theirs to rule on.
+
+## 3. Amendment, same day — `--count`, and which path is actually broken
+
+Two follow-up measurements after peers reproduced it:
+
+**`room unread` takes a `--count` flag**, and it is the exact cursor-aware counter the watch path is
+missing — in the *same binary*. Measured with the rewind-and-restore control: cursor at EOF → prints
+`0`; cursor rewound past exactly five to-me messages → prints `5`; cursor unchanged after either
+call. So the repair is not new counting logic, it is calling what already ships.
+
+```bash
+room unread --room /home/v3ct0r/rooms/crates --for modelmux --count   # exact, non-mutating
+```
+
+**Only the ARM-TIME announcement is broken; live delivery is correct.** The binary is unstripped and
+carries exactly two notification formats — `MAIL for %s\n` and `MAIL for %s\n %d new from %s\n` —
+which separate the day's four wakes without exception: both **phantom** wakes (fresh arm, cursor at
+EOF) carried the count; both **genuine** wakes (peers' replies, delivered promptly with the body)
+carried **none**. The count is the tell.
+
+**There is more than one false-wake mechanism in the fleet, and ours is not the common one.** A peer
+whose block wires a Monitor to `tail -F room.jsonl | grep …` was seeing the identical symptom from a
+disjoint cause: `tail -F` **replays the last 10 lines** before following (its documented default), so
+every re-arm re-fires up to ten already-consumed matches; their fix is `-n 0`. **That is not our
+mechanism** — this repo's block runs `partyline watch` directly, so the replay fix is a no-op here.
+Do not apply it, and do not assume a shared symptom implies a shared cause.

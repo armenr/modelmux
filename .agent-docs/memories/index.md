@@ -77,7 +77,13 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   is how a status use once ate four messages. And a `watch` wake's "N new" is **not** the unread
   count: it announced "4 new" with the cursor at byte 2504790 against a 2504790-byte `room.jsonl`
   (exactly EOF, zero unread) — the 4 are the last four to-field mentions, cursor-independent, all
-  already consumed. A wake is evidence mail EXISTS, not that any is unread. (Measured firsthand
+  already consumed. A wake is evidence mail EXISTS, not that any is unread. `unread` also takes
+  **`--count`** (measured exact, still non-mutating), which is the cursor-aware counter the watch
+  path is missing *from the same binary*. Only the **arm-time** announcement is broken — the two
+  notification formats in the unstripped binary separate the day's four wakes without exception:
+  phantom wakes carry the count, genuine ones don't. And a shared symptom did **not** mean a shared
+  cause — a peer's identical symptom came from `tail -F` replaying 10 lines, which is **not** our
+  mechanism (we run `partyline watch`), so their `-n 0` fix is a no-op here. (Measured firsthand
   2026-07-28; reported to `@partyline`.)
 
 ## Maintenance

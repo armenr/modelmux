@@ -74,6 +74,10 @@ related: [status, work-plan, obligations]
      > status, `read` only to consume** — and `CLAUDE.md` currently names only `read`, which is why
      > the status-shaped use reached for the mutating verb. Fix the doc's *verb choice* first, then
      > the gate becomes defence-in-depth rather than the primary control.
+     > **Sharpened later the same day:** the probe also takes **`--count`** — measured exact (0 at
+     > EOF; 5 after rewinding past exactly five to-me messages) and non-mutating. So the doc edit
+     > is a two-verb edit, not one: `room unread --for <agent> [--count]` for status, `partyline
+     > read` bare to consume. See the `room-unread-is-the-non-mutating-probe-…` memory.
   3. **`for v in $VAR` under fish/zsh** — no word-splitting, and it printed a **false green**. This
      is the one that may *not* be cleanly mechanizable: the pattern is common and legitimate under
      `bash`, so a gate risks noise. Honest possible outcome is a **measured deferral** (an accepted
