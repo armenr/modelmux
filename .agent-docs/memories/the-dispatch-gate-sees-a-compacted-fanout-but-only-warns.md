@@ -60,6 +60,15 @@ exists and its enforcement level is set to *reminder*.
   `.agent-docs/reference/fail-loud-dispatch-contract.md:118` use `checks: CB4, CW3` as the worked
   example. CW3 is WARN, so that documented waiver **cannot fire**. Reproduced independently on a
   second tree. Kit-owned — do not patch; it arrives on upgrade.
+- **RELAYED, NOT VERIFIED HERE — `fanout()` is reportedly BLIND to an id-dropping stage.** A peer
+  executed the real preamble with a runtime-faithful `parallel()` and controls both ways, and reports
+  that `preamble.js:164` **manufactures** each row's id from `inputs[i]` rather than reading it off the
+  result — so the row always exists, always carries the input's id, and `status` is `ok` because the
+  result is non-null. Their conclusion: the blindness is on **`fanout()`, the path the kit tells
+  everyone to use**, while a *direct* `manifestDiff` with result-derived rows does catch it (`:57`'s
+  `r.id === undefined → continue`). This **inverts** an earlier fleet claim that had it the other way.
+  **Not reproduced in this tree** — modelmux authors no Workflow scripts, so there was nothing here to
+  run it against. Treat as a lead, not a fact; re-derive before relying on it.
 - **Do not blanket-promote CW3 to FAIL.** `filter(Boolean)` is genuinely correct when downstream only
   ever touches ONE item; a blanket FAIL would false-positive on that independent case and get
   disabled. The safe discriminator is whether the **set** crosses the boundary (`.length`, a ratio, a
