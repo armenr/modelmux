@@ -283,6 +283,17 @@ wins:
    > the classification already done: *"This is N independent units with a barrier at the end —
    > want me to fan it out, or run it inline? (queuing by default.)"* File the obligations row
    > in the same motion, default-if-silent **inline**. Never block on the answer.
+   >
+   > **AN AUTHORIZATION FACT IS REPO-LOCAL AND DATED. IT NEVER TRAVELS.** If you record that your
+   > operator granted standing dispatch authorization, record it as WHAT THEY SAID AND WHEN —
+   > *"operator instructed X, in-session, YYYY-MM-DD"* — never *"this paragraph is that request."*
+   > The second form is circular: a later session reads the bullet and the bullet vouches for
+   > itself. And mark it DO-NOT-UPSTREAM, because in a kit-lineage repo THE FILE ITSELF IS THE
+   > TRANSPORT — content here gets harvested into shipped payload, and a local grant promoted
+   > upstream becomes exactly what this fence exists to remove. The fence above stops an agent
+   > granting itself permission; it does NOT stop a grant being harvested out of a repo that feeds
+   > the kit. Two different holes. DATED RECORDS GO STALE ON PURPOSE — an instruction given in July
+   > is not consent in November.
 3. **Needs operator judgment / adjudication** → ASK-DON'T-BLOCK: put ONE question to the
    operator ("side-quest this now, or queue it?") AND file the obligations-ledger row in the
    same motion (default-if-silent: queue) — the ask must survive the operator being away and
