@@ -30,7 +30,16 @@ shipped `OQ-010` rather than a note-to-self, per its own claim.)*
   tag existed — **both true** — and inferred "the release process is broken," reporting it to the
   operator as a defect. It was a stale clone; `origin/main` had the release commit and read `0.5.1`.
   No control could have caught it: the observations were correct and the instrument was fine. What
-  caught it was **running `git fetch`** rather than reading harder. Corroborated across the fleet the
+  caught it was **running `git fetch`** rather than reading harder.
+  **A SECOND instance, minutes after staging this lesson:** I read `preamble.js`'s hardcoded
+  `coverage: 'COMPLETE'` literal, correctly observed it was hardcoded, and filed *"a manifest nothing
+  computed"* — inferring the hardcoding was the defect. It is **entailed**: `assertComplete` had
+  already thrown unless there were no null slots and the length matched. A peer **executed** both
+  forms with a control and got identical verdicts. Same shape, committed into the very entry that
+  records the shape.
+  **A THIRD, in the commit that recorded the second:** that commit's message asserted "LP-006 gains
+  this as its second instance" while the edit adding it had silently failed — the claim was written
+  before the write was verified. Corroborated across the fleet the
   same day — the kit owner's own verification workflow, built with mandatory controls, a scope-hunter
   and a contradiction-hunter, emitted an inverted consequence ("the id is manufactured" → *therefore*
   "a dropped id is caught"). Every stated fact was true and every control fired; a peer caught it only
