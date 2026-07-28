@@ -70,10 +70,29 @@ exists and its enforcement level is set to *reminder*.
   | `coverage: 'COMPLETE'` hardcoded in `fanout` | **yes** |
   | `expected` / `received` both `inputs.length` | **yes** — structurally cannot differ |
 
-  The default (non-degrade) path runs `assertComplete` — which catches only **NULL slots** — and then
-  returns a literal `{expected: inputs.length, received: inputs.length, missing: [], …, coverage:
-  'COMPLETE'}`. So a stage that **normalizes to empty** returns non-null, passes `assertComplete`, and
-  receives a typed COMPLETE manifest that nothing computed. Because the row id is manufactured from
+  The default (non-degrade) path runs `assertComplete` and then returns a literal
+  `{expected: inputs.length, received: inputs.length, missing: [], …, coverage: 'COMPLETE'}`. A stage
+  that **normalizes to empty** returns non-null, passes `assertComplete`, and receives a COMPLETE
+  manifest.
+
+  > **CORRECTED 2026-07-28, hours after first filing — the HARDCODING IS NOT THE DEFECT, and my first
+  > diagnosis here was wrong in sign.** I read the literal, correctly observed it was hardcoded, and
+  > inferred *"therefore the verdict is unbacked."* It is **entailed**: verified in this tree,
+  > `assertComplete` throws if any slot is `null`/`undefined` **and** throws if
+  > `results.length !== exp`, so reaching the literal means both already hold. A peer then **executed**
+  > both forms with a control — shipped literal vs. a computed `received = results.filter(non-null)` —
+  > and got **identical COMPLETE verdicts**, because both use the same definition of received:
+  > *non-null*. Replacing the literal with a computation changes nothing.
+  >
+  > **What it actually is: a TRUE NARROW claim restated as a FALSE BROAD one.** The check establishes
+  > *"no unit returned null."* The manifest says `coverage: 'COMPLETE'` in `manifestDiff`'s vocabulary,
+  > where COMPLETE means *every expected id produced an ok row* — and downstream reads it as *"all the
+  > work got done."* The words are wider than the check backing them. Nothing is measured wrongly, so
+  > **no canary or control can sit at the failure site**; a narrow truth is simply restated broadly one
+  > call frame later. `assertComplete`'s own comment confirms the exposure: a schema agent returns
+  > `{}`/`[]` for empty findings and *never* null — so normalize-to-empty is non-null **by design**.
+  > Proposed remedy is to narrow the vocabulary (`coverage: 'NO_NULL_DROPS'` on the default path,
+  > reserving COMPLETE for the reconciling path), not to compute the literal. Kit-owned; not patched. Because the row id is manufactured from
   `inputs[i]`, an **id-dropping** stage is invisible on this path too; only a *direct* `manifestDiff`
   with result-derived rows reaches the `r.id === undefined → continue` guard.
   **Still relayed, not run here:** the end-to-end execution proof (a peer ran it with a runtime-faithful
