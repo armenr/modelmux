@@ -257,10 +257,32 @@ wins:
 
 1. **FYI / answerable in a sentence** → answer inline or just note it; no ceremony. Never
    spawn a dispatch for ack-class work.
-2. **Real work, no operator judgment needed** → dispatch it to a sub-agent NOW — under the
-   full dispatch contract, the fail-loud contract, and the one-voice fence (it reports back
-   to YOU, never to the room) — and RETURN to the main thread. The interrupt never rides the
-   main context.
+2. **Real work, no operator judgment needed** → **dispatch it to a sub-agent IF DISPATCH IS
+   AUTHORIZED IN THIS SESSION; otherwise put the one-line ask and continue** (rung 3's form).
+   When it does run: under the full dispatch contract, the fail-loud contract, and the
+   one-voice fence (it reports back to YOU, never to the room) — then RETURN to the main
+   thread. The interrupt never rides the main context.
+
+   > **THE HARNESS OUTRANKS THIS FILE ON WHETHER TO DISPATCH AT ALL.** Some harnesses inject a
+   > standing instruction — *"do not use the Agent tool / workflows unless the user requested
+   > it"* — and the orchestration tool's own description may gate itself on explicit opt-in.
+   > **Where a harness instruction and this file disagree, THE HARNESS WINS and this rule
+   > degrades to an ASK.** It never upgrades to a self-grant.
+   >
+   > **THIS KIT NEVER AUTHORIZES DISPATCH. It tells you when to ASK for one and what to ask
+   > for.** A rule you are carrying is not a request the operator made — treating shipped
+   > text as standing consent is an agent manufacturing its own authorization, which is the
+   > failure this fence exists to prevent, not an exception to it.
+   >
+   > **Authorization is real when it comes from the operator's own surface**, in any of:
+   > the target repo's `CLAUDE.md` (their file, their words), an explicit ask this session, or
+   > whatever opt-in keyword the harness documents. If they want standing pre-authorization,
+   > that line belongs in THEIR `CLAUDE.md` — not in kit payload, and not inferred.
+   >
+   > **The ask is one line and carries the shape you recognised**, so the operator decides with
+   > the classification already done: *"This is N independent units with a barrier at the end —
+   > want me to fan it out, or run it inline? (queuing by default.)"* File the obligations row
+   > in the same motion, default-if-silent **inline**. Never block on the answer.
 3. **Needs operator judgment / adjudication** → ASK-DON'T-BLOCK: put ONE question to the
    operator ("side-quest this now, or queue it?") AND file the obligations-ledger row in the
    same motion (default-if-silent: queue) — the ask must survive the operator being away and
