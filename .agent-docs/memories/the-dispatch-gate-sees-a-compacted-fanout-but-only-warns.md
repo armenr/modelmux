@@ -49,6 +49,17 @@ exists and its enforcement level is set to *reminder*.
   run of this test came back blocked — on `CW1` (missing preamble) and `CB4` (bare return), two
   unrelated rules masking the one under test. A verdict of the right *shape* for the wrong *reason*
   reads exactly like a pass. Isolating a rule needs the preamble present and a real manifest return.
+- **Do not assume promoting CW3 is cheap.** Measured here 2026-07-28 after a peer refuted the
+  "one token" reading: `self-test.py:111` carries the literal pair `{("CW3", "WARN")}` in its
+  expected set, so flipping the severity **goes red** — the change is a coordinated multi-artifact
+  edit whose regression test must move with it, not a constant swap. Severity is also
+  **per-call-site, not per-rule** (`CB4` is FAIL in `check_workflow` and WARN in `check_agent`).
+- **`CW3` is NOT waivable, and the shipped docs say it is.** `apply_escape_hatch`'s own docstring
+  reads *"Downgrade **FAIL**s that a well-formed degraded annotation waives"* — yet both
+  `.claude/hooks/dispatch-gate/README.md:82` and
+  `.agent-docs/reference/fail-loud-dispatch-contract.md:118` use `checks: CB4, CW3` as the worked
+  example. CW3 is WARN, so that documented waiver **cannot fire**. Reproduced independently on a
+  second tree. Kit-owned — do not patch; it arrives on upgrade.
 - **Do not blanket-promote CW3 to FAIL.** `filter(Boolean)` is genuinely correct when downstream only
   ever touches ONE item; a blanket FAIL would false-positive on that independent case and get
   disabled. The safe discriminator is whether the **set** crosses the boundary (`.length`, a ratio, a
