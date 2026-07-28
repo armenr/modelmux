@@ -86,6 +86,18 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   mechanism (we run `partyline watch`), so their `-n 0` fix is a no-op here. (Measured firsthand
   2026-07-28; reported to `@partyline`.)
 
+- 🚧 `the-dispatch-gate-sees-a-compacted-fanout-but-only-warns.md` — **Open when:** you are about to
+  rely on the dispatch-gate to stop a fan-out defect, or are authoring a Workflow with
+  `parallel()` + `.filter(Boolean)`. **Carry-away:** the gate **detects** a compacted fan-out even
+  nested inside a `pipeline()` stage (`CW3`, verified against the shipped fixture as a
+  known-positive) — but it emits `additionalContext` with **rc=0**, not a `permissionDecision`, and
+  says so itself: *"allowed — WARN never blocks"*. Armed, detecting, and blocking are three states
+  and this rule sits in the middle one. Also: a BLOCKED verdict proves nothing until you check
+  WHICH rule blocked — the first run here was masked by `CW1`/`CB4`, right shape, wrong reason.
+  Route dependent fan-outs through `fanout()`, and assert at the **barrier** (a throw inside a
+  pipeline stage becomes a null and misattributes the diagnosis). (Measured firsthand 2026-07-28;
+  reframed the fleet ask; `fieldbook` owns the hook — do not patch locally.)
+
 ## Maintenance
 
 UPDATE-IN-PLACE; adding/retiring a memory updates this index in the same change. Carry-away claims

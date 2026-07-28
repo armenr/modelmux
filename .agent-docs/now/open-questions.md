@@ -34,6 +34,16 @@ related: [status, work-plan, obligations]
   > that decides whether to trust it today. A frozen literal is not the problem; one that does not
   > admit it is frozen is. What remains open is the run-time probing below.
 
+  > **DATA POINT 2026-07-28 — the frozen Z.ai table HELD UP, and beat the vendor's own page.**
+  > With a live subscription key, all three README slugs probed **200 direct to
+  > `https://api.z.ai/api/anthropic`**, each echoing its own id: `glm-5.2` · `glm-5-turbo` · `glm-4.7`.
+  > Z.ai's current devpack doc names only `glm-4.7` and `glm-5.2` — so **`glm-5-turbo` works but is
+  > undocumented there**, and our frozen transcription was *more* complete than the vendor page a
+  > re-derivation would have consulted. That cuts against the simple reading of this OQ: the failure
+  > mode is not "frozen therefore wrong" (cf. `gpt-5.3-codex`, frozen *and* wrong) — it is that a
+  > frozen claim carries no way to tell which case you are in. The date column is what distinguishes
+  > them, which is why the shipped half was the right half. Re-derivation date now **2026-07-28**.
+
   **Resolve:** extend `check-latest` to verify what it can derive per provider — Anthropic via the
   Models API (needs a key), Codex via `~/.codex/models_cache.json` (on disk, no network), Z.ai/Kimi
   likely not derivable without credentials — and have it **say which providers it could not check**
