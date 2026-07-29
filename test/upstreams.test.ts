@@ -36,9 +36,15 @@ test("anthropic leg passes auth + beta through", () => {
   expect(out.get("anthropic-beta")).toBe("caching");
 });
 
-test("anthropic leg prefers env ANTHROPIC_API_KEY as x-api-key", () => {
+// WAS: "anthropic leg prefers env ANTHROPIC_API_KEY as x-api-key" — a test that
+// SPECIFIED the billing-redirect defect and kept it green. Preferring the env key
+// meant a subscription user's OAuth was silently replaced by a metered key on the
+// default upstream, and every gate passed because this test said that was correct.
+// Inverted, with the original name kept above so the history is legible.
+test("anthropic leg does NOT substitute env ANTHROPIC_API_KEY for missing auth", () => {
   const out = rewriteHeaders(toAnthropic, new Headers(), { ANTHROPIC_API_KEY: "sk-ant-X" });
-  expect(out.get("x-api-key")).toBe("sk-ant-X");
+  expect(out.get("x-api-key")).toBeNull();
+  expect(out.get("authorization")).toBeNull();
 });
 
 test("anthropic leg with no env key and no inbound auth returns no auth and does not throw", () => {

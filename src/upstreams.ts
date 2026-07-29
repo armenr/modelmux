@@ -7,8 +7,10 @@ import { join } from "node:path";
 // table in routes.toml; these are the defaults when a name isn't configured.
 export const BUILTIN_UPSTREAMS: Record<string, UpstreamDef> = {
   anthropic: {
+    // NO envKey. The orchestrator's own subscription credential is forwarded
+    // untouched; modelmux never substitutes a metered key for a subscription one.
+    auth: { kind: "passthrough" },
     base: "https://api.anthropic.com",
-    auth: { kind: "passthrough", envKey: "ANTHROPIC_API_KEY" },
     stripBeta: false,
     format: "anthropic",
     maxTokensField: "max_tokens",
@@ -188,12 +190,22 @@ function applyAuth(
     return;
   }
   if (auth.kind === "passthrough") {
-    // Prefer an explicit env key; otherwise pass Claude Code's own auth through.
-    const envKey = auth.envKey ? env[auth.envKey] : undefined;
-    if (envKey) {
-      out.set("x-api-key", envKey);
-      return;
-    }
+    // PASSTHROUGH FORWARDS THE CALLER'S CREDENTIAL AND NOTHING ELSE. It must never
+    // substitute one from the environment.
+    //
+    // This branch used to prefer `envKey` and `return` before ever reading the
+    // inbound headers. With ANTHROPIC_API_KEY exported — common, and set for
+    // unrelated reasons — every request through the default `anthropic` upstream
+    // had Claude Code's SUBSCRIPTION OAuth silently replaced by a METERED API key.
+    // The proxy answered 200 to a request carrying no credentials at all, which is
+    // the tell, and 93 orchestrator requests were billed to the wrong account
+    // before anyone noticed. A billing redirect must never be a silent default.
+    //
+    // No inbound credential now means NO credential goes out: the upstream answers
+    // 401, which is loud and immediately diagnosable. Anyone who genuinely wants
+    // key auth against Anthropic declares it explicitly:
+    //   [upstreams]
+    //   anthropic = { base = "https://api.anthropic.com", auth = "bearer:ANTHROPIC_API_KEY" }
     const inboundAuth = inbound.get("authorization");
     const inboundKey = inbound.get("x-api-key");
     if (inboundAuth)
@@ -208,29 +220,4 @@ export function rewriteBody(decision: Decision, body: any): any {
   if (decision.model !== "passthrough")
     body.model = decision.model;
   return body;
-}
-
-// Framing headers that describe the *upstream* transfer — Bun's fetch already
-// decoded the body and will re-frame our streamed Response, so copying these
-// would double-decode or mis-length the reply.
-const STRIP_RESPONSE = new Set(["content-length", "content-encoding", "transfer-encoding", "connection"]);
-
-// Build downstream response headers from the upstream ones, so rate-limit /
-// retry-after / request-id survive (Claude Code honors them for backoff), while
-// stale framing headers are dropped and caching is disabled. Multi-value
-// set-cookie is preserved.
-export function passthroughHeaders(upstream: Headers): Headers {
-  const out = new Headers();
-  for (const [k, v] of upstream) {
-    const key = k.toLowerCase();
-    if (STRIP_RESPONSE.has(key) || key === "set-cookie")
-      continue;
-    out.set(k, v);
-  }
-  for (const c of upstream.getSetCookie?.() ?? [])
-    out.append("set-cookie", c);
-  if (!out.has("content-type"))
-    out.set("content-type", "application/json");
-  out.set("cache-control", "no-cache");
-  return out;
 }
