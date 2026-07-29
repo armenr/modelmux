@@ -47,6 +47,7 @@ interface RawUpstream {
   codexSubscription?: boolean;
   extraBody?: Record<string, unknown>;
   chatPath?: string;
+  minMaxTokens?: number;
 }
 
 // Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
@@ -104,6 +105,11 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
     // shape it had before this field existed.
     if (u.extraBody)
       base.extraBody = { ...u.extraBody };
+    if (u.minMaxTokens !== undefined) {
+      if (typeof u.minMaxTokens !== "number" || !Number.isFinite(u.minMaxTokens) || u.minMaxTokens <= 0)
+        throw new Error(`upstream "${name}" has a bad minMaxTokens (must be a positive number)`);
+      base.minMaxTokens = u.minMaxTokens;
+    }
     if (u.chatPath !== undefined) {
       if (typeof u.chatPath !== "string" || !u.chatPath.startsWith("/"))
         throw new Error(`upstream "${name}" has a bad chatPath (must be an absolute path, e.g. "/chat/completions")`);

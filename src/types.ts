@@ -56,6 +56,18 @@ export interface UpstreamDef {
   // and the derived path yields `/paas/v4/v1/chat/completions` -> 404 (measured).
   // Explicit override rather than magic-stripping a version segment.
   chatPath?: string;
+  // RAISE-ONLY floor for the outbound token cap. Deliberately NOT `extraBody`:
+  // that overwrites unconditionally, so a floor built there would CLAMP DOWN a
+  // caller who asked for more — the opposite of a floor.
+  //
+  // Why a floor is needed at all, measured 2026-07-29 against GLM at max effort:
+  // `max_tokens` is a CEILING, not a reservation (caps of 32000/64000/98304 on a
+  // trivial prompt consumed 2/2/3 tokens), so a generous cap is free. But a cap
+  // hit MID-REASONING returns a `thinking` block with NO `text` block — the
+  // reasoning is billed and no answer arrives. Measured: 6000 -> truncated, no
+  // verdict; 24000 -> 19322 used, stop_reason end_turn. A truncated review does
+  // not look truncated; it looks like the reviewer found nothing.
+  minMaxTokens?: number;
 }
 
 export interface ModelRef {

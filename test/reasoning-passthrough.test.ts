@@ -1,7 +1,7 @@
 import type { UpstreamDef } from "../src/types.ts";
 import { expect, test } from "bun:test";
 import { openaiPath, toAnthropicResponse, toAnthropicStream } from "../src/openai.ts";
-import { applyExtraBody, forwardUrl } from "../src/upstreams.ts";
+import { applyExtraBody, applyMinMaxTokens, forwardUrl } from "../src/upstreams.ts";
 
 // Imposing max reasoning on a GLM reviewer needs BOTH halves, and neither alone
 // is worth anything. Measured against Z.ai on 2026-07-29:
@@ -148,4 +148,41 @@ test("chatPath overrides the derived /v1/chat/completions", () => {
 
 test("without chatPath the derived OpenAI path is still used (regression)", () => {
   expect(openaiPath("/v1/messages")).toBe("/v1/chat/completions");
+});
+
+// ── the token floor: RAISE ONLY, never clamp ─────────────────────────────────
+//
+// A cap hit mid-reasoning returns a thinking block with NO text block — the
+// reasoning is billed and no answer arrives (measured: 6000 -> truncated,
+// 24000 -> 19322 used, end_turn). An unused cap is free (98304 -> 3 tokens).
+// So the floor must RAISE a stingy caller and never reduce a generous one —
+// which is exactly why it is not built on extraBody, whose whole job is to
+// overwrite unconditionally.
+
+function FLOORED(n: number): UpstreamDef {
+  return { ...DEF(), minMaxTokens: n };
+}
+
+test("a caller below the floor is RAISED to it", () => {
+  expect(applyMinMaxTokens(FLOORED(32000), { max_tokens: 6000 }).max_tokens).toBe(32000);
+});
+
+test("a caller ABOVE the floor is left alone — this is a floor, not a clamp", () => {
+  // The defect this field exists to avoid: extraBody would have set 32000 here.
+  expect(applyMinMaxTokens(FLOORED(32000), { max_tokens: 64000 }).max_tokens).toBe(64000);
+});
+
+test("a missing cap is set to the floor", () => {
+  expect(applyMinMaxTokens(FLOORED(32000), {}).max_tokens).toBe(32000);
+});
+
+test("an upstream with no floor changes nothing", () => {
+  expect(applyMinMaxTokens(DEF(), { max_tokens: 100 }).max_tokens).toBe(100);
+});
+
+test("the floor targets the upstream's OWN token field", () => {
+  const def: UpstreamDef = { ...DEF(), maxTokensField: "max_completion_tokens", minMaxTokens: 32000 };
+  const out = applyMinMaxTokens(def, { max_completion_tokens: 10 });
+  expect(out.max_completion_tokens).toBe(32000);
+  expect(out.max_tokens).toBeUndefined();
 });

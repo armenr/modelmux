@@ -237,6 +237,22 @@ export function applyExtraBody(def: UpstreamDef, outbound: any): any {
   return outbound;
 }
 
+// RAISE the outbound token cap to the upstream's floor, never lower it. Runs
+// AFTER applyExtraBody so an explicit extraBody cap is still floored.
+//
+// The asymmetry is the whole argument: an unused cap costs nothing (measured —
+// a 98304 cap spent 3 tokens), while a cap hit mid-reasoning costs the entire
+// reasoning AND returns no answer. So erring high is free and erring low is not.
+export function applyMinMaxTokens(def: UpstreamDef, outbound: any): any {
+  if (!def.minMaxTokens || typeof outbound !== "object" || outbound === null)
+    return outbound;
+  const field = def.maxTokensField;
+  const current = outbound[field];
+  if (typeof current !== "number" || current < def.minMaxTokens)
+    outbound[field] = def.minMaxTokens;
+  return outbound;
+}
+
 // Framing headers that describe the *upstream* transfer — Bun's fetch already
 // decoded the body and will re-frame our streamed Response, so copying these
 // would double-decode or mis-length the reply.
