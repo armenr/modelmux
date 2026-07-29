@@ -98,6 +98,17 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   pipeline stage becomes a null and misattributes the diagnosis). (Measured firsthand 2026-07-28;
   reframed the fleet ask; `fieldbook` owns the hook — do not patch locally.)
 
+- 🌍 `a-setup-change-to-another-repo-needs-its-tracking-status-not-just-its-diff.md` — **Open when:**
+  you are about to edit config in a repo that is not yours, or are reporting such an edit to its owner.
+  **Carry-away:** a clean diff says what changed and nothing about **whether it travels** — run
+  `git ls-files --error-unmatch <path>` (rc=0 = tracked) and `git check-ignore -v <path>` on the TARGET
+  first; a localhost pin nearly shipped to a public Apache-2.0 repo as policy because "one insert, hooks
+  byte-identical" was true and silent on the only axis that mattered. Machine-local facts go in
+  `.claude/settings.local.json`, which is both gitignored AND the higher-precedence layer. The deeper
+  cut: I had run the equivalent skip-worktree dance on our own `CLAUDE.md` sixty minutes earlier — a
+  rule held as a PROCEDURE for a named file does not fire on a new file; only a rule held as a QUESTION
+  asked of every file is portable. (Near-miss, caught by the owning agent, 2026-07-29.)
+
 ## Maintenance
 
 UPDATE-IN-PLACE; adding/retiring a memory updates this index in the same change. Carry-away claims
