@@ -13,9 +13,14 @@ and disclosure timeline with you.
 
 ## Handling your API keys
 
-modelmux is a **local reverse proxy**. It reads your `OPENROUTER_API_KEY`
-(and optionally `ANTHROPIC_API_KEY`) from the environment and injects it into
-outbound requests. A few rules keep that safe:
+modelmux is a **local reverse proxy**. It reads a key from the environment only
+for an upstream that *declares* one (`auth = "bearer:SOME_KEY"`), and injects it
+into that upstream's outbound requests. A few rules keep that safe:
+
+- **A `passthrough` upstream never substitutes a key.** It forwards the caller's
+  own credential or sends none at all. This matters for billing: an upstream that
+  swapped a subscription token for a metered key would redirect spend silently,
+  and a 200 answered to a credential-less request is the tell.
 
 - **Never commit keys.** `.env`, `*.env`, and `openrouter-key.env` are
   gitignored. `.env.example` ships with placeholders only.

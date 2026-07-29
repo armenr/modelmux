@@ -145,7 +145,7 @@ These apply to both `bun run proxy` and the compiled binary.
 | `OPENROUTER_API_KEY` | Required for any `openrouter:` route. | unset |
 | `ZAI_API_KEY` | Required for any `zai:` route (built-in Z.ai GLM Coding Plan upstream). | unset |
 | `MUX_MODEL_<ALIAS>` | Per-run override of one alias's target (uppercase alias, hyphens to underscores; value is a full `upstream:slug`). | unset |
-| `ANTHROPIC_API_KEY` | If set, used as `x-api-key` on the anthropic leg; otherwise Claude Code's inbound auth is forwarded. | unset |
+| `ANTHROPIC_API_KEY` | **Not used by the `anthropic` leg.** Passthrough forwards Claude Code's own credential and never substitutes one — a request with no inbound auth gets a 401, not a silently-billed 200. To pay per token on purpose, declare it: `anthropic = { base = "https://api.anthropic.com", auth = "bearer:ANTHROPIC_API_KEY" }`. | unset |
 
 If a request routes to OpenRouter and `OPENROUTER_API_KEY` is unset, the request
 fails HTTP 400 with the body:
