@@ -180,6 +180,16 @@ export function toAnthropicResponse(oai: any, model: string): any {
   const msg = choice?.message ?? {};
   const content: any[] = [];
 
+  // Reasoning FIRST, matching Anthropic's own ordering (thinking precedes text).
+  // OpenAI-format reasoning backends return it out-of-band as `reasoning_content`
+  // (Z.ai/GLM, DeepSeek) or `reasoning` (some others); without this it arrives and
+  // is silently dropped, so the caller pays for depth it never sees. NOTE: no
+  // `signature` is emitted — that is an Anthropic-issued attestation we cannot
+  // forge, and fabricating one would be worse than omitting it.
+  const reasoning = msg.reasoning_content ?? msg.reasoning;
+  if (typeof reasoning === "string" && reasoning.length)
+    content.push({ type: "thinking", thinking: reasoning });
+
   if (typeof msg.content === "string" && msg.content.length)
     content.push({ type: "text", text: msg.content });
 
@@ -234,8 +244,15 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
   const dec = new TextDecoder();
   let buf = "";
   let started = false;
-  let textOpen = false;
-  let blockIndex = 0;
+  // Block indices are ALLOCATED, not hardcoded. A reasoning backend emits
+  // `reasoning_content` before `content`, so thinking takes index 0 and text
+  // shifts to 1 — but only when reasoning actually arrives. With no reasoning
+  // the first allocation still goes to text at index 0, so a non-reasoning
+  // backend produces byte-identical output to before this existed.
+  let nextIndex = 0;
+  let thinkingIdx: number | null = null;
+  let thinkingClosed = false;
+  let textIdx: number | null = null;
   const openToolBlocks = new Map<number, number>(); // openai tool index -> anthropic block index
   let finish: string | null = null;
   let sawToolCall = false;
@@ -267,10 +284,18 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
         }));
       };
 
+      const closeThinking = (): void => {
+        if (thinkingIdx !== null && !thinkingClosed) {
+          emit(sse("content_block_stop", { type: "content_block_stop", index: thinkingIdx }));
+          thinkingClosed = true;
+        }
+      };
+
       const closeOpenBlocks = (): void => {
-        if (textOpen) {
-          emit(sse("content_block_stop", { type: "content_block_stop", index: 0 }));
-          textOpen = false;
+        closeThinking();
+        if (textIdx !== null) {
+          emit(sse("content_block_stop", { type: "content_block_stop", index: textIdx }));
+          textIdx = null;
         }
         for (const idx of openToolBlocks.values())
           emit(sse("content_block_stop", { type: "content_block_stop", index: idx }));
@@ -292,19 +317,40 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
         const delta = choice.delta ?? {};
         openMessage();
 
-        if (typeof delta.content === "string" && delta.content.length) {
-          if (!textOpen) {
+        // Reasoning deltas, out-of-band from content. Z.ai/GLM and DeepSeek use
+        // `reasoning_content`; some backends use `reasoning`.
+        const rDelta = delta.reasoning_content ?? delta.reasoning;
+        if (typeof rDelta === "string" && rDelta.length && !thinkingClosed) {
+          if (thinkingIdx === null) {
+            thinkingIdx = nextIndex++;
             emit(sse("content_block_start", {
               type: "content_block_start",
-              index: 0,
-              content_block: { type: "text", text: "" },
+              index: thinkingIdx,
+              content_block: { type: "thinking", thinking: "" },
             }));
-            textOpen = true;
-            blockIndex = Math.max(blockIndex, 1);
           }
           emit(sse("content_block_delta", {
             type: "content_block_delta",
-            index: 0,
+            index: thinkingIdx,
+            delta: { type: "thinking_delta", thinking: rDelta },
+          }));
+        }
+
+        if (typeof delta.content === "string" && delta.content.length) {
+          if (textIdx === null) {
+            // Anthropic blocks do not interleave: the thinking block must be
+            // closed before the text block opens.
+            closeThinking();
+            textIdx = nextIndex++;
+            emit(sse("content_block_start", {
+              type: "content_block_start",
+              index: textIdx,
+              content_block: { type: "text", text: "" },
+            }));
+          }
+          emit(sse("content_block_delta", {
+            type: "content_block_delta",
+            index: textIdx,
             delta: { type: "text_delta", text: delta.content },
           }));
         }
@@ -313,7 +359,8 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
           sawToolCall = true;
           const oaiIdx = call.index ?? 0;
           if (!openToolBlocks.has(oaiIdx)) {
-            const idx = blockIndex++;
+            closeThinking(); // a tool_use block must not open inside thinking
+            const idx = nextIndex++;
             openToolBlocks.set(oaiIdx, idx);
             emit(sse("content_block_start", {
               type: "content_block_start",

@@ -39,6 +39,23 @@ export interface UpstreamDef {
   // than read off the completed event. Off by default: a self-hosted or Azure
   // Responses endpoint has none of these constraints.
   codexSubscription?: boolean;
+  // Vendor-specific request fields modelmux does not model, merged into the
+  // OUTBOUND body after wire-format translation. Applied last, so it can impose
+  // a value the caller never sent — which is the point: Claude Code has no way
+  // to express `reasoning_effort`, and the depth knob is per-upstream policy.
+  //
+  // Measured 2026-07-29 against Z.ai: `reasoning_effort` is validated on their
+  // OpenAI-format endpoints (400 on a bad value, listing the allowed set) and
+  // SILENTLY DROPPED on their Anthropic-compatible one. So imposing depth means
+  // routing over `format = "openai"` AND injecting the field — neither alone.
+  extraBody?: Record<string, unknown>;
+  // Absolute path for OpenAI-format requests, replacing the derived
+  // `/v1/chat/completions`. OpenAI's convention is `<base>/v1/chat/completions`,
+  // but a provider whose base already carries the version needs the `/v1`
+  // dropped — Z.ai's Coding Plan endpoint is `<...>/paas/v4/chat/completions`,
+  // and the derived path yields `/paas/v4/v1/chat/completions` -> 404 (measured).
+  // Explicit override rather than magic-stripping a version segment.
+  chatPath?: string;
 }
 
 export interface ModelRef {

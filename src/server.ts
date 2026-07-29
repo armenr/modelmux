@@ -8,7 +8,7 @@ import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } f
 import { collectResponsesOutput, responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
 import { extractSignals } from "./signals.ts";
-import { forwardUrl, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
+import { applyExtraBody, forwardUrl, passthroughHeaders, resolveUpstream, rewriteBody, rewriteHeaders } from "./upstreams.ts";
 
 export interface ServerOpts {
   config?: Config; // static config (tests); ignored if configHolder is set
@@ -65,13 +65,13 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       const isResponses = def.format === "responses";
       const translates = isOpenAI || isResponses;
       const wantsStream = body?.stream === true;
-      const outboundBody = isOpenAI
+      const outboundBody = applyExtraBody(def, isOpenAI
         ? toOpenAIRequest(body, def.maxTokensField)
-        : isResponses ? toResponsesRequest(body, def.codexSubscription === true) : body;
+        : isResponses ? toResponsesRequest(body, def.codexSubscription === true) : body);
 
       const url = new URL(req.url);
       const path = isOpenAI
-        ? openaiPath(url.pathname)
+        ? (def.chatPath ?? openaiPath(url.pathname))
         : isResponses ? responsesPath(url.pathname) : url.pathname;
       // Call forwardUrl rather than re-deriving the same expression inline.
       // It used to be duplicated here, which meant the ONE tested URL-builder was

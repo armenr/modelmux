@@ -45,6 +45,8 @@ interface RawUpstream {
   format?: string;
   maxTokensField?: string;
   codexSubscription?: boolean;
+  extraBody?: Record<string, unknown>;
+  chatPath?: string;
 }
 
 // Parse an auth spec: "passthrough" | "passthrough:ENV" | "bearer:ENV" | "none".
@@ -91,9 +93,23 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
     // request 400s. An explicit false still wins. Only SET when true, so an
     // ordinary upstream's shape stays exactly as it was before this field existed.
     const codexSubscription = u.codexSubscription ?? auth.kind === "codex";
-    out[name] = codexSubscription
-      ? { base: u.base, auth, stripBeta, format, maxTokensField, codexSubscription: true }
-      : { base: u.base, auth, stripBeta, format, maxTokensField };
+    if (u.extraBody !== undefined && (typeof u.extraBody !== "object" || u.extraBody === null || Array.isArray(u.extraBody))) {
+      throw new Error(`upstream "${name}" has a non-table extraBody `
+        + `(use e.g. extraBody = { reasoning_effort = "max" })`);
+    }
+    const base: UpstreamDef = { base: u.base, auth, stripBeta, format, maxTokensField };
+    if (codexSubscription)
+      base.codexSubscription = true;
+    // Only SET when present, so an upstream that declares none keeps exactly the
+    // shape it had before this field existed.
+    if (u.extraBody)
+      base.extraBody = { ...u.extraBody };
+    if (u.chatPath !== undefined) {
+      if (typeof u.chatPath !== "string" || !u.chatPath.startsWith("/"))
+        throw new Error(`upstream "${name}" has a bad chatPath (must be an absolute path, e.g. "/chat/completions")`);
+      base.chatPath = u.chatPath;
+    }
+    out[name] = base;
   }
   return out;
 }
