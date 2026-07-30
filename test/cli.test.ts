@@ -49,8 +49,12 @@ test("listModels renders each alias", () => {
   expect(listModels(cfg)).toContain("z-ai/glm-5.2");
 });
 
-test("retargetAgentTag swaps the first route tag", () => {
-  expect(retargetAgentTag("intro <<route:flagship>> rest", "max")).toContain("<<route:max>>");
+test("retargetAgentTag swaps the own-line route directive", () => {
+  // Was "swaps the FIRST route tag", asserting `"intro <<route:flagship>> rest"`.
+  // ADR-0004 removed "first match anywhere" as a concept: the CLI and the router
+  // now share one definition of a directive, which is what stops `mux use` from
+  // rewriting a doc string and reporting success.
+  expect(retargetAgentTag("intro\n<<route:flagship>>\nrest", "max")).toContain("<<route:max>>");
 });
 
 test("retargetAgentTag throws instead of a false success when there is no tag", () => {
@@ -97,7 +101,10 @@ test("a tag inserted by tagAgent is the one the router actually extracts", () =>
 });
 
 test("tagAgent refuses to overwrite an existing tag (symmetric with use)", () => {
-  expect(() => tagAgent("body <<route:flagship>>", "control")).toThrow(/already has/);
+  // Was `"body <<route:flagship>>"` (trailing inline). ADR-0004: only an
+  // own-line directive counts as "already tagged" — a prose mention must NOT
+  // block tagging, which is a separate test in tag-must-be-own-line.test.ts.
+  expect(() => tagAgent("body\n<<route:flagship>>", "control")).toThrow(/already has/);
 });
 
 test("tagAgent output is then retargetable by use", () => {

@@ -70,6 +70,19 @@ here carry the claim-as-carry-away **plus status**. Route by status first (don't
   credential now fails loud with the remedy (`OQ-002`).
   *(status: accepted.)*
 
+- ⚔️ `0004-a-route-tag-must-be-alone-on-its-own-line.md` — **Open when:** a `<<route:>>` tag routes
+  somewhere unexpected, an agent def documents its own tag, or you are about to relax the matcher.
+  **Carry-away:** a directive is a `<<route:NAME>>` token ALONE on its own line — unanchored,
+  first-match-wins matching meant ANY MENTION was the tag, including the sentence documenting it, and
+  a prose mention placed BEFORE a real directive OVERRODE it. It cost a peer a six-leg model
+  comparison whose control arm silently became a second treatment arm. Every shipped def in two
+  independent trees was safe by COINCIDENCE (bare directive + prose naming the same alias, an
+  ordering nobody chose), which is why docs-only lost. `TAG_LINE_RE` is shared with the CLI because
+  when they disagreed, `mux use` rewrote a front-matter description and reported success. BREAKING for
+  one shape: a def whose only match is prose now falls to `default`. Flip-condition: a legitimate
+  single-line def format, answered by a fenced form rather than a return to unanchored.
+  *(status: accepted.)*
+
 ## Maintenance
 
 APPEND-ONLY for new ADRs; existing ADRs change `status:` in place, never move (supersession via

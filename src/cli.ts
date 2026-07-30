@@ -4,6 +4,7 @@ import { join } from "node:path";
 import process from "node:process";
 import pkg from "../package.json" with { type: "json" };
 import { loadConfig, parseModelRef } from "./config.ts";
+import { TAG_LINE_RE } from "./signals.ts";
 
 // THE single source for the CLI's verb list: printed by the usage line AND
 // asserted against README.md by test/cli-docs.test.ts. The README used to
@@ -65,10 +66,14 @@ export function setModel(tomlText: string, alias: string, spec: string): string 
 // Rewrite the first <<route:alias>> tag in an agent file's text. Throws if there
 // is no tag to retarget, so `use` can't report a false success on a tagless file.
 export function retargetAgentTag(text: string, alias: string): string {
-  const re = /<<route:[\w-]+>>/i;
-  if (!re.test(text))
+  // Same definition of "a directive" as the router (ADR-0004). When these
+  // disagreed, this rewrote the FIRST match anywhere — which on our own
+  // claude-control.md is the front-matter `description:` — and reported success
+  // while the real directive, and the routing, were untouched.
+  if (!TAG_LINE_RE.test(text))
     throw new Error("no <<route:...>> tag found to retarget");
-  return text.replace(re, `<<route:${alias}>>`);
+  // Replace the token INSIDE the matched line so indentation survives.
+  return text.replace(TAG_LINE_RE, line => line.replace(/<<route:[\w-]+>>/i, `<<route:${alias}>>`));
 }
 
 // Insert a FIRST <<route:alias>> tag into an agent file that has none — the
@@ -84,7 +89,10 @@ export function retargetAgentTag(text: string, alias: string): string {
 // in the agent's prompt body, which is what the proxy reads — front matter is
 // not sent), else at the very top.
 export function tagAgent(text: string, alias: string): string {
-  if (/<<route:[\w-]+>>/i.test(text))
+  // Anchored, so an agent whose only match is a PROSE mention is correctly seen
+  // as untagged — previously this refused it, blocking the one command that
+  // exists to fix exactly that agent.
+  if (TAG_LINE_RE.test(text))
     throw new Error("agent already has a <<route:...>> tag; use `use` to retarget it");
   const tag = `<<route:${alias}>>`;
   const fm = /^(---\r?\n[\s\S]*?\r?\n---)\r?\n/.exec(text);

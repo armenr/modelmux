@@ -74,7 +74,8 @@ test("orchestrator request routes to Anthropic", async () => {
 test("tagged subagent routes to OpenRouter with model rewritten", async () => {
   const res = await post(
     { "x-app": "cli", "x-claude-code-agent-id": "abc" },
-    { model: "claude-sonnet-4-6", system: "<<route:flagship>> research" },
+    // ADR-0004: own-line directive. Was `"<<route:flagship>> research"`.
+    { model: "claude-sonnet-4-6", system: "<<route:flagship>>\nresearch" },
   );
   expect(await res.text()).toContain("\"upstream\":\"openrouter\"");
   const last = readDecisions(LOG).at(-1)!;

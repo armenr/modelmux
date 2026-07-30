@@ -31,7 +31,11 @@ test("tag parsed from string system prompt", () => {
 });
 
 test("tag parsed from system block array", () => {
-  const body = { system: [{ type: "text", text: "<<route:review>> do stuff" }] };
+  // ADR-0004: a directive is the tag ALONE on its own line. This asserted
+  // `"<<route:review>> do stuff"` — an INLINE tag — which no longer routes by
+  // design; the coverage here is "a tag inside a block array is found", and the
+  // inline placement was incidental to that.
+  const body = { system: [{ type: "text", text: "<<route:review>>\ndo stuff" }] };
   expect(extractSignals(h({}), body).tag).toBe("review");
 });
 
