@@ -2,12 +2,18 @@
 provenance: llm-reviewed
 template-version: 1.0.0
 created: 2026-07-25
-last-modified: 2026-07-25
+last-modified: 2026-07-29
 related: []
 tags: [runtime, routing, environment, gotcha]
 ---
 
 # modelmux the product is developed here but NOT running here — this repo's own agents are plain Claude
+
+> ⚠️ **SUPERSEDED 2026-07-29 — THE PROXY RUNS HERE NOW.** `modelmux.service` is an enabled systemd
+> user unit serving `:8787`, verified across a real reboot, with the Z.ai key loaded from
+> `~/.config/modelmux/env`. Routing config in this tree is now **observation**, not specification.
+> The claim below remains the correct history of why the confusion arose, and the general lesson
+> (config is not runtime) still stands — but the specific fact has flipped.
 
 **Observed:** 2026-07-25, stated by the operator: *"We don't run modelmux here my guy."* Before that, an
 entire multi-agent thread had been reasoning as though the proxy were live on this machine — including

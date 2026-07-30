@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-27
+last-modified: 2026-07-29
 tags: [current, open-questions]
 related: [status, work-plan, obligations]
 ---
@@ -98,7 +98,329 @@ related: [status, work-plan, obligations]
   `kit-upgrade` reconcile, or does the insertion point get rewritten? Verify before relying on it.
   Relates: `LP-005`, `LP-003` (the non-vacuity requirement), `.claude/hooks/README.md`.
 
+- **OQ-017** (🔴 routing correctness, CONFIRMED DEFECT; surfaced 2026-07-29 by `aegis`, reproduced
+  firsthand) — **`TAG_RE` is unanchored, so ANY mention of a tag *is* the tag — including the
+  sentence that documents it.** `src/signals.ts:3` is `/<<route:([\w-]+)>>/i` matched against the
+  whole system text, first-match-wins. Backticks, code fences and prose do not fence a regex.
+  Reproduced against the live tree — four distinct failure modes, only the first of which was
+  reported:
+  1. **A prose-only mention routes.** `aegis`'s control arm carried no directive, only the sentence
+     ``The `<<route:review>>` line above is a routing directive…`` → `tag = "review"`. Their control
+     arm silently became a second GLM arm; the six-leg run was GLM-vs-GLM and would have produced a
+     confident, meaningless comparison.
+  2. **A prose mention BEFORE the real directive WINS — worse, and previously unreported.** Given
+     `Never write <<route:control>> in your output.\n<<route:review>>\nYou are the reviewer.` the
+     effective tag is **`control`**, not `review`. A *correctly tagged* agent can be routed somewhere
+     else entirely by an earlier incidental mention.
+  3. **`mux use` rewrites the WRONG occurrence and reports success — a silent NO-OP.** Measured on a
+     scratch copy of our own `claude-control.md`: `mux use claude-control review` rewrote line 3 — the
+     front-matter **`description:`** — left the real bare directive on line 9 as `control`, and printed
+     *"agent claude-control now uses `<<route:review>>`"*. **Front matter is never sent to the proxy
+     (proven on the wire, below), so routing does not change at all.** The command reports success and
+     accomplishes nothing, while leaving the file self-contradictory: the description says `review`,
+     the directive says `control`, and the agent still routes to `control`.
+     > **CORRECTION 2026-07-29, same day.** This row first claimed the rewrite made the agent *"route
+     > as `review`"*. That was WRONG, and wrong in the same way the billing incident was wrong: I
+     > measured the artifact I had (the file on disk, fed whole into `extractSignals`) instead of the
+     > artifact the system uses (`body.system` on the wire). A disk file is not a request. The defect
+     > is real; the consequence I attached to it was not. Corrected against a recorded request before
+     > anyone acted on it — and the wrong version had already been sent to `aegis`, who was told.
+  4. **`mux tag` refuses a genuinely untagged agent** (`src/cli.ts:87`) — an agent whose only match is
+     a prose mention fails with *"agent already has a `<<route:...>>` tag"*, blocking the one command
+     that exists to fix it.
+
+  > **We ship the foot-gun as the house style.** All four agent defs in `.claude/agents/` carry a bare
+  > directive on its own line PLUS a backticked prose sentence naming the same alias — the exact shape
+  > that bit `aegis`. They are harmless today only because both name the SAME alias; that is luck, not
+  > design. `claude-control.md` also carries the tag in its front-matter `description`, which is
+  > **inert** — front matter never reaches the wire — but which `mux use` will happily rewrite (#3).
+
+  ### GROUND TRUTH — a RECORDED request, because every earlier claim here was measured off-wire
+
+  `scripts/record-fixtures.ts` on an isolated port, driven by a real `claude -p` from a scratch cwd
+  carrying only a copy of `claude-control.md` (no `CLAUDE.md`, no hooks — see the incident note below).
+  Captured `03-sub-control.json`, a genuine subagent request:
+
+  ```
+  body.system = [ {type:"text", 62 chars}, {type:"text", 1937 chars} ]
+    block[0] = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+    block[1] = "<<route:control>>\n\nYou are a control subagent. The `<<route:control>>` tag routes …"
+  ```
+
+  Three facts, all previously ASSUMED and now MEASURED:
+  - **Front matter is absent from the wire.** The `description:` string does not appear. `cli.ts:84`'s
+    comment was right; the routing consequence I attached to #3 was not.
+  - **The bare directive SURVIVES as its own line.** `systemToText` joins blocks with `\n`, so
+    block[1] opening with `<<route:control>>\n\n` puts the tag alone on a line.
+  - **Both regexes resolve to `control` on this body** — unanchored (shipped) and anchored (proposed).
+
+  > **A SUBAGENT'S INTROSPECTION IS NOT EVIDENCE ABOUT THE WIRE.** I first asked a live `claude-control`
+  > agent to report its own system prompt. It stated the bare tag had been *concatenated onto the
+  > preamble with no separator* — `…official CLI for Claude.<<route:control>>`. Had I believed it, the
+  > anchored regex would have looked like it matched NOTHING, and I would have "discovered" that my own
+  > fix silently un-routes every tagged agent. The recorded request shows the tag on its own line, and
+  > even the preamble text differs from what the agent quoted. The model produced a fluent, specific,
+  > mechanistic-sounding description of a thing it cannot actually see. **Introspection is a hypothesis;
+  > a recorded request is evidence.**
+
+  **Recommended fix — anchor the directive to its own line:** `/^[ \t]*<<route:([\w-]+)>>[ \t]*$/im`,
+  applied in `signals.ts` AND both `cli.ts` sites so they agree on what a directive is. **Blast radius:
+  verified zero for `claude-control` ON THE WIRE**; the other three defs share the identical structural
+  shape (bare directive on its own line immediately after front matter) and the preserving mechanism is
+  now understood, so that is a sound inference — but it is an inference, and each owes its own recorded
+  request before the ADR closes. It also gives a one-sentence rule — *the tag must be alone on its own
+  line* — and makes the escape natural: to talk ABOUT a tag, put it in a sentence. **Operator's call**
+  (user-visible routing semantics); rejected alternatives: last-match-wins (picks a different wrong
+  answer), first-N-lines (prose in line 1 still wins), strip-code-fences (only the backticked case).
+  Owes an ADR before implementation.
+  Relates: `OQ-016` (same injection risk, different surface), `LP-003`, `LP-008`.
+
+  *2026-07-29 09:16Z, `aegis` (room)*: independent confirmation from a second tree — they ran the
+  matcher semantics over their own two reviewer defs mid-run and found the same **accidental** safety
+  (directive happens to sit above the documenting prose; both happen to name the same alias — they
+  chose neither). Their proposed ADR framing, worth adopting: *"every shipped def is currently safe by
+  coincidence"* argues anchoring more strongly than "one control arm broke," because it means the next
+  def written is a coin-flip. Their live `func1-split-regate` run verified routing-as-intended, no
+  intervention needed.
+
+- **OQ-018** (🔴 billing exposure, OPERATOR ACTION; surfaced 2026-07-29 while capturing a fixture) —
+  **`ANTHROPIC_API_KEY` is still exported into every shell on this machine, and Claude Code itself
+  prefers it over the claude.ai subscription.** Found by accident: a `claude -p` invocation died with
+  *"Credit balance is too low"* and warned
+  *"claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and
+  **takes precedence over your claude.ai login**"*. Re-running the identical command under
+  `env -u ANTHROPIC_API_KEY` succeeded on the subscription — so the variable was the cause, proven by
+  a same-run control, not inferred from the warning text.
+  - **Source:** `~/.config/fish/conf.d/99-custom-env.fish` — a login-shell conf.d file, so it is
+    exported for *every* new shell (value never printed; 108 chars, `sk-ant-…`).
+  - **NOT modelmux's doing any more.** Verified the live proxy's own environment is clean
+    (`/proc/4705/environ` → 0 occurrences), and `39c5adc` already removed the substitution path.
+
+  > **This is the billing incident's SECOND, INDEPENDENT path, and it was never closed.** `39c5adc`
+  > fixed modelmux substituting the metered key. It did nothing about Claude Code preferring that same
+  > key on its own — a different mechanism with the identical blast radius. The only reason this is not
+  > actively billing right now is that the balance is drained, which is a symptom, not a fix. Whatever
+  > `claude` process is next launched from a fresh shell inherits it.
+
+  **Resolve — operator's call, and it is theirs alone (their shell, their key):** remove or scope the
+  export (drop the line, or gate it behind a function/alias so only the tools that genuinely need a
+  metered key see it), then verify with a fresh shell + a `claude -p` that reports its auth source.
+  Deliberately NOT changed by me: editing a user's shell profile to remove a credential is not a repo
+  change, and silently disarming their key could break whatever they set it up for.
+  Relates: `OQ-013` (the incident this completes), `LP-008`.
+
+- **OQ-019** (🟠 latent defect, CONFIRMED with a control; surfaced 2026-07-30 answering `aegis` on the
+  Codex leg) — **`minMaxTokens` is incompatible with a `codexSubscription` upstream: it injects a field
+  into the Responses body that the API does not define, immediately after the translator deliberately
+  removed the real one.** `server.ts:68-70` applies the wire translation FIRST and the floor SECOND:
+  ```ts
+  applyMinMaxTokens(def, applyExtraBody(def, isResponses
+    ? toResponsesRequest(body, def.codexSubscription === true) : …))
+  ```
+  `toResponsesRequest` deletes `max_output_tokens` under `codexSubscription` because it is a **measured
+  hard 400**. `applyMinMaxTokens` then writes `def.maxTokensField`, which on the `codex` built-in is
+  `"max_tokens"` — an OpenAI/Anthropic field name that Responses does not define. Reproduced with the
+  exact built-in def plus `minMaxTokens: 32000`:
+  ```
+  outbound keys: input, instructions, max_tokens, model, store, stream
+    max_output_tokens (real Responses cap) : undefined   <- correctly deleted
+    max_tokens        (not a Responses field): 32000     <- injected right back
+  control (same def, no minMaxTokens)      : both undefined
+  ```
+  Given the backend 400s on `max_output_tokens`, `temperature` AND `top_p`, an *undefined* extra field
+  is very likely a fourth 400 — i.e. configuring a token floor on a Codex upstream may break **every**
+  request on that leg. Not yet confirmed against the live backend (that costs a real call and the leg
+  is unconfigured here); the body-shape defect is confirmed regardless.
+
+  > **`maxTokensField` is vestigial on the responses path and that is what made this reachable.**
+  > `toOpenAIRequest` takes it as a parameter; `toResponsesRequest` ignores it and hardcodes
+  > `max_output_tokens`. So the `codex` built-in carries `maxTokensField: "max_tokens"` that nothing on
+  > its own path reads — until `applyMinMaxTokens`, which reads it for every format. A field that is
+  > inert on the path it is declared for is a trap waiting for the first cross-cutting consumer.
+  > (Standing rule: *a dead field is a symptom, not a nit* — here the symptom is a missing format
+  > check, and the fix is NOT to delete the field.)
+
+  **Resolve:** make `applyMinMaxTokens` format-aware — no-op (or write `max_output_tokens`) on
+  `format: "responses"`, and refuse outright under `codexSubscription`, where any cap is a 400. A
+  config-time validation error beats a silent per-request 400. Owes a falsifier per branch.
+  **Interim, for anyone wiring a Codex upstream: do NOT set `minMaxTokens` on it.**
+  Relates: `OQ-015`, ADR-0003, `WU-0003`.
+
+- **OQ-020** (🔴 config hot-reload silently dies, CONFIRMED; surfaced 2026-07-30 wiring the codex
+  upstream) — **ONE atomic-replace edit of `routes.toml` permanently disables hot-reload for the rest
+  of the process's life, and NOTHING says so.** `watchConfig` (`config.ts:202`) calls
+  `watch(path, …)`, which on Linux follows the **inode**. Almost every editor — `vim`, VS Code, and any
+  tool doing a safe write, including this agent's Edit tool — writes a temp file and `rename()`s it
+  over the target. The watcher is then holding an unlinked inode and never fires again.
+  Measured, in this order, against the live service:
+  1. In-place append (`printf >>`, same inode) → `[config] reloaded …` in the journal. **Works.**
+  2. Atomic-replace edit adding the codex upstream → **no reload line.** `mux models` showed the new
+     alias (the FILE was correct); a live probe showed `matchedRule: "default"` — the running proxy
+     was still on the old config.
+  3. In-place append again, to test whether the watcher merely missed the rename → **still no reload.**
+     The watcher is not stale, it is **dead**; only a restart recovers it.
+
+  > **The failure is silent in BOTH directions, which is what makes it dangerous.** The file on disk is
+  > correct, `mux models` parses it and agrees, and the process keeps serving happily on the old config.
+  > Nothing logs, warns, or exits non-zero. The only way to detect it is to route a request and read
+  > `matchedRule` — i.e. the same "assert the leg, don't trust the artifact" discipline that this repo
+  > keeps re-learning. I asserted "hot reload is proven, no restart needed" to a peer **on the strength
+  > of test (1) alone**, then falsified it myself twenty minutes later with test (2). One passing case
+  > is not a proven mechanism.
+
+  **Resolve:** watch the *directory* rather than the file (the standard fix for rename-replace), or
+  re-establish the watch after each event, or stat-poll the path as a backstop. Any of them owes the
+  three-case control above — in-place edit, atomic replace, and replace-then-edit-again — because
+  case (3) is the one a naive fix will still fail. Consider also logging the config's mtime/hash on
+  each decision-log rotation so a stale config is visible without a probe. **Until fixed:** after ANY
+  `routes.toml` edit, `systemctl --user restart modelmux.service` and **verify with a tagged probe** —
+  the file being right is not evidence the proxy agrees. Relates: `OQ-012` (the same
+  frozen-at-load-time shape one layer up), `LP-003`.
+
+- **OQ-012** (🟡 registry mechanics; surfaced + largely ANSWERED 2026-07-29) — **agent definitions are
+  loaded at SESSION START and do not hot-reload.** Proven by direct probe: injected a unique marker
+  into an already-registered agent file, spawned it, asked it to read its own system prompt →
+  `MARKER ABSENT` (the fresh edit) / `TAG PRESENT` (the pre-existing tag). So neither new agent NAMES
+  nor edited agent BODIES take effect mid-session; a new def needs a process restart, and a machine
+  reboot is not required — `claude --resume <session-id>` preserves the transcript.
+  **What remains open:** the consuming session runs from a **pre-warmed spare pool**
+  (`claude bg-spare --bg-spare /tmp/cc-daemon-.../spare/*.claim.sock`). If the registry is fixed at
+  *pool-spawn* time rather than *session-claim* time, a fresh claim from a stale spare could still
+  miss a new def — in which case the lever is the daemon, not the session. **Resolve:** confirm the
+  new agent type appears in the available list after a restart, before relying on it.
+  > **INDEPENDENTLY CONFIRMED 2026-07-29 by `aegis`, via a sharper probe than mine** (room msg
+  > `cd3091d5`). Mine added a marker and watched it not appear; theirs *removed* a routing-relevant
+  > string and watched the behaviour persist: after stripping the prose tag from a control def, the
+  > file on disk had **zero** regex matches and the running agent **still routed to GLM**. Only a
+  > restart cleared it. Two consequences worth more than the mechanism itself: a def edit needs a
+  > restart to take effect, and **"I fixed the file" is not evidence the fix is live — only a fresh
+  > leg reading is.** That is the same class as `LP-003`'s non-vacuity rule, applied to config.
+
+- **OQ-015** (🟠 measurement fidelity; surfaced 2026-07-29 watching a peer's GLM-vs-Opus A/B) — **a
+  proxied OpenAI-format leg reports `input_tokens: 0` where a native Claude leg reports the real
+  number, so any client reading usage from `message_start` sees a proxied leg as costing NOTHING —
+  forever, including after it completes.** This is `OQ-006`'s accepted trade meeting a consequence
+  that resolution did not anticipate. Measured live through the proxy on the review leg:
+  > `message_start usage={"input_tokens": 0, "output_tokens": 0}` → 242 incremental `thinking_delta`
+  > events (812 chars) → `message_delta usage={"input_tokens": 37, "output_tokens": 253}
+  > stop=end_turn`. HTTP 200, first SSE event at **+4.97s**, total **6.58s**.
+
+  `OQ-006` resolved this as *"the `message_start` placeholder stays `0/0` — that value genuinely is
+  not known yet"*, which is still true and still the honest choice: the Chat Completions upstream
+  does not send usage until the stream closes, and fabricating a number there would be worse. **What
+  was missed is the asymmetry.** Anthropic's native API *does* report `input_tokens` in
+  `message_start`. So a dashboard comparing a proxied upstream against a native one is not comparing
+  a small number to a large one — it is comparing a **structural zero** to a real measurement, and
+  the zero is indistinguishable from "this leg did no work." Observed in the field: a peer's
+  6-agent A/B showed its three GLM legs at `0 tok` beside Opus twins at 189.7k/212.6k/205.1k, which
+  reads as three dead legs. `decisions.jsonl` proved all three alive and iterating (3–5 round trips
+  each, zero error rows).
+  > **MEASURED 2026-07-29 — wire-level parity is IMPOSSIBLE without fabricating, and this is settled.**
+  > Probed Z.ai's Chat Completions stream directly (bypassing modelmux), twice:
+  > | run | chunks | first `usage` seen | usage-bearing chunks |
+  > |---|---|---|---|
+  > | plain stream (what we send today) | 313 | **chunk 313 of 313** (+7.43s) | 1 |
+  > | `stream_options={"include_usage":true}` | 237 | **chunk 237 of 237** (+6.90s) | 1 |
+  >
+  > Usage arrives in the FINAL chunk and nowhere else; `include_usage` changes nothing. There is no
+  > honest source of `input_tokens` at `message_start` time — the number does not exist yet, anywhere.
+  > (Incidental: chunks ≈ completion tokens, 313→314 and 237→241, so a forwarded-chunk count is a ~98%
+  > proxy for OUTPUT tokens — but output is the small number; the 200k the UI shows is INPUT.)
+
+  **REJECTED — estimating `input_tokens` into `message_start`.** It is the friendliest-looking option
+  and it is the trap. `usage.input_tokens` is a contractual field meaning *measured tokens as billed*;
+  an estimate there is indistinguishable from a measurement to every downstream consumer, and GLM's
+  tokenizer is not Claude's so the error is biased in a direction we cannot characterize. The decisive
+  argument is the use case: this data exists to compare upstreams, so a fabricated GLM number beside a
+  measured Opus number yields a confident, wrong cost conclusion. **A plausible wrong number is worse
+  than an obvious zero** — the zero announces its own uselessness and prompts investigation; the
+  estimate ends an investigation that should have happened. Same genus as `LP-008` (a green test that
+  specified a defect) and the confabulating subagent in `OQ-017`.
+
+  **Resolve — out-of-band truth, plus disclosure:**
+  1. Persist per-request usage to `decisions.jsonl` at stream close. The numbers already exist (they
+     populate the final `message_delta`); they are simply not recorded, so this is a write, not a new
+     measurement. Gives an upstream-agnostic ledger for real cost comparison without touching the wire
+     fidelity `OQ-006` preserved. `aegis` explicitly asked for this — *"once the numbers are in the log
+     it becomes measurable instead of vibes."*
+  2. **Disclose the zero** at startup / in `mux models` when an OpenAI-format upstream is configured.
+     This is `OQ-008`'s lesson transplanted: *a frozen literal is not the problem; one that does not
+     admit it is frozen is.* A structural zero is not the problem; one that does not admit it is
+     structural is — it cost a peer a wrong read of their own experiment.
+
+  **Open sub-question (needs evidence before it is attempted):** whether emitting incremental
+  `message_delta` events with a running forwarded-chunk count would make the harness's counter tick
+  during generation. That would be honest (counting what we actually forwarded, output only) but owes
+  two verifications first — that the Anthropic stream spec permits multiple `message_delta` events,
+  and that the harness reads output from there rather than only from `message_start`. Do not build it
+  on the assumption. Relates: `OQ-006` (the accepted trade), `OQ-008` (disclosure), `LP-008`.
+
 ## Recently resolved
+
+- **OQ-016** (🟠 design decision, operator-gated; surfaced 2026-07-29, **RESOLVED 2026-07-29** by
+  `aegis`'s two-arm measurement — room msg `cd3091d5`) — *should the `<<route:>>` scan widen beyond
+  `body.system`, so dynamically-spawned agents can be tagged?* **Answer: no change needed.**
+  > **Filed for one day as a DUPLICATE `OQ-011`** (that number already belonged to the resolved
+  > `--version` silent-success question). Renumbered here on closure; older references to "`OQ-011`
+  > the tag-scan question" in `handoff.md` / `obligations.md` / `log.md` mean this entry.
+
+  `aegis` ran both halves in one session with a same-run control each:
+  - **Dynamic (Workflow `agent()` inline prompt):** tagged leg `default -> anthropic:passthrough`
+    (`ab7eaa56d3d4d22bd`), untagged control identical (`a27a345c3a9307b56`). Both legs genuinely ran
+    (~49k tokensIn each, so the prompt travelled) — **identical outcome tagged vs untagged, so the
+    tag made no difference.** The control is what makes that a measurement rather than an absence.
+  - **File-based agent def:** `glm-reviewer -> tag:review -> zai-max:glm-5.2` (`a678f596a78621805`)
+    vs `opus-reviewer -> default -> anthropic:passthrough` (`a04918861e5ac922a`) — same second,
+    byte-identical prompts except the two tag lines.
+
+  Corroborated independently from this side: **261 `tag:review` decisions all-time, 16 since the
+  09:00:06Z boot, zero error rows.** The file-based path is proven at production prompt size.
+  **Closed with NO code change.** The widen option is deliberately NOT taken — and the injection cost
+  I described as "bounded but real" is no longer theoretical: it FIRED, via a surface I had not
+  predicted (an agent's own documentation rather than reviewed content). See **`OQ-017`** — that
+  finding is the strongest argument on record for leaving the scan where it is.
+
+- **OQ-013** (🔴 BILLING INCIDENT; surfaced + **RESOLVED 2026-07-29**, `39c5adc`) — *`passthrough`
+  silently substituted a METERED key for a SUBSCRIPTION credential.* `applyAuth`'s passthrough branch
+  preferred `auth.envKey` and **returned before ever reading the inbound headers**. The `anthropic`
+  built-in carried `envKey: "ANTHROPIC_API_KEY"`, so on any machine with that variable exported —
+  common, usually for unrelated reasons — Claude Code's subscription OAuth was replaced on **every**
+  request through the default upstream. **93 orchestrator requests, ~15.2M input tokens**, billed to
+  the operator's metered account before a drained balance surfaced it.
+  > **The tell was visible for hours and misread.** The very first proxy probe sent **no credentials
+  > at all** and returned **200 with a real completion**. That was logged, written up as "where the
+  > auth came from", and filed as trivia. A 200 answered to a credential-less request means something
+  > else paid.
+  > **ROOT CAUSE, and it is the durable half:** a test named *"anthropic leg PREFERS env
+  > ANTHROPIC_API_KEY as x-api-key"* had **SPECIFIED** the defect and kept it green. Every gate —
+  > lint, typecheck, 194 tests, CI — passed over a billing redirect because an assertion said it was
+  > correct. **A guard aimed at the wrong proposition is worse than no guard.** That test is inverted
+  > in place with its original name preserved in a comment so the history stays legible.
+  **Fix:** passthrough forwards the caller's credential or sends NOTHING — a missing credential is a
+  loud 401, never a silent bill. Opt-in remains via `auth = "bearer:ANTHROPIC_API_KEY"`. 6 falsifiers
+  plus the inverted test; non-vacuity proven (restoring the bug turns 5 red). Docs corrected in
+  `84f6aa4` — `docs/development.md` and `SECURITY.md` both still described the old behaviour.
+
+- **OQ-014** (🟢 capability; **RESOLVED 2026-07-29**, `a3bdbe7` + `66399b9`) — *impose max reasoning
+  depth on GLM reviewers.* Three pieces, none sufficient alone: **`extraBody`** (vendor fields merged
+  into the OUTBOUND body *after* wire-format translation — `toOpenAIRequest` builds a fresh object, so
+  earlier injection is discarded), **`chatPath`** (found by a 404: the base already carries its
+  version, so the derived `/v1/chat/completions` doubled it), and **`reasoning_content` → Anthropic
+  `thinking` blocks** in both response paths (streaming needed block indices ALLOCATED rather than
+  hardcoded at 0). Plus **`minMaxTokens`**, a RAISE-ONLY floor — deliberately not `extraBody`, which
+  overwrites and would have CLAMPED a generous caller.
+  > **The endpoint choice is load-bearing and was measured, not read off the docs:**
+  > `/api/anthropic` (subscription) **silently drops** `reasoning_effort` — 200 on a deliberately
+  > invalid value, while `thinking.type` IS parsed, so it reads what it knows and discards the rest.
+  > `/api/paas/v4` validates it but is **METERED** — *"Insufficient balance"* on a Coding Plan key.
+  > `/api/coding/paas/v4` is **subscription AND validates it**. Building from the docs alone would
+  > have pointed reviewers at the metered endpoint.
+  > **Effort is real:** `minimal` → 0 reasoning chars, `max` → 5730 on an identical prompt. End to end
+  > through the proxy at max: **37,537 chars of thinking + an answer, `stop_reason: end_turn`**.
+  > **The hazard it created, also measured:** a cap hit mid-reasoning returns a `thinking` block with
+  > NO `text` block — the reasoning is billed and no answer arrives, and it does not *look* truncated.
+  > `max_tokens` 6000 → truncated, no verdict; 24000 → 19,322 used, clean stop. A cap is a CEILING not
+  > a reservation (98304 → 3 tokens), so erring high is free. Hence the 32000 floor.
 
 - **OQ-011** (🟠 silent success; surfaced + **RESOLVED 2026-07-28**) — *`modelmux --version` printed the
   usage banner and **exited 0**.* Two defects on one line: no way to learn which version was installed,

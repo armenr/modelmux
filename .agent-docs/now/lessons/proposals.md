@@ -44,3 +44,32 @@ second.)*
   inference was involved; I never formed the "therefore" because I never asked the question. Candidate
   mitigation: when writing a procedure into an `OQ`/runbook, also write the one-line QUESTION it answers,
   and put the question where the situation occurs rather than where the file is named.
+
+### LP-008 (seedling · llm-draft · 2026-07-29) — A test can SPECIFY a defect, and then every gate defends it
+
+- **Trigger:** a gate is green over code you are about to trust, especially code that moves money,
+  credentials, or data across a boundary. Also: any time you write an assertion whose name begins
+  "X prefers Y" or otherwise encodes a POLICY rather than a property.
+- **Claim:** `LP-003` says a guard you have never watched fail is not yet a guard. This is the
+  sibling failure and it is worse, because it survives that test: a guard that **is** non-vacuous,
+  **does** go red when broken, and asserts the **wrong proposition**. Nothing in the apparatus can
+  see it — the suite is green because the code matches the spec, and the spec is the bug. **A guard
+  aimed at the wrong proposition is worse than no guard**, because it converts a defect into a
+  requirement and every future gate defends it.
+- **Evidence (firsthand, 2026-07-29, and it cost real money):** `test/upstreams.test.ts` carried
+  `test("anthropic leg PREFERS env ANTHROPIC_API_KEY as x-api-key")`. It was correct, non-vacuous,
+  and green from the day it was written. It specified that a proxy should substitute a METERED key
+  for the caller's SUBSCRIPTION credential. **93 orchestrator requests, ~15.2M input tokens** were
+  billed to the wrong account, past lint, typecheck, 194 tests and CI — every one of which passed
+  *because* the assertion said the behaviour was correct. The runtime tell (a 200 answered to a
+  credential-less request) was visible for hours and read as trivia.
+- **Severity:** high — it is the failure mode that a fully-disciplined test suite cannot detect by
+  construction, and it is most likely exactly where the stakes are highest (auth, billing, deletion,
+  egress), because those are the paths people write explicit policy assertions about.
+- **Note for review:** distinct from `LP-003` (vacuity — the guard cannot fire) and from `LP-006`
+  (inference — the observation was right and the "therefore" was wrong). Here the observation, the
+  instrument, AND the guard are all sound; the *specification* is wrong. Candidate mitigation: for any
+  assertion that encodes a POLICY on a money/credential/destructive path, write the sentence the test
+  makes true and ask whether you would sign it — "modelmux substitutes a metered key for a
+  subscription credential" is not a sentence anyone would have signed. A property test survives
+  refactors; a policy test outlives its own justification.

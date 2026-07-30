@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-26
+last-modified: 2026-07-29
 tags: [current, work-plan, decisions]
 related: [status, open-questions, obligations]
 ---
@@ -10,37 +10,31 @@ related: [status, open-questions, obligations]
 
 ## Immediate next
 
-> **🎯 CURRENT — triage PR #19 (dependabot). DO NOT MERGE AS-IS.**
+> **🎯 CURRENT — rule on `OQ-017`: anchor `TAG_RE` to its own line. A CONFIRMED defect in shipped
+> routing semantics, reproduced firsthand, awaiting the operator because it is user-visible.**
 >
-> It groups a **MAJOR TypeScript bump** (`^6.0.3` → `^7.0.2`) into a routine `dev-deps` group, and CI
-> fails with an unambiguous incompatibility:
+> `src/signals.ts:3` is unanchored (`/<<route:([\w-]+)>>/i`, first-match-wins over the whole system
+> text), so **any mention of a tag IS the tag** — including the sentence documenting it, and including
+> a front-matter `description:`. Four failure modes reproduced against the live tree; the worst two:
+> a prose mention placed *before* a real directive **overrides** it, and `mux use` rewrites the wrong
+> occurrence while **printing success**, leaving a file that says one alias to a human and routes as
+> another.
 >
-> ```
-> Error: typescript-eslint does not support TS 7.0.
-> ```
+> **Recommended:** `/^[ \t]*<<route:([\w-]+)>>[ \t]*$/im` in `signals.ts` + both `cli.ts` sites.
+> **Measured blast radius: zero** — all four shipped defs keep working; only the prose lines stop
+> matching. Owes an ADR before implementation, then a falsifier per failure mode.
 >
-> Merging it **disarms `lint` AND `typecheck` at once** — exactly the looks-live-but-isn't gate class
-> this repo spent 2026-07-25 fixing. The group also carries `eslint-plugin-unicorn ^68 → ^72`,
-> another major.
+> **THEN, in order:**
+> 1. **PR #19** — close it, don't split it. `@antfu/eslint-config` 9.1→9.2 drags
+>    `eslint-plugin-unicorn ^68 → ^72` transitively, so the "safe three" aren't safe by inspection.
+>    Add a `dependabot.yml` ignore for `typescript` majors. (`OQ-009`)
+> 2. **`OQ-010`** — the gate fragment for `pkill -f` / `pgrep -af`, now known to be ONE defect class
+>    (this harness embeds the whole command text in the wrapper's cmdline, so the bracket workaround
+>    fails too). Liveness = read the lease PID, never grep ps.
+> 3. **`OQ-008`** — per-provider `check-latest` probing. Still genuine feature scope.
 >
-> **Do:** split the group — take `@antfu/eslint-config` (9.1→9.2), `@commitlint/cli` (21.2.0→21.2.1)
-> and `eslint` (10.6→10.8); **hold `typescript`** until typescript-eslint supports 7.x. Then add a
-> `dependabot.yml` `ignore` rule for `typescript` majors so this does not re-open weekly.
-> **Verify after:** `bun run check` must pass locally before pushing — CI proved the failure, but the
-> split is what needs confirming.
->
-> **THEN, pick one — both are small and independent:**
-> - **`OQ-010`** (cheap, high leverage) — splice a repo-local fragment into
->   `.claude/hooks/pretooluse-safety-gates.sh` at its documented insertion point so `pkill -f` and
->   `partyline read`-in-a-pipeline are gated rather than merely documented. This is the work item
->   `LP-005`'s acceptance bought; each rule owes a non-vacuous control (`LP-003`).
-> - **`OQ-008` remainder** — extend `check-latest` to probe per-provider (Anthropic via the Models
->   API; Codex via the on-disk `~/.codex/models_cache.json`, no network). The date-column half
->   shipped in v0.5.1; run-time probing is genuine feature scope and wants its own branch.
->
-> **Do NOT:** merge #19 unsplit · redeem the Codex refresh token to learn whether it rotates (the test
-> IS the dangerous act — it would break the operator's `codex` CLI) · patch kit-owned files to clear
-> the doc-lint suppression (fieldbook owns that; it arrives on upgrade).
+> **Do NOT:** merge #19 unsplit · widen the tag scan without an explicit decision · re-point reviewers
+> at `/api/paas/v4` (METERED — "Insufficient balance" on the Coding Plan key) · patch kit-owned files.
 
 ## The plan (phases / milestones)
 
@@ -56,6 +50,10 @@ related: [status, open-questions, obligations]
 | Codex refresh-token handling | ✅ fail-loud-on-401 shipped (`OQ-002`); renewal deliberately not done |
 | Reachability oracle in CI (`OQ-007`) | ✅ shipped `v0.5.1` — knip + a population floor; found `forwardUrl` dead on first run |
 | Release v0.5.0 · v0.5.1 | ✅ both cut, 5 binaries each, **artifact-verified** (downloaded, checksummed, run) |
+| **Billing-redirect fix** (`39c5adc`) | ✅ passthrough never substitutes a metered key; 6 falsifiers + the inverted test |
+| **GLM max-reasoning chain** (`a3bdbe7`, `66399b9`) | ✅ `extraBody` · `chatPath` · `minMaxTokens` · `reasoning_content`→`thinking`; live-verified end to end |
+| systemd user unit + reboot survival | ✅ `modelmux.service` enabled, verified across a real reboot |
+| Release `v0.6.0` | 🟡 PR #20 open and correctly versioned — merge when ready |
 
 ## Locked decisions (this cycle)
 
@@ -71,6 +69,14 @@ related: [status, open-questions, obligations]
   before merge because its diff had **zero** user-visible behaviour change; it cut `v0.5.1`, not
   `v0.6.0`. A minor bump advertises a feature that does not exist.
 - Tests are **not** reachability entrypoints — admitting them makes the oracle report clean forever.
+- **`passthrough` means passthrough — it never substitutes a credential.** No inbound auth sends NO
+  auth, so the upstream 401s loudly rather than billing someone silently. Key auth against Anthropic is
+  opt-in (`auth = "bearer:ANTHROPIC_API_KEY"`). Reversal of the prior "prefer env key" behaviour, which
+  a test had specified.
+- **`extraBody` overwrites; `minMaxTokens` raises.** Two mechanisms on purpose: imposing
+  `reasoning_effort` needs an override, imposing a token floor must never clamp a generous caller.
+- **A machine-local fact goes in the gitignored settings layer**, never a tracked one — and the
+  tracking status of the target file is checked BEFORE editing another repo's config.
 - **A trap's SECOND firing buys a mechanism, not a re-wording** (`LP-005`, accepted evergreen
   2026-07-27). Docs are the correct first response; once a documented trap fires again, the doc is
   disproven evidence and the remedy moves to the operative surface — or the recurrence is recorded

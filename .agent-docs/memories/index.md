@@ -69,6 +69,19 @@ anti-actions) · See also (related docs, upstream issues, commit refs).
   **config file's presence as evidence its tool was live**. (Diagnosed firsthand 2026-07-25 after nine
   commits skipped.)
 
+- 🗣️ `claude-p-in-this-repo-inherits-claude-md-and-becomes-a-second-voice.md` — **Open when:** you are
+  about to run `claude -p` (a capture, a probe, a scripted one-shot) anywhere near this repo, or a room
+  monitor dies with `exit 144` for no reason you can name. **Carry-away:** `claude -p` is *headless*,
+  not *context-free* — project context resolves off **cwd**, so a `-p` run from the repo root inherits
+  `CLAUDE.md`, the `SessionStart` hook and the partyline block, and becomes a **second voice for this
+  agent name**. Measured: one such run ignored its actual instruction, consumed room mail with the
+  cursor-advancing `read`, edited `.agent-docs/`, and killed the primary's monitor twice. Mail survived
+  only because the primary had already read it. **Fix:** run probes from a `mktemp -d` cwd holding only
+  the agent def they need — no `CLAUDE.md`, no hooks. **And verify the shared surfaces yourself**
+  (`room.jsonl`, `unread --count`, `git diff`) — a rogue voice's own report that it behaved is worth
+  nothing. Note the one-voice rule in `CLAUDE.md` addresses *subagents*, and a `claude -p` is not one:
+  that gap is what let this through.
+
 - 📬 `room-unread-is-the-non-mutating-probe-and-the-watch-count-is-cursor-independent.md` — **Open
   when:** a room-monitor wake says you have mail, or you are about to check mail status with
   `partyline read`. **Carry-away:** `room unread --for <agent>` is the **non-mutating** probe —

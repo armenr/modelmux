@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-10
-last-modified: 2026-07-26
+last-modified: 2026-07-29
 tags: [current, obligations]
 related: [status, work-plan, open-questions, handoff]
 ---
@@ -71,17 +71,18 @@ related: [status, work-plan, open-questions, handoff]
 > restate that trigger's action here (the cited row holds it). At Full these graduate to typed `RV`
 > anchors (ADR-0007).
 
-- 🔔 **FIRING TODAY** — the Codex `access_token` expires **2026-07-28T14:38Z** (measured 10:57 local,
-  ~7.7 h out; the `id_token` expired 07-18 and is identity-only, not used for API auth). Past it,
-  `OQ-002`'s fail-loud path is what a codex-routed request will hit. Remedy: `codex login`, no
-  restart needed. Only blocks Codex *field-testing*; no gate, build or test depends on it.
-- `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on the typescript bump lifts
 - **partyline ships the wired-block edit** (`unread --count` + the lease/liveness probe + `tail -F -n 0`;
   taken to their operator 2026-07-28) → re-running `partyline wire` REWRITES `CLAUDE.md`, which here
   carries the **skip-worktree** bit per `OQ-003`. Take the edit deliberately: `--no-skip-worktree` →
   re-wire → confirm the committed copy still has **zero** machine paths → re-set the bit. Also note the
   block's liveness advice is **watch-wired only** — a room-side probe cannot see a harness-side
   follower, which is fine for us (we are watch-wired) but is not a general claim
+- ~~the Codex `access_token` expiry passed 2026-07-28~~ → **STALE, cleared 2026-07-30**: measured from
+  `~/.codex/auth.json`, `access_token` is VALID to **2026-08-08** (`auth_mode: "chatgpt"`, no
+  `OPENAI_API_KEY`), so someone re-ran `codex login`. Re-check before relying on it — the useful
+  tripwire is now the 08-08 expiry, not the passed one
+- `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on PR #19 lifts
+- a reviewer reply arrives with a `thinking` block and NO `text` block → the `minMaxTokens` floor (32000) is too low for the real workload; raise it, do not diagnose it as an empty finding
 - fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
   latent-on-Standard case clears
 
@@ -96,4 +97,14 @@ related: [status, work-plan, open-questions, handoff]
 > *silently* delete a row — the log entry is the preserved audit trail; a row that vanished with no
 > journal entry reads as a *dropped* obligation, not a discharged one.
 
-*(Previous cycle's settled rows pruned 2026-07-26 — journaled in `log.md`, see the 2026-07-25 entries.)*
+*(2026-07-26 cycle pruned — journaled in `log.md`.)*
+
+- **operator** · dispatch authorization for scoped sub-agent work · settled 2026-07-27 in their own
+  words (*"CLAUDE.md go for it"*), recorded as a DATED fact in `CLAUDE.md` §Dispatch authorization —
+  not a self-vouching paragraph. Source: `bf8a05e`.
+- **operator** · commit + push authorization for the 5-commit billing/reasoning batch · settled
+  2026-07-29 (*"push at will"*). Source: `66399b9` pushed, `origin/main` 0 ahead.
+- ~~**aegis** · the file-based-vs-dynamic reviewer LEG result, per the tag-scan OQ~~ · **settled
+  2026-07-29** — delivered both halves with a same-run control each, closing it with no code change
+  (now `OQ-016`). Their answer also surfaced `OQ-017`, a confirmed defect in our matcher. Source:
+  room msg `cd3091d5`.
