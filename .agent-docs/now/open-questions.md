@@ -209,6 +209,59 @@ related: [status, work-plan, obligations]
   change, and silently disarming their key could break whatever they set it up for.
   Relates: `OQ-013` (the incident this completes), `LP-008`.
 
+- **OQ-021** (🟠 capability gap, MEASURED; surfaced 2026-07-30 checking a peer's claim that the Codex
+  leg cannot be steered) — **the Codex backend HONOURS `reasoning: {effort}` and CAN emit reasoning
+  summaries; modelmux asks for neither and would discard the summaries if it did.** A peer declined to
+  use the leg on the grounds that `gpt-5.6-sol` defaults to `low` effort with no visible reasoning.
+  Both halves are fixable, and I had told them the field shape was unverified — so I verified it.
+
+  **Probed the backend DIRECTLY (live proxy untouched), and the discriminator is the invalid value:**
+  | request | result |
+  |---|---|
+  | no `reasoning` field (what we send today) | 200 · 0 reasoning events |
+  | `reasoning={effort:"low"\|"high"\|"xhigh"}` | 200 |
+  | **`reasoning={effort:"banana"}`** | **400 — *"Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'"*** |
+  | `reasoning={effort:"high", summary:"auto"}` | 200 · `response.reasoning_summary_*` events, 82 chars |
+  | `reasoning={effort:"max", summary:"detailed"}` | 200 · same event family, 94 chars |
+
+  The 400 is the whole point: it proves the field is **read and validated**, not silently dropped —
+  the same test that caught Z.ai's `/api/anthropic` pretending to accept `reasoning_effort`. Note
+  `ultra` appears in `~/.codex/models_cache.json` but is NOT in the API's supported set; `max` is the
+  ceiling on this path.
+
+  **Two changes, different sizes:**
+  1. **Effort — CONFIG ONLY, no code.** `extraBody = { reasoning = { effort = "high" } }` on the codex
+     upstream. `toResponsesRequest` whitelists fields and never copies `reasoning` from inbound, but
+     `applyExtraBody` runs AFTER the translation, so injection lands correctly — the identical
+     mechanism that imposes `reasoning_effort` on the GLM leg. Untested end-to-end through the proxy.
+  2. **Visibility — needs CODE.** `src/responses.ts` handles exactly seven `response.*` event types
+     and **none** of the `response.reasoning_summary_*` family, so a requested summary would arrive
+     and be silently discarded. This is the same gap `a3bdbe7` closed for the Chat Completions path
+     (`reasoning_content` → `thinking`), and it wants the same shape: map
+     `response.reasoning_summary_text.delta` → a `thinking` block, with block indices ALLOCATED not
+     hardcoded (the trap that bit the OpenAI streaming path).
+
+  > **The peer's reasoning was sound and the conclusion was still wrong.** "No thinking blocks" is
+  > true, but the cause is not only that our adapter drops reasoning ITEMS — it is that we never ASK
+  > for summaries. Measured: with no `summary` key, zero reasoning events arrive at all. An absent
+  > capability and an unrequested one are indistinguishable from the client side, which is why this
+  > needed a probe rather than a code read.
+
+  **SHIPPED 2026-07-30 — both halves, live verification PENDING a restart window.**
+  - (1) **Config, done:** the live `routes.toml` now overrides the `codex` built-in with
+    `extraBody = { reasoning = { effort = "high", summary = "auto" } }`. `gpt-5.6-sol` defaults to
+    `low`, the lowest in its family, which is the wrong setting for judgement work. No `minMaxTokens`
+    (`OQ-019`). The new binary parses it; the RUNNING proxy has not picked it up because it is still
+    the old binary with a dead watcher (`OQ-020` — the fix that removes restarts needs one last one).
+  - (2) **Code, done:** `f9f466e` carries the summary back on BOTH paths, opening the streaming
+    thinking block LAZILY on the first delta so an unrequested summary emits no empty block. 5
+    falsifiers, RED without it (3 fail / 2 pass, the 2 green being the empty-block guards).
+
+  **What remains is the acceptance, not the build:** probe the build leg after the restart and confirm
+  a `thinking` block actually arrives. Until that runs this is IMPL, not WIRED — the tests prove the
+  translation, not that the backend, the config and the adapter agree end to end.
+  Relates: `OQ-015`, ADR-0003, `OQ-020`.
+
 - **OQ-012** (🟡 registry mechanics; surfaced + largely ANSWERED 2026-07-29) — **agent definitions are
   loaded at SESSION START and do not hot-reload.** Proven by direct probe: injected a unique marker
   into an already-registered agent file, spawned it, asked it to read its own system prompt →
