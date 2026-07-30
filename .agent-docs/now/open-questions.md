@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-29
+last-modified: 2026-07-30
 tags: [current, open-questions]
 related: [status, work-plan, obligations]
 ---
@@ -209,74 +209,6 @@ related: [status, work-plan, obligations]
   change, and silently disarming their key could break whatever they set it up for.
   Relates: `OQ-013` (the incident this completes), `LP-008`.
 
-- **OQ-019** (🟠 latent defect, CONFIRMED with a control; surfaced 2026-07-30 answering `aegis` on the
-  Codex leg) — **`minMaxTokens` is incompatible with a `codexSubscription` upstream: it injects a field
-  into the Responses body that the API does not define, immediately after the translator deliberately
-  removed the real one.** `server.ts:68-70` applies the wire translation FIRST and the floor SECOND:
-  ```ts
-  applyMinMaxTokens(def, applyExtraBody(def, isResponses
-    ? toResponsesRequest(body, def.codexSubscription === true) : …))
-  ```
-  `toResponsesRequest` deletes `max_output_tokens` under `codexSubscription` because it is a **measured
-  hard 400**. `applyMinMaxTokens` then writes `def.maxTokensField`, which on the `codex` built-in is
-  `"max_tokens"` — an OpenAI/Anthropic field name that Responses does not define. Reproduced with the
-  exact built-in def plus `minMaxTokens: 32000`:
-  ```
-  outbound keys: input, instructions, max_tokens, model, store, stream
-    max_output_tokens (real Responses cap) : undefined   <- correctly deleted
-    max_tokens        (not a Responses field): 32000     <- injected right back
-  control (same def, no minMaxTokens)      : both undefined
-  ```
-  Given the backend 400s on `max_output_tokens`, `temperature` AND `top_p`, an *undefined* extra field
-  is very likely a fourth 400 — i.e. configuring a token floor on a Codex upstream may break **every**
-  request on that leg. Not yet confirmed against the live backend (that costs a real call and the leg
-  is unconfigured here); the body-shape defect is confirmed regardless.
-
-  > **`maxTokensField` is vestigial on the responses path and that is what made this reachable.**
-  > `toOpenAIRequest` takes it as a parameter; `toResponsesRequest` ignores it and hardcodes
-  > `max_output_tokens`. So the `codex` built-in carries `maxTokensField: "max_tokens"` that nothing on
-  > its own path reads — until `applyMinMaxTokens`, which reads it for every format. A field that is
-  > inert on the path it is declared for is a trap waiting for the first cross-cutting consumer.
-  > (Standing rule: *a dead field is a symptom, not a nit* — here the symptom is a missing format
-  > check, and the fix is NOT to delete the field.)
-
-  **Resolve:** make `applyMinMaxTokens` format-aware — no-op (or write `max_output_tokens`) on
-  `format: "responses"`, and refuse outright under `codexSubscription`, where any cap is a 400. A
-  config-time validation error beats a silent per-request 400. Owes a falsifier per branch.
-  **Interim, for anyone wiring a Codex upstream: do NOT set `minMaxTokens` on it.**
-  Relates: `OQ-015`, ADR-0003, `WU-0003`.
-
-- **OQ-020** (🔴 config hot-reload silently dies, CONFIRMED; surfaced 2026-07-30 wiring the codex
-  upstream) — **ONE atomic-replace edit of `routes.toml` permanently disables hot-reload for the rest
-  of the process's life, and NOTHING says so.** `watchConfig` (`config.ts:202`) calls
-  `watch(path, …)`, which on Linux follows the **inode**. Almost every editor — `vim`, VS Code, and any
-  tool doing a safe write, including this agent's Edit tool — writes a temp file and `rename()`s it
-  over the target. The watcher is then holding an unlinked inode and never fires again.
-  Measured, in this order, against the live service:
-  1. In-place append (`printf >>`, same inode) → `[config] reloaded …` in the journal. **Works.**
-  2. Atomic-replace edit adding the codex upstream → **no reload line.** `mux models` showed the new
-     alias (the FILE was correct); a live probe showed `matchedRule: "default"` — the running proxy
-     was still on the old config.
-  3. In-place append again, to test whether the watcher merely missed the rename → **still no reload.**
-     The watcher is not stale, it is **dead**; only a restart recovers it.
-
-  > **The failure is silent in BOTH directions, which is what makes it dangerous.** The file on disk is
-  > correct, `mux models` parses it and agrees, and the process keeps serving happily on the old config.
-  > Nothing logs, warns, or exits non-zero. The only way to detect it is to route a request and read
-  > `matchedRule` — i.e. the same "assert the leg, don't trust the artifact" discipline that this repo
-  > keeps re-learning. I asserted "hot reload is proven, no restart needed" to a peer **on the strength
-  > of test (1) alone**, then falsified it myself twenty minutes later with test (2). One passing case
-  > is not a proven mechanism.
-
-  **Resolve:** watch the *directory* rather than the file (the standard fix for rename-replace), or
-  re-establish the watch after each event, or stat-poll the path as a backstop. Any of them owes the
-  three-case control above — in-place edit, atomic replace, and replace-then-edit-again — because
-  case (3) is the one a naive fix will still fail. Consider also logging the config's mtime/hash on
-  each decision-log rotation so a stale config is visible without a probe. **Until fixed:** after ANY
-  `routes.toml` edit, `systemctl --user restart modelmux.service` and **verify with a tagged probe** —
-  the file being right is not evidence the proxy agrees. Relates: `OQ-012` (the same
-  frozen-at-load-time shape one layer up), `LP-003`.
-
 - **OQ-012** (🟡 registry mechanics; surfaced + largely ANSWERED 2026-07-29) — **agent definitions are
   loaded at SESSION START and do not hot-reload.** Proven by direct probe: injected a unique marker
   into an already-registered agent file, spawned it, asked it to read its own system prompt →
@@ -356,6 +288,98 @@ related: [status, work-plan, obligations]
   on the assumption. Relates: `OQ-006` (the accepted trade), `OQ-008` (disclosure), `LP-008`.
 
 ## Recently resolved
+
+- **OQ-020** (🔴 config hot-reload silently dies; surfaced + **RESOLVED 2026-07-30**, `bf45c30`) — **ONE atomic-replace edit of `routes.toml` permanently disables hot-reload for the rest
+  of the process's life, and NOTHING says so.** `watchConfig` (`config.ts:202`) calls
+  `watch(path, …)`, which on Linux follows the **inode**. Almost every editor — `vim`, VS Code, and any
+  tool doing a safe write, including this agent's Edit tool — writes a temp file and `rename()`s it
+  over the target. The watcher is then holding an unlinked inode and never fires again.
+  Measured, in this order, against the live service:
+  1. In-place append (`printf >>`, same inode) → `[config] reloaded …` in the journal. **Works.**
+  2. Atomic-replace edit adding the codex upstream → **no reload line.** `mux models` showed the new
+     alias (the FILE was correct); a live probe showed `matchedRule: "default"` — the running proxy
+     was still on the old config.
+  3. In-place append again, to test whether the watcher merely missed the rename → **still no reload.**
+     The watcher is not stale, it is **dead**; only a restart recovers it.
+
+  > **The failure is silent in BOTH directions, which is what makes it dangerous.** The file on disk is
+  > correct, `mux models` parses it and agrees, and the process keeps serving happily on the old config.
+  > Nothing logs, warns, or exits non-zero. The only way to detect it is to route a request and read
+  > `matchedRule` — i.e. the same "assert the leg, don't trust the artifact" discipline that this repo
+  > keeps re-learning. I asserted "hot reload is proven, no restart needed" to a peer **on the strength
+  > of test (1) alone**, then falsified it myself twenty minutes later with test (2). One passing case
+  > is not a proven mechanism.
+
+  **Resolve:** watch the *directory* rather than the file (the standard fix for rename-replace), or
+  re-establish the watch after each event, or stat-poll the path as a backstop. Any of them owes the
+  three-case control above — in-place edit, atomic replace, and replace-then-edit-again — because
+  case (3) is the one a naive fix will still fail. Consider also logging the config's mtime/hash on
+  each decision-log rotation so a stale config is visible without a probe. **Until fixed:** after ANY
+  `routes.toml` edit, `systemctl --user restart modelmux.service` and **verify with a tagged probe** —
+  the file being right is not evidence the proxy agrees. Relates: `OQ-012` (the same
+  frozen-at-load-time shape one layer up), `LP-003`.
+
+  **FIXED — by watching the DIRECTORY, but not naively.** Two measured surprises the obvious fix
+  walks into: Bun reports an atomic replace as `rename` against the **SOURCE** name (the editor's
+  `.tmp`) and NEVER the destination, so a `filename === basename` filter drops the very event this
+  watch exists to catch — the first version of the fix still failed cases 2 and 3. And a directory
+  watch sees the temp file vanish, which Bun raises as an **ENOENT `error` event that is FATAL if
+  unhandled** — the operation this fix exists to survive would have crashed the proxy. Gating on the
+  config's own mtime handles in-place, replace, and null-filename uniformly while keeping the
+  decision log's per-request churn out. `ConfigHolder` gained an optional `close()`: a watcher with
+  no handle cannot be released at all.
+  > **The three-case control earned its keep twice.** Cases 1+2 alone would have passed a fix that
+  > still failed case 3, and the suite ALSO exposed a test-harness lie of my own: arming an fs watch
+  > is asynchronous, and mutating immediately beat the registration — a miss that looks exactly like
+  > the defect under test. Proven RED against the inode-following watch: cases 2, 3 and the
+  > broken-config recovery go red while the in-place control and the sibling guard stay green.
+  > Hands-on acceptance ran the compiled binary in a real process on its own port, live service
+  > untouched: two atomic replaces each reloaded, and a probe returned HTTP 200 with the upstream
+  > echoing the NEW model (`tag:review -> zai-max:glm-4.7`) — the reload reaches the WIRE, not just
+  > the holder.
+
+- **OQ-019** (🟠 latent defect; surfaced + **RESOLVED 2026-07-30**, `38cd513`) — **`minMaxTokens` is incompatible with a `codexSubscription` upstream: it injects a field
+  into the Responses body that the API does not define, immediately after the translator deliberately
+  removed the real one.** `server.ts:68-70` applies the wire translation FIRST and the floor SECOND:
+  ```ts
+  applyMinMaxTokens(def, applyExtraBody(def, isResponses
+    ? toResponsesRequest(body, def.codexSubscription === true) : …))
+  ```
+  `toResponsesRequest` deletes `max_output_tokens` under `codexSubscription` because it is a **measured
+  hard 400**. `applyMinMaxTokens` then writes `def.maxTokensField`, which on the `codex` built-in is
+  `"max_tokens"` — an OpenAI/Anthropic field name that Responses does not define. Reproduced with the
+  exact built-in def plus `minMaxTokens: 32000`:
+  ```
+  outbound keys: input, instructions, max_tokens, model, store, stream
+    max_output_tokens (real Responses cap) : undefined   <- correctly deleted
+    max_tokens        (not a Responses field): 32000     <- injected right back
+  control (same def, no minMaxTokens)      : both undefined
+  ```
+  Given the backend 400s on `max_output_tokens`, `temperature` AND `top_p`, an *undefined* extra field
+  is very likely a fourth 400 — i.e. configuring a token floor on a Codex upstream may break **every**
+  request on that leg. Not yet confirmed against the live backend (that costs a real call and the leg
+  is unconfigured here); the body-shape defect is confirmed regardless.
+
+  > **`maxTokensField` is vestigial on the responses path and that is what made this reachable.**
+  > `toOpenAIRequest` takes it as a parameter; `toResponsesRequest` ignores it and hardcodes
+  > `max_output_tokens`. So the `codex` built-in carries `maxTokensField: "max_tokens"` that nothing on
+  > its own path reads — until `applyMinMaxTokens`, which reads it for every format. A field that is
+  > inert on the path it is declared for is a trap waiting for the first cross-cutting consumer.
+  > (Standing rule: *a dead field is a symptom, not a nit* — here the symptom is a missing format
+  > check, and the fix is NOT to delete the field.)
+
+  **Resolve:** make `applyMinMaxTokens` format-aware — no-op (or write `max_output_tokens`) on
+  `format: "responses"`, and refuse outright under `codexSubscription`, where any cap is a 400. A
+  config-time validation error beats a silent per-request 400. Owes a falsifier per branch.
+  **Interim, for anyone wiring a Codex upstream: do NOT set `minMaxTokens` on it.**
+  Relates: `OQ-015`, ADR-0003, `WU-0003`.
+
+  **FIXED** — `applyMinMaxTokens` is format-aware via a new `capFieldFor`, and no-ops entirely under
+  `codexSubscription` where no cap can be honoured; `loadConfig` REFUSES the pairing outright rather
+  than accepting a setting it cannot keep. 9 falsifiers, proven RED on the unmodified behaviour
+  (4 fail / 5 pass — the 5 are the regression controls that must not move), restored and blob-hash
+  verified. The compiled binary accepts the live config and rejects the bad pairing with an
+  actionable message.
 
 - **OQ-016** (🟠 design decision, operator-gated; surfaced 2026-07-29, **RESOLVED 2026-07-29** by
   `aegis`'s two-arm measurement — room msg `cd3091d5`) — *should the `<<route:>>` scan widen beyond

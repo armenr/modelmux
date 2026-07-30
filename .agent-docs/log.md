@@ -18,6 +18,33 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-30 | fix — `OQ-019` and `OQ-020` both closed, each with a non-vacuous control
+
+`38cd513` the token floor is format-aware (and refused outright where no cap can be honoured);
+`bf45c30` config hot-reload survives a safe save. Gates: lint clean, build OK, **227 tests**,
+reachability OK. Doc commit `e5f8b95` preceded both.
+
+Two things the work taught that the plan did not predict. **The three-case control earned its keep
+twice on `OQ-020`**: cases 1+2 alone would have passed a fix that still failed case 3, and the suite
+also caught a lie in my own harness — arming an fs watch is ASYNCHRONOUS, and mutating immediately
+beat the registration, producing a miss that looks exactly like the defect under test. And the
+obvious fix was wrong in a way only measurement found: Bun reports an atomic replace as `rename`
+against the SOURCE name, never the destination, so a basename filter drops the one event that
+matters; a directory watch also raises the temp file's disappearance as an ENOENT `error` that is
+FATAL unhandled — the operation the fix exists to survive would have crashed the proxy.
+
+Hands-on acceptance ran the compiled binary in a real process on a spare port, live service
+untouched (it was serving 5 active agents at the time): two atomic replaces each reloaded, and a
+probe returned HTTP 200 with the upstream echoing the NEW model. The reload reaches the wire.
+
+## 2026-07-30 | trap — `pkill -f` self-kill fired a THIRD time, mid-cleanup
+
+Exit 144 again, killing the shell during acceptance teardown so the cleanup did not finish; recovered
+by reading `/proc/<pid>/cmdline` and killing by PID. This is `OQ-010` candidate #1's third recorded
+firing, in a session that had ALREADY re-read the trap while triaging that very OQ. Knowing a trap
+does not stop you walking into it — which is precisely `LP-005`'s claim that a second firing buys a
+MECHANISM, not another paragraph. Filing the recurrence as evidence the gate fragment is overdue.
+
 ## 2026-07-30 | change — the codex/GPT upstream is WIRED and verified end to end
 
 Operator-authorized. `routes.toml` gains `{ tag = "build" } -> builder = "codex:gpt-5.6-sol"`, no
