@@ -1,5 +1,6 @@
 import type { AuthMode, Config, ModelRef, RouteRule, UpstreamDef, WorkType } from "./types.ts";
-import { readFileSync, watch } from "node:fs";
+import { readFileSync, statSync, watch } from "node:fs";
+import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { BUILTIN_UPSTREAMS } from "./upstreams.ts";
 
@@ -203,6 +204,24 @@ function readText(path: string): string {
 // Live config: a mutable holder reloaded on file change (enables `mux set` + hot-swap).
 export interface ConfigHolder {
   current: Config;
+  // Dispose the underlying watcher. Absent when there is none (unsupported
+  // platform). The proxy runs one holder for its whole life and never needs
+  // this, but a watcher with NO handle cannot be released at all — and the
+  // symptom that surfaced it is real: several live watchers in one process
+  // interfere (measured — each hot-reload case passes alone and fails in a
+  // suite), so anything creating more than one must be able to stop them.
+  close?: () => void;
+}
+
+// Last-modified stamp, or null when the file is absent/unreadable. Used only to
+// suppress reloads for the sibling-file case below; never as the reload trigger.
+function mtimeOf(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs;
+  }
+  catch {
+    return null;
+  }
 }
 
 export function watchConfig(
@@ -210,16 +229,61 @@ export function watchConfig(
   env: Record<string, string | undefined> = process.env,
 ): ConfigHolder {
   const holder: ConfigHolder = { current: loadConfig(path, env) };
+  const reload = (): void => {
+    try {
+      holder.current = loadConfig(path, env);
+      process.stderr.write(`[config] reloaded ${path}\n`);
+    }
+    catch (e) {
+      process.stderr.write(`[config] reload failed, keeping previous: ${(e as Error).message}\n`);
+    }
+  };
   try {
-    watch(path, { persistent: false }, () => {
-      try {
-        holder.current = loadConfig(path, env);
-        process.stderr.write(`[config] reloaded ${path}\n`);
-      }
-      catch (e) {
-        process.stderr.write(`[config] reload failed, keeping previous: ${(e as Error).message}\n`);
-      }
+    // Watch the DIRECTORY, not the file (OQ-020). `watch(file)` follows the
+    // INODE, and nearly every safe-writing editor — vim, VS Code, most tooling,
+    // and any `mv` into place — writes a temp file and rename()s it over the
+    // target. That leaves a file watcher holding an unlinked inode: it never
+    // fires again for the life of the process, silently, while the file on disk
+    // is correct and the process serves a stale config. MEASURED: one such edit
+    // killed it permanently — a subsequent in-place append fired nothing either,
+    // so the watcher was dead rather than merely stale. A directory watch
+    // survives because the changed thing is the directory ENTRY.
+    const dir = dirname(resolve(path));
+    let seen = mtimeOf(path);
+    const watcher = watch(dir, { persistent: false }, () => {
+      // Gate on the config's own MTIME, not on the reported filename.
+      //
+      // MEASURED, and it is the whole reason this is not a basename filter: on
+      // an atomic replace Bun reports `rename` against the SOURCE name — the
+      // editor's `routes.toml.tmp` — and NEVER against the destination. A
+      // `filename === basename(path)` filter therefore drops the exact event
+      // this watch exists to catch, which is how the first version of this fix
+      // still failed cases 2 and 3. Some platforms also omit the filename
+      // entirely.
+      //
+      // The stamp handles all three shapes uniformly, and it is what keeps a
+      // sibling's churn out: the decision log lives beside routes.toml and is
+      // appended on EVERY request, so an unfiltered reload would re-parse the
+      // config per request.
+      const now = mtimeOf(path);
+      // null = the file is momentarily absent mid-rename. Leave `seen` alone so
+      // the next event re-evaluates rather than latching a miss.
+      if (now === null || now === seen)
+        return;
+      seen = now;
+      reload();
     });
+    // A directory watch reports on transient siblings too, and the editor's own
+    // temp file is renamed away the instant after it appears. Bun surfaces that
+    // race as an ENOENT `error` event, which is FATAL if unhandled — so the very
+    // operation this watch exists to survive would have crashed the proxy.
+    // Swallow it: the rename that caused it is also the event we already
+    // handled, and the watcher keeps running (proven by CASE 3, which edits
+    // again after a replace).
+    watcher.on("error", () => {});
+    holder.close = () => {
+      watcher.close();
+    };
   }
   catch {
     // fs.watch unsupported on this platform — static config still works.
