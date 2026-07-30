@@ -196,7 +196,21 @@ export function toAnthropicFromResponses(res: any, model: string): any {
       // client echoes back as tool_use_id and what Responses matches on.
       content.push({ type: "tool_use", id: item.call_id, name: item.name, input });
     }
-    // reasoning items carry no Anthropic equivalent and are dropped.
+    else if (item?.type === "reasoning") {
+      // A reasoning item's SUMMARY is the only visible part of its thinking, and
+      // it only arrives when the request asked for one (`reasoning.summary`).
+      // MEASURED: with no `summary` key the backend emits zero reasoning content,
+      // so an absent capability and an unrequested one look identical from here —
+      // which is why this was long believed impossible. The raw reasoning tokens
+      // are never exposed by the backend; the summary is what there is.
+      const summary = (Array.isArray(item.summary) ? item.summary : [])
+        .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+        .join("");
+      // No signature: Anthropic's is a server-issued attestation over ITS OWN
+      // reasoning. Fabricating one would forge a provenance claim.
+      if (summary)
+        content.push({ type: "thinking", thinking: summary });
+    }
   }
 
   return {
@@ -317,6 +331,32 @@ export function toAnthropicStreamFromResponses(
             }));
           }
           openBlocks.add(idx);
+          return;
+        }
+
+        if (t === "response.reasoning_summary_text.delta") {
+          openMessage();
+          const oi = ev.output_index ?? 0;
+          let idx = blockFor.get(oi);
+          if (idx === undefined) {
+            // Open LAZILY, on the FIRST delta — never at `output_item.added`.
+            // A reasoning item prefixes essentially every reply, but its summary
+            // arrives only when one was requested; opening at `added` would emit
+            // an empty thinking block on 100% of replies, which is precisely the
+            // bug the reasoning-item skip above exists to prevent.
+            idx = indexFor(oi);
+            emit(sse("content_block_start", {
+              type: "content_block_start",
+              index: idx,
+              content_block: { type: "thinking", thinking: "" },
+            }));
+            openBlocks.add(idx);
+          }
+          emit(sse("content_block_delta", {
+            type: "content_block_delta",
+            index: idx,
+            delta: { type: "thinking_delta", thinking: ev.delta ?? "" },
+          }));
           return;
         }
 
