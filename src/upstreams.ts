@@ -243,14 +243,35 @@ export function applyExtraBody(def: UpstreamDef, outbound: any): any {
 // The asymmetry is the whole argument: an unused cap costs nothing (measured —
 // a 98304 cap spent 3 tokens), while a cap hit mid-reasoning costs the entire
 // reasoning AND returns no answer. So erring high is free and erring low is not.
+//
+// FORMAT-AWARE, because the cap field is not the same on every wire (OQ-019).
+// This runs AFTER the wire translation, so `outbound` is already in the target
+// format and `def.maxTokensField` — which only ever described the OpenAI/
+// Anthropic shape — is the wrong name to write on a Responses body.
 export function applyMinMaxTokens(def: UpstreamDef, outbound: any): any {
   if (!def.minMaxTokens || typeof outbound !== "object" || outbound === null)
     return outbound;
-  const field = def.maxTokensField;
+  // A ChatGPT-subscription Responses backend accepts NO cap at all: the
+  // translator strips `max_output_tokens` because sending it is a measured hard
+  // 400. Writing any cap field back here re-creates that 400 (and, before this
+  // guard, wrote `max_tokens` — a field Responses does not even define). There
+  // is no floor to impose, so impose none. Config rejects this pairing outright;
+  // this is the defence-in-depth half.
+  if (def.codexSubscription)
+    return outbound;
+  const field = capFieldFor(def);
   const current = outbound[field];
   if (typeof current !== "number" || current < def.minMaxTokens)
     outbound[field] = def.minMaxTokens;
   return outbound;
+}
+
+// The outbound cap field, by wire format. `maxTokensField` is declared per
+// upstream but is only consulted by the OpenAI translator; the Responses
+// translator hardcodes `max_output_tokens`, so anything writing a cap onto a
+// translated Responses body must agree with it rather than with the field name.
+export function capFieldFor(def: UpstreamDef): string {
+  return def.format === "responses" ? "max_output_tokens" : def.maxTokensField;
 }
 
 // Framing headers that describe the *upstream* transfer — Bun's fetch already

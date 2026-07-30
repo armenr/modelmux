@@ -108,6 +108,17 @@ function buildUpstreams(raw: Record<string, RawUpstream> | undefined): Record<st
     if (u.minMaxTokens !== undefined) {
       if (typeof u.minMaxTokens !== "number" || !Number.isFinite(u.minMaxTokens) || u.minMaxTokens <= 0)
         throw new Error(`upstream "${name}" has a bad minMaxTokens (must be a positive number)`);
+      // A ChatGPT-subscription Responses backend rejects EVERY cap field, so a
+      // floor cannot be honoured there — the translator strips the cap because
+      // sending it is a measured hard 400 (OQ-019). Silently ignoring the
+      // setting would leave the operator believing they had a floor they do
+      // not have, which is exactly the failure a floor exists to prevent, so
+      // refuse the config instead of accepting a lie.
+      if (codexSubscription) {
+        throw new Error(`upstream "${name}" cannot use minMaxTokens: a ChatGPT-subscription `
+          + `Responses backend rejects every token-cap field, so no floor can be imposed `
+          + `(remove minMaxTokens; the backend's own limit governs)`);
+      }
       base.minMaxTokens = u.minMaxTokens;
     }
     if (u.chatPath !== undefined) {
