@@ -45,6 +45,40 @@ second.)*
   mitigation: when writing a procedure into an `OQ`/runbook, also write the one-line QUESTION it answers,
   and put the question where the situation occurs rather than where the file is named.
 
+### LP-009 (seedling · llm-draft · 2026-07-31) — A defect cited as JUSTIFICATION outlives its own remediation
+
+- **Trigger:** you are about to cite a past defect as the reason something matters — in an OQ body, an
+  ADR Context, a lesson's evidence, a commit rationale, a config comment, a message to a peer. Also:
+  you just FIXED something that other documents cite as motivation.
+- **Claim:** fixing a defect does not touch the arguments that cite it. A citation lives in prose, a
+  fix lives in code, and **no gate joins them** — so a motivating example stays word-for-word true as
+  HISTORY while reading as a claim about the PRESENT. The stronger the motivating example, the more
+  load-bearing the stale citation becomes. **When you cite a defect as motivation, re-derive whether
+  it is still there**; a citation of a fixed defect is byte-indistinguishable from a live one.
+- **Evidence (firsthand, 2026-07-31, caught only because an external peer asked everyone to run a
+  grep):** `OQ-008` motivates its whole "frozen tables rot" argument with *"which is exactly how the
+  README came to ship `gpt-5.3-codex`, a model that does not exist."* True: `fd08a9a` shipped
+  `flagship = "codex:gpt-5.3-codex"` as a working example. **But `5e862d8` fixed it** — the slug has
+  since appeared only in a ❌ Rejected column beside a live-probe date. I quoted the motivation
+  forward as PRESENT tense into a commit body (`38cd513`), the live proxy config, this repo's journal,
+  and **twice into messages to a peer**. Re-deriving it took one `git log -S`. Corrected in `be97ee3`.
+- **Severity:** high — not for the instance, but because the class is invisible to the obvious sweep.
+  A peer's fleet-wide grep hunts version STRINGS; this is a false statement ABOUT one, and matched
+  only by coincidence (it quotes the slug). Phrased *"our README ships a model that does not exist"*
+  it is undetectable by that check entirely.
+- **Note for review:** distinct from the peer's five shapes (a script, a prohibition clause, a
+  benchmark-in-an-ADR, a version-keyed price table, a rule restated in a charter). Theirs share one
+  mechanism — *the world moved and the text stood still*. This one **inverts** it: **we fixed the
+  thing and the text stood still**, so the trigger is an internal commit rather than an external
+  vendor event. Nearest neighbour is the benchmark-in-an-ADR, and the difference is load-bearing:
+  there the measurement remains true and the SELECTION drawn from it is unwarranted; here the cited
+  CONDITION is no longer true at all, and we are the ones who made it untrue.
+- **Second-order, worth keeping even if the lesson is rejected:** the claim TRANSITED to a peer twice,
+  carrying measurements that made it credible. Payload was clean and all four trees invented their
+  defects independently — but **an inter-agent channel is itself a carrier**, and it strips provenance
+  the same way quoting strips a date. "Structural, not contagious" understates the risk once the
+  agents talk to each other.
+
 ### LP-008 (seedling · llm-draft · 2026-07-29) — A test can SPECIFY a defect, and then every gate defends it
 
 - **Trigger:** a gate is green over code you are about to trust, especially code that moves money,
