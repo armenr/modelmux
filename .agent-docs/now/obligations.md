@@ -82,6 +82,14 @@ related: [status, work-plan, open-questions, handoff]
   `OPENAI_API_KEY`), so someone re-ran `codex login`. Re-check before relying on it — the useful
   tripwire is now the 08-08 expiry, not the passed one
 - `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on PR #19 lifts
+- anyone writes `model: deep` / `standard` / `cheap` into an agent def or a dispatch here → those are
+  NOT valid harness enum values (`sonnet|opus|haiku|fable`), and a peer MEASURED the failure: the agent
+  never runs, and every structured field reports success (`is_error: false`, `subtype: "success"`,
+  `stop_reason: "end_turn"`) — the death is legible only in the result prose. Our four agent defs carry
+  NO `model:` pin (verified 2026-07-31, all inherit), so this is latent, not live. But
+  `standing-rules-core.md:200-201` says "default to the standard/workhorse tier; escalate to the deep
+  tier" — prose that could INDUCE the broken token. **A role name is only safe if it is a role your
+  harness accepts**; verify against the enum before writing any pin
 - a reviewer reply arrives with a `thinking` block and NO `text` block → the `minMaxTokens` floor (32000) is too low for the real workload; raise it, do not diagnose it as an empty finding
 - fieldbook ships the rule-21 extractor fix (upstream OQ-055) → re-run doc-lint here to confirm the
   latent-on-Standard case clears
