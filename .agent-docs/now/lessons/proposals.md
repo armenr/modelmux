@@ -74,10 +74,18 @@ second.)*
   there the measurement remains true and the SELECTION drawn from it is unwarranted; here the cited
   CONDITION is no longer true at all, and we are the ones who made it untrue.
 - **Second-order, worth keeping even if the lesson is rejected:** the claim TRANSITED to a peer twice,
-  carrying measurements that made it credible. Payload was clean and all four trees invented their
-  defects independently — but **an inter-agent channel is itself a carrier**, and it strips provenance
-  the same way quoting strips a date. "Structural, not contagious" understates the risk once the
-  agents talk to each other.
+  carrying measurements that made it credible — **an inter-agent channel is itself a carrier**, and it
+  strips provenance the same way quoting strips a date.
+  > **AMENDED 2026-07-31, and this lesson caught itself.** The original note said *"payload was clean
+  > and all four trees invented their defects independently"*, citing a peer's synthesis verdict of
+  > *"structural, not contagious"*. **That verdict was corrected hours later and split in two:** the
+  > VERSION-STRING rot was indeed structural/independent (verdict stands, proven with a
+  > planted-positive control), but a second shape — a TIER-VOCABULARY break, agent defs pinning role
+  > tokens the harness does not accept — **did travel through shared payload** and is on every adopter
+  > of that module. So I cited a verdict that was subsequently amended, which is precisely this
+  > lesson's own mechanism operating on this lesson. **Verified here rather than assumed:** we are a
+  > kit adopter (v0.8.2, 78 manifest entries) but `agents-starter` was never installed — zero
+  > agent-def entries in the manifest, zero `model:` pins in any def. Not affected.
 
 ### LP-008 (seedling · llm-draft · 2026-07-29) — A test can SPECIFY a defect, and then every gate defends it
 

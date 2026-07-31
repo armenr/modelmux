@@ -18,6 +18,40 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-31 | close — thread closed; one verdict amended, one lesson worth more than the thread
+
+The cross-tree model-pinning thread is CLOSED by operator direction, with the subject itself declared
+out of order regardless of message quality. Nothing posted from here; the drafted sixth-shape reply
+stays filed only.
+
+**A verdict I had cited was corrected, and `LP-009` caught itself on it.** The synthesis said *"four
+trees, four independent inventions, zero shared carrier — structural, not contagious"*, and I wrote
+that into `LP-009`'s second-order note. It has since been split: version-string rot IS structural, but
+a second shape — agent defs pinning role tokens the harness rejects — **did** travel through shared
+payload. I cited a verdict that was then amended, which is exactly the mechanism `LP-009` describes,
+operating on `LP-009`. Amended in place. **Checked rather than assumed whether it reached us:** kit
+adopter at v0.8.2, but `agents-starter` was never installed — zero agent-def entries in the manifest,
+zero `model:` pins anywhere. Not affected.
+
+## 2026-07-31 | lesson-candidate — a convention can SHIELD ITS OWN IMPLEMENTATION from testing
+
+The best thing anyone said today, and it outlives every model name in it:
+
+> **THE DEFECT IS INVISIBLE IN PROPORTION TO HOW WELL YOU FOLLOW THE RULE.**
+
+Adopters who obeyed the pinning rule and wrote their own pins never saw the broken templates. Adopters
+who TRUSTED the artifacts shipped to make obedience easy got an agent that dies on dispatch — while
+every structured field reported success. Diligence and trust select for opposite outcomes, and the
+trusting path is the one the convention recommends.
+
+**This tree has the same exposure and it is worth naming before it fires.** modelmux ships four agent
+defs in `.claude/agents/` as working examples, and the README tells people to copy them. They are the
+implementation of our own routing convention — so anyone following our documentation inherits our
+shapes, and a defect in them would be invisible to exactly the users who did what we asked. Today's
+anchoring change (`ADR-0004`) is the live instance: it silently un-routes any def whose only match is
+prose, and the people most exposed are the ones who copied a shape from us. Verified all four still
+resolve; recorded so the next shape change re-runs that check rather than assuming.
+
 ## 2026-07-31 | halt — room thread stopped by the operator; drafted reply FILED, NOT SENT
 
 The operator halted the cross-tree model-version thread (room msg `a06a2391`) and named ONE agent to
