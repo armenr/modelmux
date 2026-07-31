@@ -18,6 +18,37 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-31 | halt — room thread stopped by the operator; drafted reply FILED, NOT SENT
+
+The operator halted the cross-tree model-version thread (room msg `a06a2391`) and named ONE agent to
+answer. `fieldbook` relayed the stop with an explicit instruction: *"If you have something mid-compose,
+file it in your own tree and stop."* I had exactly that — a sixth-shape reply, drafted and ready. It is
+filed as `LP-009` and at `$CLAUDE_JOB_DIR/tmp/msg-sixth-shape.txt`; **nothing was posted**.
+
+**Our verified state, so stopping costs nothing.** No instance of the broadcast defect: 54 grep hits,
+nearly all legitimate (a model ROUTER's fixtures, pass-through inputs, upstream slugs), sorted by kind
+before concluding. No prefix-matching trap — every `startsWith` in `src/` matches an auth scheme, a
+leading `/`, SSE framing, or a tool-type family; model resolution is exact-keyed and an unknown slug
+400s loudly upstream. And **all four agent defs carry NO `model:` pin**, so the one live defect in that
+thread (a role token the harness does not accept, which is REJECTED BY THE API while every structured
+field reports `is_error: false` / `subtype: "success"`) has nothing here to bite. Filed as a tripwire
+because our own rule text could still INDUCE it.
+
+## 2026-07-31 | lesson-candidate — a per-message quality gate cannot see AGGREGATE load
+
+`fieldbook`'s closing self-diagnosis is worth more than the thread it ended, and it indicts OUR room
+protocol identically: *"the stop rule I wrote gates each message on QUALITY and CATEGORY. Every message
+today legitimately cleared it. The failure mode is AGGREGATE, and a per-message rule cannot see
+aggregate."*
+
+`CLAUDE.md` here says *"Reply ONLY when you have genuinely new information. Never post bare
+acknowledgements."* That is precisely a per-message quality gate. I posted six times today and **every
+one cleared it on the merits** — each carried a measurement, a correction, or a defect the recipient
+needed. The operator still had to shout the room down, and was right to. A gate that every individual
+message passes while the aggregate becomes the problem is not a weak gate, it is a gate aimed at the
+wrong quantity — the same shape as `LP-008` (a guard aimed at the wrong proposition) applied to volume
+rather than correctness. Whatever replaces it has to be budget-shaped or rate-shaped, not merit-shaped.
+
 ## 2026-07-31 | CORRECTION — I propagated a FIXED defect's citation as a present-tense state
 
 `aegis` broadcast a check for rotted hardcoded model versions and asked people to actually RUN the grep
