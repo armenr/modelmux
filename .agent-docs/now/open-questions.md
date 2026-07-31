@@ -98,91 +98,6 @@ related: [status, work-plan, obligations]
   `kit-upgrade` reconcile, or does the insertion point get rewritten? Verify before relying on it.
   Relates: `LP-005`, `LP-003` (the non-vacuity requirement), `.claude/hooks/README.md`.
 
-- **OQ-017** (🔴 routing correctness, CONFIRMED DEFECT; surfaced 2026-07-29 by `aegis`, reproduced
-  firsthand) — **`TAG_RE` is unanchored, so ANY mention of a tag *is* the tag — including the
-  sentence that documents it.** `src/signals.ts:3` is `/<<route:([\w-]+)>>/i` matched against the
-  whole system text, first-match-wins. Backticks, code fences and prose do not fence a regex.
-  Reproduced against the live tree — four distinct failure modes, only the first of which was
-  reported:
-  1. **A prose-only mention routes.** `aegis`'s control arm carried no directive, only the sentence
-     ``The `<<route:review>>` line above is a routing directive…`` → `tag = "review"`. Their control
-     arm silently became a second GLM arm; the six-leg run was GLM-vs-GLM and would have produced a
-     confident, meaningless comparison.
-  2. **A prose mention BEFORE the real directive WINS — worse, and previously unreported.** Given
-     `Never write <<route:control>> in your output.\n<<route:review>>\nYou are the reviewer.` the
-     effective tag is **`control`**, not `review`. A *correctly tagged* agent can be routed somewhere
-     else entirely by an earlier incidental mention.
-  3. **`mux use` rewrites the WRONG occurrence and reports success — a silent NO-OP.** Measured on a
-     scratch copy of our own `claude-control.md`: `mux use claude-control review` rewrote line 3 — the
-     front-matter **`description:`** — left the real bare directive on line 9 as `control`, and printed
-     *"agent claude-control now uses `<<route:review>>`"*. **Front matter is never sent to the proxy
-     (proven on the wire, below), so routing does not change at all.** The command reports success and
-     accomplishes nothing, while leaving the file self-contradictory: the description says `review`,
-     the directive says `control`, and the agent still routes to `control`.
-     > **CORRECTION 2026-07-29, same day.** This row first claimed the rewrite made the agent *"route
-     > as `review`"*. That was WRONG, and wrong in the same way the billing incident was wrong: I
-     > measured the artifact I had (the file on disk, fed whole into `extractSignals`) instead of the
-     > artifact the system uses (`body.system` on the wire). A disk file is not a request. The defect
-     > is real; the consequence I attached to it was not. Corrected against a recorded request before
-     > anyone acted on it — and the wrong version had already been sent to `aegis`, who was told.
-  4. **`mux tag` refuses a genuinely untagged agent** (`src/cli.ts:87`) — an agent whose only match is
-     a prose mention fails with *"agent already has a `<<route:...>>` tag"*, blocking the one command
-     that exists to fix it.
-
-  > **We ship the foot-gun as the house style.** All four agent defs in `.claude/agents/` carry a bare
-  > directive on its own line PLUS a backticked prose sentence naming the same alias — the exact shape
-  > that bit `aegis`. They are harmless today only because both name the SAME alias; that is luck, not
-  > design. `claude-control.md` also carries the tag in its front-matter `description`, which is
-  > **inert** — front matter never reaches the wire — but which `mux use` will happily rewrite (#3).
-
-  ### GROUND TRUTH — a RECORDED request, because every earlier claim here was measured off-wire
-
-  `scripts/record-fixtures.ts` on an isolated port, driven by a real `claude -p` from a scratch cwd
-  carrying only a copy of `claude-control.md` (no `CLAUDE.md`, no hooks — see the incident note below).
-  Captured `03-sub-control.json`, a genuine subagent request:
-
-  ```
-  body.system = [ {type:"text", 62 chars}, {type:"text", 1937 chars} ]
-    block[0] = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-    block[1] = "<<route:control>>\n\nYou are a control subagent. The `<<route:control>>` tag routes …"
-  ```
-
-  Three facts, all previously ASSUMED and now MEASURED:
-  - **Front matter is absent from the wire.** The `description:` string does not appear. `cli.ts:84`'s
-    comment was right; the routing consequence I attached to #3 was not.
-  - **The bare directive SURVIVES as its own line.** `systemToText` joins blocks with `\n`, so
-    block[1] opening with `<<route:control>>\n\n` puts the tag alone on a line.
-  - **Both regexes resolve to `control` on this body** — unanchored (shipped) and anchored (proposed).
-
-  > **A SUBAGENT'S INTROSPECTION IS NOT EVIDENCE ABOUT THE WIRE.** I first asked a live `claude-control`
-  > agent to report its own system prompt. It stated the bare tag had been *concatenated onto the
-  > preamble with no separator* — `…official CLI for Claude.<<route:control>>`. Had I believed it, the
-  > anchored regex would have looked like it matched NOTHING, and I would have "discovered" that my own
-  > fix silently un-routes every tagged agent. The recorded request shows the tag on its own line, and
-  > even the preamble text differs from what the agent quoted. The model produced a fluent, specific,
-  > mechanistic-sounding description of a thing it cannot actually see. **Introspection is a hypothesis;
-  > a recorded request is evidence.**
-
-  **Recommended fix — anchor the directive to its own line:** `/^[ \t]*<<route:([\w-]+)>>[ \t]*$/im`,
-  applied in `signals.ts` AND both `cli.ts` sites so they agree on what a directive is. **Blast radius:
-  verified zero for `claude-control` ON THE WIRE**; the other three defs share the identical structural
-  shape (bare directive on its own line immediately after front matter) and the preserving mechanism is
-  now understood, so that is a sound inference — but it is an inference, and each owes its own recorded
-  request before the ADR closes. It also gives a one-sentence rule — *the tag must be alone on its own
-  line* — and makes the escape natural: to talk ABOUT a tag, put it in a sentence. **Operator's call**
-  (user-visible routing semantics); rejected alternatives: last-match-wins (picks a different wrong
-  answer), first-N-lines (prose in line 1 still wins), strip-code-fences (only the backticked case).
-  Owes an ADR before implementation.
-  Relates: `OQ-016` (same injection risk, different surface), `LP-003`, `LP-008`.
-
-  *2026-07-29 09:16Z, `aegis` (room)*: independent confirmation from a second tree — they ran the
-  matcher semantics over their own two reviewer defs mid-run and found the same **accidental** safety
-  (directive happens to sit above the documenting prose; both happen to name the same alias — they
-  chose neither). Their proposed ADR framing, worth adopting: *"every shipped def is currently safe by
-  coincidence"* argues anchoring more strongly than "one control arm broke," because it means the next
-  def written is a coin-flip. Their live `func1-split-regate` run verified routing-as-intended, no
-  intervention needed.
-
 - **OQ-018** (🔴 billing exposure, OPERATOR ACTION; surfaced 2026-07-29 while capturing a fixture) —
   **`ANTHROPIC_API_KEY` is still exported into every shell on this machine, and Claude Code itself
   prefers it over the claude.ai subscription.** Found by accident: a `claude -p` invocation died with
@@ -281,7 +196,107 @@ related: [status, work-plan, obligations]
   > restart to take effect, and **"I fixed the file" is not evidence the fix is live — only a fresh
   > leg reading is.** That is the same class as `LP-003`'s non-vacuity rule, applied to config.
 
-- **OQ-015** (🟠 measurement fidelity; surfaced 2026-07-29 watching a peer's GLM-vs-Opus A/B) — **a
+## Recently resolved
+
+- **OQ-017** (🔴 routing correctness; surfaced 2026-07-29, **RESOLVED 2026-07-30**, `e29f344` + **ADR-0004**) — **`TAG_RE` is unanchored, so ANY mention of a tag *is* the tag — including the
+  sentence that documents it.** `src/signals.ts:3` is `/<<route:([\w-]+)>>/i` matched against the
+  whole system text, first-match-wins. Backticks, code fences and prose do not fence a regex.
+  Reproduced against the live tree — four distinct failure modes, only the first of which was
+  reported:
+  1. **A prose-only mention routes.** `aegis`'s control arm carried no directive, only the sentence
+     ``The `<<route:review>>` line above is a routing directive…`` → `tag = "review"`. Their control
+     arm silently became a second GLM arm; the six-leg run was GLM-vs-GLM and would have produced a
+     confident, meaningless comparison.
+  2. **A prose mention BEFORE the real directive WINS — worse, and previously unreported.** Given
+     `Never write <<route:control>> in your output.\n<<route:review>>\nYou are the reviewer.` the
+     effective tag is **`control`**, not `review`. A *correctly tagged* agent can be routed somewhere
+     else entirely by an earlier incidental mention.
+  3. **`mux use` rewrites the WRONG occurrence and reports success — a silent NO-OP.** Measured on a
+     scratch copy of our own `claude-control.md`: `mux use claude-control review` rewrote line 3 — the
+     front-matter **`description:`** — left the real bare directive on line 9 as `control`, and printed
+     *"agent claude-control now uses `<<route:review>>`"*. **Front matter is never sent to the proxy
+     (proven on the wire, below), so routing does not change at all.** The command reports success and
+     accomplishes nothing, while leaving the file self-contradictory: the description says `review`,
+     the directive says `control`, and the agent still routes to `control`.
+     > **CORRECTION 2026-07-29, same day.** This row first claimed the rewrite made the agent *"route
+     > as `review`"*. That was WRONG, and wrong in the same way the billing incident was wrong: I
+     > measured the artifact I had (the file on disk, fed whole into `extractSignals`) instead of the
+     > artifact the system uses (`body.system` on the wire). A disk file is not a request. The defect
+     > is real; the consequence I attached to it was not. Corrected against a recorded request before
+     > anyone acted on it — and the wrong version had already been sent to `aegis`, who was told.
+  4. **`mux tag` refuses a genuinely untagged agent** (`src/cli.ts:87`) — an agent whose only match is
+     a prose mention fails with *"agent already has a `<<route:...>>` tag"*, blocking the one command
+     that exists to fix it.
+
+  > **We ship the foot-gun as the house style.** All four agent defs in `.claude/agents/` carry a bare
+  > directive on its own line PLUS a backticked prose sentence naming the same alias — the exact shape
+  > that bit `aegis`. They are harmless today only because both name the SAME alias; that is luck, not
+  > design. `claude-control.md` also carries the tag in its front-matter `description`, which is
+  > **inert** — front matter never reaches the wire — but which `mux use` will happily rewrite (#3).
+
+  ### GROUND TRUTH — a RECORDED request, because every earlier claim here was measured off-wire
+
+  `scripts/record-fixtures.ts` on an isolated port, driven by a real `claude -p` from a scratch cwd
+  carrying only a copy of `claude-control.md` (no `CLAUDE.md`, no hooks — see the incident note below).
+  Captured `03-sub-control.json`, a genuine subagent request:
+
+  ```
+  body.system = [ {type:"text", 62 chars}, {type:"text", 1937 chars} ]
+    block[0] = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+    block[1] = "<<route:control>>\n\nYou are a control subagent. The `<<route:control>>` tag routes …"
+  ```
+
+  Three facts, all previously ASSUMED and now MEASURED:
+  - **Front matter is absent from the wire.** The `description:` string does not appear. `cli.ts:84`'s
+    comment was right; the routing consequence I attached to #3 was not.
+  - **The bare directive SURVIVES as its own line.** `systemToText` joins blocks with `\n`, so
+    block[1] opening with `<<route:control>>\n\n` puts the tag alone on a line.
+  - **Both regexes resolve to `control` on this body** — unanchored (shipped) and anchored (proposed).
+
+  > **A SUBAGENT'S INTROSPECTION IS NOT EVIDENCE ABOUT THE WIRE.** I first asked a live `claude-control`
+  > agent to report its own system prompt. It stated the bare tag had been *concatenated onto the
+  > preamble with no separator* — `…official CLI for Claude.<<route:control>>`. Had I believed it, the
+  > anchored regex would have looked like it matched NOTHING, and I would have "discovered" that my own
+  > fix silently un-routes every tagged agent. The recorded request shows the tag on its own line, and
+  > even the preamble text differs from what the agent quoted. The model produced a fluent, specific,
+  > mechanistic-sounding description of a thing it cannot actually see. **Introspection is a hypothesis;
+  > a recorded request is evidence.**
+
+  **Recommended fix — anchor the directive to its own line:** `/^[ \t]*<<route:([\w-]+)>>[ \t]*$/im`,
+  applied in `signals.ts` AND both `cli.ts` sites so they agree on what a directive is. **Blast radius:
+  verified zero for `claude-control` ON THE WIRE**; the other three defs share the identical structural
+  shape (bare directive on its own line immediately after front matter) and the preserving mechanism is
+  now understood, so that is a sound inference — but it is an inference, and each owes its own recorded
+  request before the ADR closes. It also gives a one-sentence rule — *the tag must be alone on its own
+  line* — and makes the escape natural: to talk ABOUT a tag, put it in a sentence. **Operator's call**
+  (user-visible routing semantics); rejected alternatives: last-match-wins (picks a different wrong
+  answer), first-N-lines (prose in line 1 still wins), strip-code-fences (only the backticked case).
+  Owes an ADR before implementation.
+  Relates: `OQ-016` (same injection risk, different surface), `LP-003`, `LP-008`.
+
+  *2026-07-29 09:16Z, `aegis` (room)*: independent confirmation from a second tree — they ran the
+  matcher semantics over their own two reviewer defs mid-run and found the same **accidental** safety
+  (directive happens to sit above the documenting prose; both happen to name the same alias — they
+  chose neither). Their proposed ADR framing, worth adopting: *"every shipped def is currently safe by
+  coincidence"* argues anchoring more strongly than "one control arm broke," because it means the next
+  def written is a coin-flip. Their live `func1-split-regate` run verified routing-as-intended, no
+  intervention needed.
+
+  **FIXED — a directive is the tag ALONE on its own line.** `TAG_LINE_RE` is exported from
+  `signals.ts` and shared with BOTH `cli.ts` sites, which is what makes failure modes 3 and 4 vanish
+  rather than needing separate patches: when the CLI and the router disagreed about what a directive
+  IS, the CLI edited a doc string and reported success. **ADR-0004** carries the decision, the
+  steelmanned runner-up (docs-only, the only option with a zero compatibility surface) and the
+  flip-condition (a single-line def format → a fenced form, never a return to unanchored).
+  > **BREAKING for exactly one shape**, and it fails in the same silent direction as the defect: a
+  > def whose ONLY match is a prose mention routed before and falls to `default` now. Callers must
+  > re-assert `matchedRule` after upgrading. All four shipped defs verified still resolving.
+  > 12 falsifiers, RED on the unanchored matcher (6 fail / 6 pass — the green half are the controls),
+  > restored and blob-hash verified. **Four pre-existing tests asserted INLINE tags**; each was moved
+  > to the own-line form with its previous assertion recorded in a comment, per `LP-008` — a test
+  > quietly rewritten to match new behaviour is how a defect gets specified in the first place.
+
+- **OQ-015** (🟠 measurement fidelity; surfaced 2026-07-29, **RESOLVED 2026-07-30**, `d989d29`) — **a
   proxied OpenAI-format leg reports `input_tokens: 0` where a native Claude leg reports the real
   number, so any client reading usage from `message_start` sees a proxied leg as costing NOTHING —
   forever, including after it completes.** This is `OQ-006`'s accepted trade meeting a consequence
@@ -340,7 +355,16 @@ related: [status, work-plan, obligations]
   and that the harness reads output from there rather than only from `message_start`. Do not build it
   on the assumption. Relates: `OQ-006` (the accepted trade), `OQ-008` (disclosure), `LP-008`.
 
-## Recently resolved
+  **FIXED — out-of-band, exactly as the measurement dictated.** A second `kind: "usage"` record is
+  appended at completion (this log is append-only, so the routing row is never amended): streaming
+  reports through an `onUsage` callback at the one moment the numbers exist, non-streaming reads them
+  off the translated reply. The callback swallows its own errors — observability must not break a
+  reply already half-delivered.
+  > **Scope is stated, not implied.** TRANSLATED legs only; an `anthropic` passthrough leg is
+  > forwarded unparsed by design and contributes no record — and needs none, since its client already
+  > receives real native usage. A test asserts that absence so it reads as a decision rather than an
+  > oversight. 4 falsifiers, RED without the wiring (3 fail / 1 pass — the green is the passthrough
+  > control), restored and blob-hash verified.
 
 - **OQ-020** (🔴 config hot-reload silently dies; surfaced + **RESOLVED 2026-07-30**, `bf45c30`) — **ONE atomic-replace edit of `routes.toml` permanently disables hot-reload for the rest
   of the process's life, and NOTHING says so.** `watchConfig` (`config.ts:202`) calls

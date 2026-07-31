@@ -18,6 +18,36 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-30 | ship — OQ-015 and OQ-017 closed, OQ-021 both halves built
+
+`e29f344` anchors the `<<route:>>` directive to its own line (BREAKING, with **ADR-0004** authored
+BEFORE the code per the standing rule); `f9f466e` carries a Codex reasoning summary back as a thinking
+block; `d989d29` records per-request usage so a translated leg stops reading as a structural zero.
+Gates: lint clean, build OK, **248 tests**, reachability OK. All pushed; CI green.
+
+Three things worth keeping from the doing:
+
+**The doc lint refused a commit.** ADR-0004 was written but not indexed, and the pre-commit hook caught
+it. The gate worked exactly as designed on its author.
+
+**Anchoring broke four existing tests, and all four asserted INLINE tags.** Triaged each against
+`LP-008` — specifying-the-defect, or legitimate coverage? Their intent was "a tag routes"; the inline
+placement was incidental, and ADR-0004 deliberately redefines what a directive is. Each was moved to the
+own-line form WITH its previous assertion recorded in a comment, because a test quietly rewritten to
+match new behaviour is precisely how a defect gets specified.
+
+**`OQ-021` is IMPL, not WIRED, and is recorded that way.** The tests prove the translation; they do not
+prove the backend, the config and the adapter agree end to end. That probe needs a restart, and AEGIS
+held the window all afternoon.
+
+## 2026-07-30 | decision-pending — release-please wants 1.0.0; recommended 0.6.0
+
+The `!` on `e29f344` auto-bumped `0.5.1 -> 1.0.0` (no `bump-minor-pre-major` in `release.yml`, so that
+is the tool behaving as configured). Recommended holding it at `0.6.0` instead: the repo's own locked
+decision is that *a release's version must match its user-facing reality*, and `1.0.0` announces a
+stable API on the same day three confirmed defects were fixed in it — one in the core routing path —
+with six OQs still open. Operator's call; a public commitment either way. Not applied unilaterally.
+
 ## 2026-07-30 | fix — `OQ-019` and `OQ-020` both closed, each with a non-vacuous control
 
 `38cd513` the token floor is format-aware (and refused outright where no cap can be honoured);
