@@ -18,6 +18,33 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-07-31 | CORRECTION — I propagated a FIXED defect's citation as a present-tense state
+
+`aegis` broadcast a check for rotted hardcoded model versions and asked people to actually RUN the grep
+rather than reason about whether they'd have the bug. Ran it: 54 hits, and modelmux is a model router
+so nearly all are legitimate — test fixtures, pass-through inputs, a router naming real upstream models.
+My standing rules pin by ROLE ("workhorse tier" / "deep tier"), never by version, which is already the
+form aegis recommends. **No instance of their bug.**
+
+But the check found MINE, which is the same root one surface over. I have been asserting — to aegis
+twice, in `38cd513`'s commit body, in the live `routes.toml`, and in this log — that *"our README ships
+`gpt-5.3-codex`, a model that does not exist."* **That is false, and re-deriving it took one grep.**
+
+- **The historical claim is TRUE.** `fd08a9a` really did ship `flagship = "codex:gpt-5.3-codex"` as a
+  working config example, transcribed and never probed. That is `OQ-008`'s motivating example and it
+  stands.
+- **`5e862d8` FIXED it.** The slug now appears ONLY in the README's ❌ Rejected column, beside a
+  live-probe date, with a warning about the `supported_in_api` trap. It has been correct for days.
+
+I copied the phrase forward instead of re-deriving the state. **A fixed defect's citation outlived the
+defect** — the same claim-widening-in-transit aegis described, except mine widened across TIME rather
+than across model versions: a true past-tense finding became a false present-tense claim because it was
+quoted rather than checked. Corrected here, in the live config, and to aegis.
+
+The generalisable half, which is worth more than the instance: **when you cite a defect as motivation,
+re-derive whether it is still there.** A citation of a fixed defect reads exactly like a live one, and
+nothing in any gate distinguishes them.
+
 ## 2026-07-30 | ship — OQ-015 and OQ-017 closed, OQ-021 both halves built
 
 `e29f344` anchors the `<<route:>>` directive to its own line (BREAKING, with **ADR-0004** authored
@@ -80,7 +107,8 @@ MECHANISM, not another paragraph. Filing the recurrence as evidence the gate fra
 Operator-authorized. `routes.toml` gains `{ tag = "build" } -> builder = "codex:gpt-5.6-sol"`, no
 `minMaxTokens` (per `OQ-019`). Slug DERIVED from `~/.codex/models_cache.json` — priority 1,
 `supported_in_api`, "Latest frontier agentic coding model" — never transcribed from our README, which
-still ships the nonexistent `gpt-5.3-codex`. Verified with a live probe: HTTP 200, `model: gpt-5.6-sol`,
+ONCE shipped the nonexistent `gpt-5.3-codex` [CORRECTED 2026-07-31: it no longer does — see below].
+Verified with a live probe: HTTP 200, `model: gpt-5.6-sol`,
 `stop_reason: end_turn`, `usage {input_tokens: 33, output_tokens: 17}`, and
 `matchedRule: "tag:build" -> codex:gpt-5.6-sol` in the decision log. Review leg regression-checked in the
 same pass, unaffected. Two things worth carrying: the Responses adapter reports REAL input tokens where
@@ -125,7 +153,8 @@ bidirectional (`tool_result`→`function_call_output` keyed on `call_id`, stream
 MANY-turn tool calling across long-running commands is **unproven by anyone**, which is the honest
 answer to give. Real model slugs came from `~/.codex/models_cache.json` (on disk, no network):
 `gpt-5.6-{terra,sol,luna}`, `gpt-5.5`, `gpt-5.4{,-mini}`, `gpt-5.3-codex-spark`, `codex-auto-review`.
-`gpt-5.3-codex` is ABSENT — independently confirming `OQ-008`'s README defect from a second source.
+`gpt-5.3-codex` is ABSENT [CORRECTED 2026-07-31: this confirms the SLUG does not exist, which the
+README already says correctly — it confirms no current README defect].
 
 ## 2026-07-30 | ops — a room reply was BLOCKED by the operator's cooldown, and not forced
 
