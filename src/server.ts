@@ -3,7 +3,7 @@ import type { Config, Decision, Upstream } from "./types.ts";
 import process from "node:process";
 import { untaggedAgentWarning } from "./agents.ts";
 import { watchConfig } from "./config.ts";
-import { logDecision, logError } from "./log.ts";
+import { logDecision, logError, logUsage } from "./log.ts";
 import { openaiPath, toAnthropicResponse, toAnthropicStream, toOpenAIRequest } from "./openai.ts";
 import { collectResponsesOutput, responsesPath, toAnthropicFromResponses, toAnthropicStreamFromResponses, toResponsesRequest } from "./responses.ts";
 import { route } from "./route.ts";
@@ -139,9 +139,11 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       if (wantsStream) {
         const sseHeaders = passthroughHeaders(upstream.headers);
         sseHeaders.set("content-type", "text/event-stream");
+        const recordUsage = (u: { input_tokens: number; output_tokens: number }): void =>
+          logUsage(opts.logPath, signals, decision, u);
         const translated = isResponses
-          ? toAnthropicStreamFromResponses(upstream.body, decision.model)
-          : toAnthropicStream(upstream.body, decision.model);
+          ? toAnthropicStreamFromResponses(upstream.body, decision.model, recordUsage)
+          : toAnthropicStream(upstream.body, decision.model, recordUsage);
         return new Response(translated, { status: upstream.status, headers: sseHeaders });
       }
 
@@ -160,6 +162,8 @@ export function buildServer(opts: ServerOpts): Bun.Server<never> {
       const anthropicJson = isResponses
         ? toAnthropicFromResponses(oaiJson, decision.model)
         : toAnthropicResponse(oaiJson, decision.model);
+      // Non-streaming: usage is already in hand, no callback needed.
+      logUsage(opts.logPath, signals, decision, anthropicJson?.usage);
       return new Response(JSON.stringify(anthropicJson), {
         status: upstream.status,
         headers: jsonHeaders,

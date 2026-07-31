@@ -239,7 +239,11 @@ function sse(event: string, data: unknown): string {
  * models the same thing as input_json_delta, so fragments map through directly
  * rather than being buffered and re-emitted whole.
  */
-export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: string): ReadableStream<Uint8Array> {
+export function toAnthropicStream(
+  upstream: ReadableStream<Uint8Array>,
+  model: string,
+  onUsage?: (u: { input_tokens: number; output_tokens: number }) => void,
+): ReadableStream<Uint8Array> {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
   let buf = "";
@@ -419,6 +423,13 @@ export function toAnthropicStream(upstream: ReadableStream<Uint8Array>, model: s
           delta: { stop_reason: mapStopReason(finish, sawToolCall), stop_sequence: null },
           usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         }));
+        // Report the ONLY moment real usage exists on this wire. Best-effort:
+        // an observability callback must never break a reply that is otherwise
+        // complete and already half-delivered to the caller.
+        try {
+          onUsage?.({ input_tokens: inputTokens, output_tokens: outputTokens });
+        }
+        catch { /* swallow */ }
         emit(sse("message_stop", { type: "message_stop" }));
         controller.close();
       }

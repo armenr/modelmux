@@ -250,6 +250,7 @@ function sse(event: string, data: unknown): string {
 export function toAnthropicStreamFromResponses(
   upstream: ReadableStream<Uint8Array>,
   model: string,
+  onUsage?: (u: { input_tokens: number; output_tokens: number }) => void,
 ): ReadableStream<Uint8Array> {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -436,6 +437,13 @@ export function toAnthropicStreamFromResponses(
           delta: { stop_reason: sawToolCall ? "tool_use" : stopReason, stop_sequence: null },
           usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         }));
+        // Report the ONLY moment real usage exists on this wire. Best-effort:
+        // an observability callback must never break a reply that is otherwise
+        // complete and already half-delivered to the caller.
+        try {
+          onUsage?.({ input_tokens: inputTokens, output_tokens: outputTokens });
+        }
+        catch { /* swallow */ }
         emit(sse("message_stop", { type: "message_stop" }));
         controller.close();
       }
