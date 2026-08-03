@@ -6,6 +6,12 @@ background.
 
 - [`development.md`](development.md) — work from a checkout: Bun/DevBox setup,
   the `bin/mux` CLI, the gates, and building the binary.
+- [`glm-direct-vs-proxied.md`](glm-direct-vs-proxied.md) — **you may not need
+  this proxy.** Claude Code can point straight at Z.ai's Anthropic endpoint, and
+  on reasoning depth that path measures *better* than you would expect. Says
+  exactly what each route buys, with the measurements — including the two
+  environment variables that silently put you on the wrong model or the wrong
+  bill.
 
 ## Background / design history
 
