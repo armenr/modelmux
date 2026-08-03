@@ -121,6 +121,7 @@ claude-glm() {
       ANTHROPIC_AUTH_TOKEN="$key" \
       ANTHROPIC_MODEL=glm-5.2 \
       ANTHROPIC_SMALL_FAST_MODEL=glm-5.2 \
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000 \
       claude "$@"
 }
 ```
@@ -143,13 +144,37 @@ Both returned a friendly, correct answer with `is_error: false`. Nothing indicat
 you got. Pin `ANTHROPIC_SMALL_FAST_MODEL` too, or Claude Code's background work goes
 somewhere you did not choose.
 
+### `CLAUDE_CODE_MAX_CONTEXT_TOKENS` — worth 800K of context
+
+Claude Code looks the context window up **by model name**. `glm-5.2` is not in its table, so
+it falls back to a **200K default** and auto-compacts at ~160K — discarding most of the window
+on every long session. The status line shows `200K` and looks like a fact about GLM. It is not;
+it is Claude Code failing to recognise the model.
+
+Measured both directions:
+
+| | reported `contextWindow` |
+|---|---|
+| default | `200000` |
+| `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000` | `1000000` |
+
+**And the endpoint genuinely serves it** — this is not just Z.ai's documented figure. A probe
+of ~950K tokens returned `200` with `input_tokens=883,733` in 49.8s.
+
+**Output has no equivalent.** Claude Code reports `maxOutputTokens: 32000` and
+`CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000` does **not** move it — measured, it clamps — even
+though the endpoint accepts `max_tokens=131072` without complaint. Output stays capped at 32K
+on this path and no override was found.
+
 ### Verify, every time
 
 ```bash
-claude-glm -p --output-format json "hi" | jq '.modelUsage | keys'
+claude-glm -p --output-format json "hi" \
+  | jq '.modelUsage | to_entries[] | {model: .key, ctx: .value.contextWindow}'
 ```
 
-Expect `["glm-5.2"]`. A `claude-*` id means you are not on GLM.
+Expect `glm-5.2` with `ctx: 1000000`. A `claude-*` id means you are not on GLM; a `200000`
+means the context override did not take.
 
 ---
 
@@ -186,8 +211,12 @@ the model found nothing.
 ## Models
 
 Verified `200` at `/api/anthropic`: **`glm-5.2`**, `glm-5-turbo`, `glm-4.7` (probed
-2026-07-28; `glm-5.2` re-confirmed 2026-07-31). Per Z.ai's GLM-5.2 docs: 1M context,
-128K max output.
+2026-07-28; `glm-5.2` re-confirmed 2026-07-31).
+
+Z.ai's GLM-5.2 docs claim 1M context / 128K max output. **Both partly confirmed here rather
+than taken on faith:** an ~950K-token request was accepted (`input_tokens=883,733`), and
+`max_tokens=131072` returns `200`. The output figure is academic on this path, since Claude
+Code caps its own request at 32K regardless (above).
 
 ---
 
