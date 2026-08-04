@@ -84,6 +84,47 @@ cost-of-recurrence can justify promotion on first sighting — it need not wait 
   "therefore" spanning two true statements is the joint under test. Chain with `&&`, and grep for the
   string you believe you just wrote before claiming you wrote it. *(evergreen · high · process.)*
 
+- `a-rule-held-as-a-procedure-does-not-transfer.md` (**LP-007**) — **Open when:** you are about to
+  modify config, hooks or settings in a repo/machine that is not the one your disciplines were written
+  against — especially right after correctly applying the analogous rule somewhere else.
+  **Carry-away:** a rule encoded as *"for file X, do steps 1-4"* fires on recognition of X; a rule
+  encoded as *"before any Y, ask Z"* fires on recognition of the SITUATION, and only the second
+  generalises. Recent correct application creates the confidence that suppresses the check — the
+  failure is invisible precisely to someone who HAS the discipline. Write the QUESTION beside every
+  procedure, and put it where the situation occurs rather than where the file is named.
+  *(budding · high · near-miss · knowledge-capture.)*
+
+- `a-test-can-specify-a-defect-and-every-gate-defends-it.md` (**LP-008**) — **Open when:** a gate is
+  green over code crossing an auth, billing, deletion or egress boundary; when you write an assertion
+  whose name encodes a POLICY ("X prefers Y") rather than a property; or when a deliberate behaviour
+  change turns an existing test red. **Carry-away:** `LP-003`'s sibling and worse, because it survives
+  the red-test — a guard that IS non-vacuous, DOES go red when broken, and asserts the WRONG
+  proposition. The suite is green *because* the code matches the spec and the spec is the bug, so
+  detection cannot come from inside the apparatus. It cost ~15.2M tokens billed to the wrong account
+  past 194 green tests. When an old test turns red, decide EXPLICITLY whether it specified the defect
+  or is coverage you are breaking, and record the previous assertion either way.
+  *(evergreen · high · testing.)*
+
+- `a-cited-defect-outlives-its-own-remediation.md` (**LP-009**) — **Open when:** you are citing a past
+  defect as motivation (an OQ, an ADR Context, a commit rationale, a config comment, a message to a
+  peer) — and equally when you have just FIXED something other documents cite. **Carry-away:** fixing a
+  defect does not touch the arguments that cite it; a citation lives in prose, the fix lives in code,
+  and no gate joins them, so a motivating example stays true as HISTORY while reading as a claim about
+  the PRESENT. It is invisible to the obvious sweep — a grep for the defective artifact will not find a
+  false statement ABOUT it. Re-derive before citing (one `git log -S`); grep the citations after
+  fixing. *(budding · high · knowledge-capture.)*
+
+- `suspect-the-probe-before-the-system.md` (**LP-010**) — **Open when:** a post-deploy or
+  post-implementation acceptance returns a NEGATIVE result, especially at the moment rollback looks
+  responsible. **Carry-away:** the probe is newer, less exercised and likelier wrong than the thing it
+  measures, yet a probe failure and a real defect are byte-identical. Two shapes, both seen minutes
+  apart on one deploy: the input does not exercise the feature (a trivial prompt asked a reasoning
+  feature for nothing, and "no thinking block" read as a broken carry-back), and the probe still uses a
+  shape the change deliberately invalidated (an inline `<<route:>>` tag after `ADR-0004`, presenting as
+  a broken deploy). Both times the fix was the probe. Completes the axis with `LP-003` (cannot fire)
+  and `LP-008` (fires at the wrong claim): here it fires, is aimed right, and was never provoked.
+  *(budding · high · verification.)*
+
 ## Maintenance
 
 APPEND-ONLY; adding/retiring a lesson updates this index in the same change. Carry-away claims must

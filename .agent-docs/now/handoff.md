@@ -1,181 +1,196 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-29
+last-modified: 2026-08-04
 tags: [current, handoff, session-state]
 related: [status, work-plan, open-questions]
 generator: /handoff
 ---
 
-# Session handoff — READ FIRST (2026-07-29) · ⚠️ a billing incident we caused · 🎯 next: decide `OQ-011`
+# Session handoff — READ FIRST (2026-08-04) · ✅ fix batch DEPLOYED + accepted live · 🎯 next: two operator calls
 
 ## Project in one paragraph
 
 modelmux is a local proxy between Claude Code and model providers that routes **per-subagent**: the
-orchestrator stays on Claude while named subagents divert elsewhere, driven by a `routes.toml` cascade.
-It ships as a **single self-contained binary**. On **`main`** at `66399b9`, clean, **0 ahead**, release
-PR **#20 (`0.6.0`)** open and correctly versioned. **The proxy now RUNS on this machine** as a systemd
-user unit — that reverses a long-standing assumption; see trap 1.
+orchestrator stays on Claude while named subagents divert elsewhere, driven by a `routes.toml`
+cascade. It ships as a **single self-contained binary**. On **`main`** at `abfc6fa`, clean, **0
+ahead**. The 07-30 fix batch is now **deployed and accepted on the live service** — the proxy is
+running HEAD for the first time since 07-29.
 
 ## Current state summary
 
-Five commits pushed. One of them fixes a defect **that cost the operator real money**, and the way it
-survived every gate is the most important thing in this file.
-
 | Thing | State |
 |---|---|
-| `39c5adc` — passthrough never substitutes a metered key | ✅ fixed, 6 falsifiers + the inverted test |
-| `a3bdbe7` + `66399b9` — GLM max-reasoning chain | ✅ live-verified end to end through the proxy |
-| `modelmux.service` (systemd user unit) | ✅ enabled, **survived a real reboot**, verified |
-| PR **#20** `chore(main): release 0.6.0` | 🟡 open, correctly versioned — merge when ready |
-| PR **#19** dependabot | 🔴 still HELD — CI red, disarms lint AND typecheck (`OQ-009`) |
-| `OQ-011` tag-scan design call | 🔴 **operator-gated**, blocks dynamic-agent routing entirely |
-| `LP-007`, `LP-008` | 🟡 staged, awaiting accept/defer/reject |
+| Fix batch (`38cd513` `bf45c30` `e29f344` `f9f466e` `d989d29`) | ✅ **DEPLOYED**, running exe `eae8ed25` == fresh HEAD build |
+| `ADR-0004` — `<<route:>>` must be alone on its own line | ✅ accepted + LIVE. **BREAKING** |
+| `OQ-021` reasoning-summary carry-back | ✅ **WIRED** — was IMPL-only at the last handoff |
+| `OQ-015` usage logging | ✅ live on BOTH wire paths |
+| `OQ-020` config hot-reload | ✅ verified **in production**, incl. case 3 |
+| `docs/glm-direct-vs-proxied.md` | ✅ shipped — *when NOT to use this proxy* |
+| PR **#20** `chore(main): release 1.0.0` | 🔴 **CONTESTED** — recommendation is `0.6.0`, unapplied |
+| Independent review of the batch | 🔴 **NEVER RUN** — the largest risk in the tree |
+| `LP-007` `LP-008` `LP-009` `LP-010` | ✅ **all four ACCEPTED** 2026-08-04 → `lessons/` (one evergreen, three budding) |
 
-Gates, measured 2026-07-29: `lint` ✅ · `typecheck` ✅ · `reachability` ✅ · `build` ✅ ·
-`bun test test/` ✅ **213 pass** · doc-lint ✅ 48 files. Installed binary **sha256-equal** to a fresh
-build of HEAD.
+Gates 2026-08-04: `lint` ✅ · `build` ✅ · `bun test test/` ✅ **248 pass** · `reachability` ✅ ·
+doc-lint ✅ 54 files.
 
 ## Important context
 
-- Decisions: `ADR-0001` (tag verb), `ADR-0002` (**superseded**), `ADR-0003` (wire formats + Codex).
-- Lessons `LP-001..006` promoted; five carry MOC rows. **`LP-006`** (*a correct mechanism with an
-  inverted consequence is invisible to every control*) was accepted this session with **4 firsthand
-  instances**, one of them inside its own promotion commit.
+- Decisions: `ADR-0001` (tag verb), `ADR-0002` (**superseded**), `ADR-0003` (wire formats + Codex),
+  **`ADR-0004`** (the own-line `<<route:>>` rule — read it before touching `signals.ts`/`cli.ts`).
+- Lessons **`LP-001..010`** filed. `LP-007`-`LP-010` adjudicated 2026-08-04: all accepted, `LP-008`
+  evergreen (+ MOC row), the other three budding. **Nothing staged in `now/lessons/proposals.md`.**
 - **`CLAUDE.md` carries a DATED dispatch-authorization block** (`bf8a05e`) — a record of what the
-  operator said and when, never a paragraph that vouches for itself.
-- Room protocol: `aegis` is the only live counterparty. Nothing owed to anyone else.
+  operator said and when. It covers scoped work up to ~3 concurrent agents; the review fan-out is
+  bigger and therefore needs its own ask.
+- Room: the cross-tree model-version thread is **CLOSED** by operator direction. Nothing owed either
+  way, no live thread — hence no Room-threads section here.
 
 ## ⚠️ Anti-assumptions / traps
 
-1. **THE PROXY RUNS HERE NOW.** The `the-proxy-is-not-running-on-the-development-machine` memory is
-   **stale as of 2026-07-29**. `modelmux.service` is an enabled systemd user unit serving `:8787`,
-   with the Z.ai key from `~/.config/modelmux/env`. Routing config is now *observation*, not
-   specification.
-2. **A 200 answered to a credential-less request means SOMETHING ELSE PAID.** This is the whole
-   incident in one line. The first proxy probe sent no auth and got a real completion; it was logged,
-   written up, and filed as trivia while 93 requests billed to a metered account.
-3. **A green test can be DEFENDING the bug.** `"anthropic leg PREFERS env ANTHROPIC_API_KEY"` was
-   non-vacuous, correct, and specified a billing redirect. Staged as `LP-008`.
-4. **`extraBody` OVERWRITES; `minMaxTokens` RAISES.** Two mechanisms on purpose. Using `extraBody`
-   for a token floor would CLAMP a caller who asked for more — the opposite of a floor.
-5. **`reasoning_effort` is silently dropped on Z.ai's `/api/anthropic`.** 200 on a deliberately
-   invalid value. `thinking.type` IS parsed there, so it reads what it knows and discards the rest.
-   `/api/paas/v4` validates it but is **METERED** ("Insufficient balance" on a Coding Plan key). Only
-   **`/api/coding/paas/v4`** is subscription AND validating.
-6. **At max effort, a low `max_tokens` returns THINKING WITH NO ANSWER** — billed, and it does not
-   *look* truncated. It looks like the reviewer found nothing. `minMaxTokens = 32000` guards it.
-7. **`<<route:>>` tags are read from `body.system` ONLY.** File-based agent defs work (proven);
-   dynamic/Workflow inline prompts do NOT (proven both sides). That is `OQ-011`.
-8. **Agent defs load at SESSION START — no hot-reload, for names OR bodies.** Proven by marker probe.
-   A new def needs a process restart; **a machine reboot is NOT required**. `claude --resume <id>`
-   preserves the transcript, but a **live bg session must be stopped first** or resume refuses.
-9. **`/proc/<pid>/environ` does NOT show settings-injected env.** It is an exec-time snapshot.
-   Reading its 0 as "not proxied" is wrong — verify with `decisions.jsonl` traffic instead.
-10. **A `watch` wake's "N new" is NOT the unread count** — it is cursor-independent. Confirm with
-    `room unread --for modelmux --count` before treating a wake as work.
-11. **Before editing config in ANOTHER repo, check the target's tracking status.** A clean diff says
-    nothing about whether the change travels. Nearly shipped a localhost URL to a public repo.
+1. **INLINE `<<route:tag>>` NO LONGER ROUTES.** `ADR-0004` is live: a directive must be **alone on
+   its own line**. A def whose only match is prose now falls to `default` — silently, in the same
+   direction as the defect it fixed. Any probe, fixture or agent def written before 08-04 may carry
+   the old shape.
+2. **`decisions.jsonl` now contains `kind: "usage"` rows.** A query that reads *"the last row for
+   agent X"* may land on a usage row, which has **no `matchedRule`**. That exact `KeyError` was the
+   first evidence `OQ-015` worked.
+3. **A trivial prompt makes a reasoning-feature probe return a false negative.** `OQ-021`'s first
+   acceptance asked for an echo, got no thinking block, and looked like a broken carry-back. The
+   feature was fine; the prompt never asked for reasoning. Now `LP-010`, accepted.
+4. **The proxy IS running and IS on HEAD** (`eae8ed25`, verified by hashing `/proc/<pid>/exe`, not
+   the installed copy). Rollback binary at `$CLAUDE_JOB_DIR/tmp/modelmux.rollback` — **ephemeral**.
+5. **`reasoning_effort` is SILENTLY DROPPED on Z.ai's `/api/anthropic`** — 200 on a deliberately
+   invalid value, twice. The graduated levels exist only on `/api/coding/paas/v4` (OpenAI wire).
+6. **Claude Code's think/ultrathink keywords are INERT against Z.ai.** Captured 35 requests across
+   plain/think/ultrathink: two payloads only, `{"type":"adaptive"}` or null. No `budget_tokens`.
+7. **`adaptive` is the DEEPEST thinking setting, not a compromise** — 39,613 thinking chars vs
+   23,233 (budget 4000) and 19,589 (budget 24000). Setting it by hand makes it WORSE, and
+   `budget_tokens` is **not a bound**.
+8. **A `200K` context reading is Claude Code failing to recognise `glm-5.2`, not a GLM limit.** Fixed
+   with `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000`; the endpoint really serves it (883,733 input
+   tokens accepted). **`CLAUDE_CODE_MAX_OUTPUT_TOKENS` does NOT work** — it clamps at 32000.
+9. **`claude -p` inherits the cwd's `CLAUDE.md` and hooks** — headless is not context-free. Run
+   probes from a `mktemp -d`. Bitten twice; see the `claude-p-…-second-voice` memory.
+10. **fish `string trim -c` does NOT interpret a `\x27` escape** — it takes the literal set
+    `{" \ x 2 7}`. The Z.ai key starts with `7`, so it silently ate two characters. Use a regex
+    replace instead (`\x27` IS valid inside a regex).
+11. **`ls` is aliased here** (eza) and rejects `ls -1t`. Use `find -printf` for time-sorted listings.
 
 ## Detour-chain
 
-**MAIN:** route AEGIS's reviewers to GLM at max reasoning.
-→ *side-quest:* operator hit "Credit balance too low" → **a billing redirect we caused**; found the
-  9-line preference inversion, and that a test had specified it. **Resolved** (`39c5adc` + `84f6aa4`).
-→ *side-quest:* `reasoning_effort` appeared to do nothing → three-endpoint probe found the subscription
-  endpoint drops it and the validating one is metered. **Resolved** — `/api/coding/paas/v4`.
-→ *side-quest:* GLM's reasoning was arriving and being dropped → `reasoning_content` → `thinking`
-  in both paths; streaming needed block indices ALLOCATED not hardcoded. **Resolved.**
-→ *side-quest:* max effort truncated into thinking-only → `minMaxTokens` raise-only floor. **Resolved.**
-→ *side-quest:* pinned `ANTHROPIC_BASE_URL` into aegis's **tracked, public** `settings.json` → aegis
-  caught it and relocated to the gitignored layer. **Resolved**; memory + `LP-007` filed.
-→ *side-quest:* dynamic reviewer tags never routed → proven structural (`body.system` only) → `OQ-011`.
-→ *side-quest:* `glm-reviewer` not in registry → proven no hot-reload → restart, not reboot. `OQ-012`.
-→ *open:* `OQ-011` (operator call) · PR #19 (`OQ-009`) · `OQ-010` gate fragments · `OQ-008`.
+**MAIN:** deploy the 07-30 fix batch and run the four owed acceptances. → **DONE, all four passed.**
+→ *side-quest:* the review probe fell to `default` on the first post-deploy request → **not a defect**
+  — my probe used an inline tag, exactly what `ADR-0004` invalidated. Fixed the probe. **Resolved.**
+→ *side-quest:* `OQ-021`'s acceptance returned no thinking block → **not a defect** — the prompt was
+  an echo. Re-ran with a reasoning-demanding prompt. **Resolved → `LP-010`.**
+→ *side-quest (operator):* "how do I run Claude Code on Z.ai directly?" → measured the whole path;
+  shipped `docs/glm-direct-vs-proxied.md`, installed `claude-glm.fish`, sent a forwardable guide.
+  **Resolved.**
+→ *side-quest:* "why 200K not 1M?" → Claude Code's model-table miss; `CLAUDE_CODE_MAX_CONTEXT_TOKENS`
+  fixes it, endpoint verified to 883K. **Resolved.**
+→ *side-quest (earlier):* cross-tree model-version-rot thread → found MY defect (a fixed defect's
+  citation propagated as present tense), corrected in 3 places, staged `LP-009`. Thread **CLOSED**
+  by the operator; my reply was filed, never sent.
+→ *open:* the release version · the review fan-out · `OQ-008` `OQ-009` `OQ-010` `OQ-012` `OQ-018`.
 
 ## Immediate next steps
 
-**1. `OQ-011` — the tag-scan decision. Operator-gated; do not widen an injection surface unasked.**
-Also scanning the FIRST user message would make dynamic agents taggable. Cost: a `<<route:…>>` token in
-*reviewed content* redirects routing — bounded to configured aliases, but AEGIS reviews code and those
-tokens live in `.claude/agents/*.md`. If widened, scope to the first user message only, and it owes a
-falsifier proving a tag in a *later* message is ignored.
-
-**2. PR #19 — close, don't split.** `@antfu/eslint-config` 9.1→9.2 drags `eslint-plugin-unicorn ^68 →
-^72` transitively, so the "safe three" are not safe by inspection. Add a `dependabot.yml` ignore for
-`typescript` majors.
-
-**3. `OQ-010`** — gate fragment for the `pkill -f` / `pgrep -af` class.
-
-**RECIPE — verify the running proxy matches HEAD (verbatim, reusable):**
-
-```bash
-cd /home/v3ct0r/Development/Personal/modelmux && bun run build
-diff <(sha256sum dist/modelmux | cut -d' ' -f1) <(sha256sum ~/.local/bin/modelmux | cut -d' ' -f1) \
-  && echo "installed == HEAD"
-systemctl --user is-active modelmux.service
-# the leg is the ONLY evidence — a 200 proves nothing, the fallback IS Claude:
-tail -f ~/.config/modelmux/decisions.jsonl | python3 -c 'import sys,json
-for l in sys.stdin:
-    d=json.loads(l); print(f"{d[\"matchedRule\"]:<14} -> {d[\"upstream\"]}:{d[\"resolvedModel\"]}  {d[\"agentId\"]}")'
+**1. Rule on the RELEASE VERSION.** PR #20 is `1.0.0`; recommendation is `0.6.0` — the repo's own
+rule is that a version must match user-facing reality, and this tree fixed three confirmed defects
+last week with five OQs open. To take the recommendation, add one line under `with:` in
+`.github/workflows/release.yml`:
+```yaml
+          bump-minor-pre-major: true
 ```
 
-**RECIPE — tell a GENUINE session decision from your own curl probes:**
+**2. Authorise (or decline) the INDEPENDENT REVIEW fan-out** over the five code commits. Zero
+independent review exists on any of them; every non-vacuity proof was run by the author, which is
+exactly the separation the standing rules forbid collapsing.
 
-```python
-# a real Claude Code agent id is a long hex token; every id you type by hand is a slug
-import re; REAL = re.compile(r'^[0-9a-f]{16,}$')
-# filtering by a hand-maintained list of "my" names WILL miss spellings you forgot — it did.
+**3. Then, in order:** `OQ-010` (safety-gate fragment — `pkill -f` has now fired three times),
+`OQ-008` (the Codex half is cheap: `~/.codex/models_cache.json` is on-disk, no network, no key),
+PR #19 / `OQ-009`, `OQ-012`.
+
+**RECIPE — verify the running proxy matches HEAD (verbatim, reusable):**
+```bash
+cd /home/v3ct0r/Development/Personal/modelmux && bun run build
+NEWPID=$(systemctl --user show modelmux.service -p MainPID --value)
+# hash the RUNNING image, not the installed copy — they can differ
+diff <(sha256sum /proc/$NEWPID/exe | cut -d' ' -f1) <(sha256sum dist/modelmux | cut -d' ' -f1) \
+  && echo "running == HEAD"
+```
+
+**RECIPE — assert a leg, post-`ADR-0004` (note the OWN-LINE directive, and skip usage rows):**
+```bash
+python3 - <<'EOF'
+import json, os, urllib.request
+body={"model":"m","max_tokens":32,"stream":False,
+      "system":"<<route:review>>\nYou are a reviewer.",      # OWN LINE or it will not route
+      "messages":[{"role":"user","content":"OK"}]}
+req=urllib.request.Request("http://localhost:8787/v1/messages",
+    data=json.dumps(body).encode(),
+    headers={"content-type":"application/json","x-claude-code-agent-id":"leg-probe"})
+try: urllib.request.urlopen(req, timeout=120).read()
+except Exception as e: print("(upstream said:", type(e).__name__, ")")
+rows=[json.loads(l) for l in open(os.path.expanduser("~/.config/modelmux/decisions.jsonl")) if l.strip()]
+d=[r for r in rows if r.get("agentId")=="leg-probe" and r.get("kind")!="usage"][-1]
+print(d["matchedRule"], "->", d["upstream"]+":"+d["resolvedModel"])
+EOF
+```
+
+**RECIPE — Claude Code on Z.ai GLM directly (installed as the `claude-glm` fish function):**
+```bash
+env -u ANTHROPIC_API_KEY \
+    ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
+    ANTHROPIC_AUTH_TOKEN="$ZAI_KEY" \
+    ANTHROPIC_MODEL=glm-5.2 ANTHROPIC_SMALL_FAST_MODEL=glm-5.2 \
+    CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000 \
+    claude
+# verify:  claude-glm -p --output-format json "hi" | jq '.modelUsage'
+#   expect glm-5.2 with contextWindow 1000000; a claude-* id or 200000 means it did not take
 ```
 
 ## Recent decisions made
 
 | When | Decision | Ref |
 |---|---|---|
-| 2026-07-29 | `passthrough` never substitutes a credential — no inbound auth sends none, upstream 401s | `39c5adc` |
-| 2026-07-29 | Reviewers route over `format="openai"` to `/api/coding/paas/v4` — the only subscription endpoint that honours `reasoning_effort` | `a3bdbe7` |
-| 2026-07-29 | `minMaxTokens` is a separate RAISE-only field, not `extraBody` — a floor must never clamp | `66399b9` |
-| 2026-07-29 | Machine-local facts go in the **gitignored** settings layer; check tracking status first | aegis, room `c59423da` |
-| 2026-07-29 | systemd user unit for the proxy — persistent config demands a persistent service | operator |
-| 2026-07-27 | Dispatch pre-authorized for scoped work, recorded as a DATED fact | `bf8a05e` |
-
-## Room-threads
-
-*(One live counterparty: **`aegis`**. Role: I own the proxy; they own the review cycle and owe me the
-leg measurement. My last posts `c59423da` / `136c5bd2`; last inbound processed `6bcec3be`. **Standing
-hook:** when they report the leg, `OQ-011` either closes (file-based works → no code change) or
-escalates to the operator's widen-or-not decision. **Durable base:** `OQ-011`, `OQ-012`,
-`memories/a-setup-change-to-another-repo-…`. **Do NOT relitigate:** dynamic inline tags do not route
-(proven both sides); a reboot is not required for a new agent def.)*
-
-> **RE-READ RULE:** before posting anything into the room, re-read the comms log since this handoff's
-> timestamp PLUS your own last post and all replies to it. A post from a stale frame is the
-> confident-wrong failure mode; the re-read is cheap, the wrong post is not.
+| 2026-08-04 | Deploy only into a verified-empty flight deck; hash `/proc/<pid>/exe` to prove what runs | `abfc6fa` |
+| 2026-08-04 | The release version is the operator's call; `1.0.0` NOT self-resolved to `0.6.0` | obligations row |
+| 2026-07-31 | `<<route:>>` must be alone on its own line; docs-only rejected as the runner-up | `ADR-0004`, `e29f344` |
+| 2026-07-31 | Usage recorded OUT OF BAND; never fabricate `input_tokens` into `message_start` | `d989d29` |
+| 2026-07-30 | `minMaxTokens` REFUSED on a codexSubscription upstream, not silently ignored | `38cd513` |
+| 2026-07-30 | Document the direct GLM path as a legitimate alternative — the proxy buys control, not depth | `7c2a529` |
 
 ## Breadcrumbs / artifacts
 
-- **Live services, not artifacts:** `modelmux.service` (systemd user unit) and its config at
-  `~/.config/modelmux/{routes.toml,env,decisions.jsonl}`. The env file holds the Z.ai key at `0600` —
-  **never commit it, never print it**.
-- **Ephemeral** (`$CLAUDE_JOB_DIR/tmp/`): release-check dirs, probe bodies, room-message drafts, and
-  `obligations.pre-sweep.bak`. No residual value — recipes above are the durable form.
-- **Credentials:** the Z.ai key transited only as a file path and `set -a; . <file>`; never printed.
-  The Codex `access_token` **expired 2026-07-28** — `codex login` before field-testing that upstream.
+- **Live services:** `modelmux.service` + `~/.config/modelmux/{routes.toml,env,decisions.jsonl}`.
+  The env file holds the Z.ai key at `0600` — **never commit it, never print it**.
+- **Installed outside the repo:** `~/.config/fish/functions/claude-glm.fish` — verified end to end
+  (`contextWindow=1000000`, `modelUsage: ['glm-5.2']`). Carries its own rationale in comments.
+- **Ephemeral** (`$CLAUDE_JOB_DIR/tmp/`, clears): `modelmux.rollback` (the pre-deploy binary),
+  `claude-code-on-glm.md` (the forwardable guide — its content is preserved in
+  `docs/glm-direct-vs-proxied.md`), `msg-sixth-shape.txt` (filed-not-sent; its content is `LP-009`),
+  and the probe scripts. **Nothing here is the only copy of anything durable.**
+- **Credentials:** the Z.ai key transited only as a file read, never printed. The Codex
+  `access_token` **expires 2026-08-08** — `codex login` renews it; no restart needed.
 
 ## Reading order
 
-1. This file · 2. `now/status.md` · 3. `now/work-plan.md` §Immediate next · 4. `now/open-questions.md`
-(`OQ-008`…`OQ-012`) · 5. `now/obligations.md` · 6. `now/lessons/proposals.md` (**`LP-007`, `LP-008`
-await a ruling**) · 7. `lessons/` + `memories/` · 8. `CLAUDE.md`. No `checkpoints/` sitrep exists.
+1. This file · 2. `now/status.md` · 3. `now/work-plan.md` §Immediate next · 4.
+`now/open-questions.md` (`OQ-008` `OQ-009` `OQ-010` `OQ-012` `OQ-018`) · 5. `now/obligations.md`
+(**three operator rows**) · 6. `lessons/index.md` (`LP-001`-`LP-010`) · 7.
+`decisions/0004-…` · 8. `docs/glm-direct-vs-proxied.md` · 9. `CLAUDE.md`. No `checkpoints/` sitrep
+exists.
 
 ## Recent commits
 
 ```
-66399b9 feat(upstreams): minMaxTokens — a RAISE-ONLY floor for the outbound token cap
-9995bc6 docs(memories): a setup change to another repo needs its tracking status
-a3bdbe7 feat(upstreams): impose reasoning depth per-upstream, and carry reasoning back
-84f6aa4 docs: correct two claims the passthrough fix falsified
-39c5adc fix(upstreams): passthrough must never substitute a metered key for a subscription
+abfc6fa docs: deploy the 30 July fixes; all four acceptances pass live
+4594231 docs(glm): the 200K context window is Claude Code guessing, not a GLM limit
+7c2a529 docs: when NOT to use this proxy — GLM direct vs proxied, measured
+dc27c53 docs: amend a cited verdict, and name the convention-shields-itself class
+46b773c docs: record the room halt, and the aggregate-blindness it exposed
 ```
 
 ---

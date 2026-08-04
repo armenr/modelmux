@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-10
-last-modified: 2026-07-29
+last-modified: 2026-08-04
 tags: [current, obligations]
 related: [status, work-plan, open-questions, handoff]
 ---
@@ -52,6 +52,9 @@ related: [status, work-plan, open-questions, handoff]
 
 | Counterparty | What (may cite an id) | Class | Trigger / by-when | Default-if-silent | Source |
 |---|---|---|---|---|---|
+| operator | the RELEASE VERSION ruling — PR #20 says `1.0.0`; recommendation is `0.6.0` via `bump-minor-pre-major`. Cites the work-plan §Immediate-next | HARD — gates cutting any release; a version is a public commitment and cannot be self-authorized | the next release attempt | **never-chase-never-peek** — an authorization gate; silence means NO release is cut, not a default version | conversation 2026-07-30, restated 2026-08-04; PR #20 |
+| operator | authorization for the ~5-agent INDEPENDENT REVIEW fan-out over the 07-30 code batch (>3 concurrent agents, so beyond the dated `CLAUDE.md` grant) | HARD — zero independent review exists on that code; the standing rules forbid the author being the reviewer | before the next substantive change builds on that batch | **never-chase-never-peek** — an authorization gate; silence means the fan-out does not run and the gap stays recorded | asked 2026-07-30, restated 2026-08-04 |
+| operator | accept / defer / reject on **`LP-007`**, **`LP-008`**, **`LP-009`** (staged in `now/lessons/proposals.md`) | SOFT — nothing is blocked; they simply cannot graduate to `lessons/` without a ruling | the next `/handoff` §7c | chase-once — surface them once more, then leave them staged | staged 2026-07-29 / 2026-07-31 |
 | fieldbook | comes to me at kit cut-time to use this tree as the settings deep-merge test case | SOFT | fieldbook's next kit cut | never-chase-never-peek — silence = they cut without it; nothing of ours is blocked | room msg `683fbb1b` + their acceptance (2026-07-25) |
 
 ## Owed by me (debts)
@@ -77,10 +80,13 @@ related: [status, work-plan, open-questions, handoff]
   re-wire → confirm the committed copy still has **zero** machine paths → re-set the bit. Also note the
   block's liveness advice is **watch-wired only** — a room-side probe cannot see a harness-side
   follower, which is fine for us (we are watch-wired) but is not a general claim
-- ~~the Codex `access_token` expiry passed 2026-07-28~~ → **STALE, cleared 2026-07-30**: measured from
-  `~/.codex/auth.json`, `access_token` is VALID to **2026-08-08** (`auth_mode: "chatgpt"`, no
-  `OPENAI_API_KEY`), so someone re-ran `codex login`. Re-check before relying on it — the useful
-  tripwire is now the 08-08 expiry, not the passed one
+- ⏰ **the Codex `access_token` expires 2026-08-08 — FOUR DAYS OUT as of this handoff** → `OQ-002`'s
+  fail-loud path fires on any `<<route:build>>` request once it lapses; re-run `codex login` (no
+  restart needed, the credential is read per-request). The live `routes.toml` now HAS a codex leg, so
+  unlike previous cycles this expiry is no longer hypothetical
+- Claude Code ships a model-table entry for `glm-5.2` → `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000` in
+  `~/.config/fish/functions/claude-glm.fish` becomes unnecessary (and if their figure disagrees with
+  1M, theirs wins); re-check with `claude-glm -p --output-format json "hi" | jq '.modelUsage'`
 - `typescript-eslint` ships TS 7.x support → `OQ-009`'s hold on PR #19 lifts
 - anyone writes `model: deep` / `standard` / `cheap` into an agent def or a dispatch here → those are
   NOT valid harness enum values (`sonnet|opus|haiku|fable`), and a peer MEASURED the failure: the agent
@@ -105,14 +111,6 @@ related: [status, work-plan, open-questions, handoff]
 > *silently* delete a row — the log entry is the preserved audit trail; a row that vanished with no
 > journal entry reads as a *dropped* obligation, not a discharged one.
 
-*(2026-07-26 cycle pruned — journaled in `log.md`.)*
+*(2026-07-26 and 2026-07-29 cycles pruned — journaled in `log.md`.)*
 
-- **operator** · dispatch authorization for scoped sub-agent work · settled 2026-07-27 in their own
-  words (*"CLAUDE.md go for it"*), recorded as a DATED fact in `CLAUDE.md` §Dispatch authorization —
-  not a self-vouching paragraph. Source: `bf8a05e`.
-- **operator** · commit + push authorization for the 5-commit billing/reasoning batch · settled
-  2026-07-29 (*"push at will"*). Source: `66399b9` pushed, `origin/main` 0 ahead.
-- ~~**aegis** · the file-based-vs-dynamic reviewer LEG result, per the tag-scan OQ~~ · **settled
-  2026-07-29** — delivered both halves with a same-run control each, closing it with no code change
-  (now `OQ-016`). Their answer also surfaced `OQ-017`, a confirmed defect in our matcher. Source:
-  room msg `cd3091d5`.
+*(Nothing settled this cycle: the room thread closed with nothing owed in either direction.)*

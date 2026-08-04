@@ -1,62 +1,68 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-29
+last-modified: 2026-08-04
 tags: [current, status]
 related: [work-plan, open-questions, handoff, obligations]
 ---
 
-# Status — modelmux · a billing incident fixed, GLM max-reasoning shipped · 2026-07-29
+# Status — modelmux · the fix batch is DEPLOYED and accepted live · 2026-08-04
 
 ## TL;DR
 
-**A real defect cost the operator money, and it was ours.** `anthropic:passthrough` preferred an env
-`ANTHROPIC_API_KEY` over the caller's subscription OAuth — **93 orchestrator requests, ~15.2M input
-tokens** billed to a metered account. Fixed, with the root cause recorded: *a test had SPECIFIED the
-defect and kept it green.* Shipped alongside it: reviewers now route to **GLM at max reasoning effort**
-with reasoning carried back as Anthropic `thinking` blocks. Five commits pushed; release PR **#20 is
-`0.6.0`** and correct.
+The five fixes from 2026-07-30 are **running in production**, and all four owed acceptances passed
+against the live service — including the one that was explicitly recorded as IMPL-not-WIRED. The
+running binary is **sha256-equal to a fresh build of HEAD**, verified by hashing `/proc/<pid>/exe`
+rather than trusting the installed copy. Two operator decisions remain untouched: the **release
+version** and the **independent review fan-out**.
 
 ## Branch / working tree
 
-- On **`main`** at `66399b9`, **0 ahead / 0 behind** origin, working tree **clean**.
-- Latest tag `v0.5.1`; **PR #20 (`chore(main): release 0.6.0`) open and correctly versioned** — 2 `feat:`
-  + 1 `fix:` in the push, so a MINOR bump is the honest number. It self-corrected from `0.5.2`.
-- `CLAUDE.md` still carries the **skip-worktree** bit (`OQ-003`); it now also holds the operator's
-  dated dispatch-authorization block.
+- On **`main`** at `abfc6fa`, **0 ahead / 0 behind**, working tree **clean**.
+- **PR #20 `chore(main): release 1.0.0`** open — release-please bumped to a MAJOR off the `!`
+  breaking change in `e29f344`. **NOT merged, and the version was NOT overridden** (see work-plan).
+- **PR #19** dependabot still HELD — CI red, disarms lint AND typecheck (`OQ-009`).
+- `CLAUDE.md` still carries the **skip-worktree** bit (`OQ-003`).
 
 ## Build / test state
 
-- Gates green, **measured 2026-07-29**: `lint` ✅ · `typecheck` ✅ · `reachability` ✅ · `build` ✅ ·
-  `bun test test/` ✅ **213 pass** · doc-lint ✅ 48 files.
-- **Installed binary == a fresh build of HEAD** (`sha256` compared, not assumed).
+Gates measured 2026-08-04: `lint` ✅ · `build` ✅ · `bun test test/` ✅ **248 pass** ·
+`reachability` ✅ (17 files, all reachable) · doc-lint ✅ 50 files.
 
-## Runtime state (delta) — the proxy is LIVE on this machine now
+## Runtime state (delta) — the proxy is on HEAD for the first time since 07-29
 
-This reverses a long-standing memory: modelmux used to be built-here-not-run-here. **It runs here now.**
+- `modelmux.service` **active**, running exe `eae8ed25…` == fresh HEAD build. Previous binary kept
+  at `$CLAUDE_JOB_DIR/tmp/modelmux.rollback` (`38f0c765…`) as a rollback point.
+- Restarted 2026-08-04 12:01 local, into a **verified-empty flight deck** (zero genuine hex-id
+  subagent decisions in the prior 30 min).
+- Live `routes.toml` now carries **three** aliases: `orchestrator` (anthropic passthrough),
+  `reviewer` → `zai-max:glm-5.2`, and **`builder` → `codex:gpt-5.6-sol`** with
+  `extraBody = { reasoning = { effort = "high", summary = "auto" } }` and deliberately no
+  `minMaxTokens` (`OQ-019`).
+- **`decisions.jsonl` now contains `kind: "usage"` rows** (3 so far) alongside decision rows — new
+  in this build. Any query that reads "the last row for an agent" may now land on a usage row,
+  which has **no `matchedRule`**.
 
-- **`modelmux.service`** is a systemd **user unit**, `enabled` + `active`, and **verified across a
-  reboot** (came back on its own, new pid, serving). Key material comes from `~/.config/modelmux/env`
-  via `EnvironmentFile=` — never in the unit, never in git.
-- Live routing config (`~/.config/modelmux/routes.toml`):
-  - `<<route:review>>` → **`zai-max:glm-5.2`** — Coding-Plan endpoint, `reasoning_effort = "max"`,
-    `minMaxTokens = 32000`
-  - everything else (other subagents AND the orchestrator) → `anthropic:passthrough`, **untouched**
-  - there is deliberately **no `anySubagent` catch-all** — GLM is opt-IN by tag
-- **`aegis`** routes through it: `ANTHROPIC_BASE_URL` lives in that repo's
-  `.claude/settings.local.json` (gitignored — **not** `settings.json`, which is tracked and public).
+### Acceptances run against the live service
+
+| what | result |
+|---|---|
+| `ADR-0004` anchoring live | ✅ — and it caught our own probe's inline tag on the first request |
+| `OQ-021` reasoning summary | ✅ **WIRED** — `['thinking','text']`, 113 thinking chars, `end_turn` |
+| `OQ-015` usage logging | ✅ both paths — `zai-max in=37 out=211`, `codex in=33 out=18` |
+| `OQ-020` hot-reload | ✅ in production, including case 3 (survived a second atomic replace) |
 
 ## Context-system state
 
-Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0003**. Memories: **7**. Lessons: **6**
-(`LP-001..006`; five evergreen with MOC rows — `LP-006` accepted this session). Reference docs: 5.
-Work-units WU-0001..0003 all ✅ WIRED. **Open questions: `OQ-008`, `OQ-009`, `OQ-010`.** `LP-007` staged
-awaiting a ruling. No `checkpoints/` sitrep exists.
+Fieldbook **0.8.2** Standard, `multi_party: true`. ADRs at **0004** (`ADR-0004` — the `<<route:>>`
+own-line rule). Memories: **9**. Lessons: **10** filed (`LP-001..010`) — 6 evergreen, 4 budding, **none staged**. **Open questions:
+`OQ-008`, `OQ-009`, `OQ-010`, `OQ-012`, `OQ-018`.** No `checkpoints/` sitrep exists.
 
 ## What this means for next steps
 
-Nothing is blocked on this repo. The open work is **PR #19** (still held — it disarms lint *and*
-typecheck), **`OQ-010`**'s gate fragments, and **one undecided design question**: whether to widen the
-`<<route:>>` tag scan beyond `body.system`, which is the only thing standing between dynamically-spawned
-agents and tag-based routing — and which carries a real code-injection tradeoff. See `work-plan.md`
-§Immediate next.
+Nothing in the repo is blocked. The two live decisions are both operator-owned and neither is
+technical: the **release version** (1.0.0 vs 0.6.0) and whether to authorise the **independent
+review fan-out** — zero independent review has happened on any of this code, which is the largest
+outstanding risk in the tree, not any open OQ. Remaining OQs are backlog: `OQ-018` is the operator's
+shell, `OQ-010` has three recorded firings arguing for itself, and `OQ-008`/`OQ-009`/`OQ-012` are
+unchanged. See `work-plan.md` §Immediate next.

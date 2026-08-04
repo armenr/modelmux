@@ -18,6 +18,66 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-08-04 | lessons | all four staged proposals ADJUDICATED — accepted, filed, staging empty
+
+Operator delegated the ruling. `LP-007`, `LP-008`, `LP-009`, `LP-010` all **accepted** and moved to
+`lessons/`; `now/lessons/proposals.md` now holds no candidates.
+
+| id | slug | maturity | reasoning |
+|---|---|---|---|
+| `LP-007` | `a-rule-held-as-a-procedure-does-not-transfer` | budding | one instance; sharp mechanism + concrete mitigation, no cross-session confirmation. Filed `entry_type: near-miss` — the save came entirely from a peer's review, not from any mechanism of mine |
+| `LP-008` | `a-test-can-specify-a-defect-and-every-gate-defends-it` | **evergreen** | cost ~15.2M tokens billed wrong, AND was applied on 07-31 to triage four legacy tests under `ADR-0004`. A lesson that demonstrably prevented a repeat in a later session has earned evergreen |
+| `LP-009` | `a-cited-defect-outlives-its-own-remediation` | budding | two instances, same window; it caught itself once, which is notable but not cross-session |
+| `LP-010` | `suspect-the-probe-before-the-system` | budding | two instances, same day, same deploy; freshest, no confirmation yet |
+
+**Only `LP-008` took a MOC row.** The MOC is the bounded Tier-1 surface and carries evergreen entries
+only — consistent with `LP-002` sitting at budding without one. Census verified rather than asserted:
+10 lesson files, **6 evergreen / 4 budding**.
+
+**Why all four passed the bar rather than one or two.** They are mutually distinct, and three of them
+complete an axis rather than overlapping it: `LP-003` (the guard CANNOT fire) · `LP-008` (it fires,
+correctly, at the WRONG proposition) · `LP-010` (it fires, aimed right, and was never PROVOKED). The
+weakest candidate was `LP-007` — the risk being that *"hold rules as questions"* is a platitude — but
+it carries a specific trigger, a named artifact, and an actionable mitigation (write the QUESTION
+beside every procedure, and put it where the situation occurs rather than where the file is named), so
+it clears on actionability rather than on insight alone.
+
+## 2026-08-04 | handoff | deployed the fix batch, passed all four acceptances, and answered the GLM-direct question
+
+The 07-30 batch is LIVE (`eae8ed25`, verified by hashing `/proc/<pid>/exe`) and every owed acceptance
+passed against the running service — including `OQ-021`, which the last handoff explicitly recorded as
+IMPL-not-WIRED. `OQ-021` closed. Open now: `OQ-008`, `OQ-009`, `OQ-010`, `OQ-012`, `OQ-018`.
+
+Second strand: measured what Claude Code + Z.ai actually does without this proxy, and shipped
+`docs/glm-direct-vs-proxied.md` — deliberately framed as *when NOT to use modelmux*, because the
+measurements say the direct path wins on depth. Installed and verified
+`~/.config/fish/functions/claude-glm.fish`; sent the operator a forwardable copy for a third party.
+
+Obligations swept: three OPERATOR rows added (release version · review fan-out · the `LP-` rulings),
+all gate-safe (`never-chase-never-peek` on the two authorizations — an agent must never leave a rule
+that self-authorizes a gate). Two tripwires added, one superseded tripwire pruned, and the 07-26 +
+07-29 settled cycles journaled here and removed from the ledger:
+
+- **operator** · dispatch authorization for scoped sub-agent work · settled 2026-07-27 in their own
+  words (*"CLAUDE.md go for it"*). Source: `bf8a05e`.
+- **operator** · commit + push authorization for the billing/reasoning batch · settled 2026-07-29
+  (*"push at will"*). Source: `66399b9`.
+- **aegis** · the file-based-vs-dynamic reviewer LEG result · settled 2026-07-30 with a same-run
+  control each way; closed the tag-scan OQ with no code change. Source: room msg `cd3091d5`.
+
+Room state: the cross-tree model-version thread was CLOSED by operator direction. Nothing owed in
+either direction, no live thread remains, so this handoff carries no Room-threads section. My
+sixth-shape reply was filed, never sent, and `LP-009` was staged from it.
+
+## 2026-08-04 | decision | the release version is CONTESTED and was deliberately not self-resolved
+
+release-please read the `!` in `e29f344` and produced PR #20 as **`1.0.0`**. Recommended `0.6.0`
+instead via `bump-minor-pre-major: true`, on the repo's own locked rule that *a release's version must
+match its user-facing reality* — a `1.0.0` announces a stable API on a tree that fixed three confirmed
+defects last week with five OQs still open. **Not applied.** A version is a public commitment and an
+agent changing it unilaterally is exactly the self-authorization the obligations gate-safety rule
+exists to prevent; it is now a row rather than a footnote.
+
 ## 2026-08-04 | deploy — the 30 July fixes are LIVE, and all four acceptances pass
 
 Built, installed and restarted. Running binary verified equal to a fresh HEAD build by hashing

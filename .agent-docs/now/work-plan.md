@@ -1,7 +1,7 @@
 ---
 provenance: llm-reviewed
 created: 2026-07-03
-last-modified: 2026-07-29
+last-modified: 2026-08-04
 tags: [current, work-plan, decisions]
 related: [status, open-questions, obligations]
 ---
@@ -10,31 +10,41 @@ related: [status, open-questions, obligations]
 
 ## Immediate next
 
-> **🎯 CURRENT — rule on `OQ-017`: anchor `TAG_RE` to its own line. A CONFIRMED defect in shipped
-> routing semantics, reproduced firsthand, awaiting the operator because it is user-visible.**
+> **🎯 CURRENT — two OPERATOR decisions, neither technical, both blocking nothing else.**
 >
-> `src/signals.ts:3` is unanchored (`/<<route:([\w-]+)>>/i`, first-match-wins over the whole system
-> text), so **any mention of a tag IS the tag** — including the sentence documenting it, and including
-> a front-matter `description:`. Four failure modes reproduced against the live tree; the worst two:
-> a prose mention placed *before* a real directive **overrides** it, and `mux use` rewrites the wrong
-> occurrence while **printing success**, leaving a file that says one alias to a human and routes as
-> another.
+> **1. The release version.** PR **#20** is `chore(main): release 1.0.0` — release-please bumped to
+> MAJOR off the `!` breaking change in `e29f344`. **Recommendation: set `bump-minor-pre-major: true`
+> in `.github/workflows/release.yml` and cut `0.6.0` instead.** The repo's own locked decision is
+> that *a release's version must match its user-facing reality* (it is why PR #17 was retitled). A
+> `1.0.0` announces a stable API; three confirmed defects were fixed in this tree on 07-30 and five
+> OQs remain open. **NOT applied unilaterally — a version is a public commitment.**
 >
-> **Recommended:** `/^[ \t]*<<route:([\w-]+)>>[ \t]*$/im` in `signals.ts` + both `cli.ts` sites.
-> **Measured blast radius: zero** — all four shipped defs keep working; only the prose lines stop
-> matching. Owes an ADR before implementation, then a falsifier per failure mode.
+> **2. The independent review fan-out.** ~5 agents, diverse lenses, over the 07-30 code commits
+> (`38cd513` `bf45c30` `e29f344` `f9f466e` `d989d29`). **Zero independent review has happened on any
+> of it.** Every non-vacuity proof was run by the author, which is exactly the separation the standing
+> rules forbid collapsing. This is the largest outstanding risk in the tree — larger than any open OQ.
+> It is >3 concurrent agents, so it needs an explicit ask, and this is that ask.
 >
 > **THEN, in order:**
-> 1. **PR #19** — close it, don't split it. `@antfu/eslint-config` 9.1→9.2 drags
->    `eslint-plugin-unicorn ^68 → ^72` transitively, so the "safe three" aren't safe by inspection.
->    Add a `dependabot.yml` ignore for `typescript` majors. (`OQ-009`)
-> 2. **`OQ-010`** — the gate fragment for `pkill -f` / `pgrep -af`, now known to be ONE defect class
->    (this harness embeds the whole command text in the wrapper's cmdline, so the bracket workaround
->    fails too). Liveness = read the lease PID, never grep ps.
-> 3. **`OQ-008`** — per-provider `check-latest` probing. Still genuine feature scope.
+> 1. **`OQ-010`** — the safety-gate fragment. `pkill -f` self-killed a shell for the **third** time on
+>    07-30, mid-cleanup, in the same session that re-read the trap. `LP-005` says a second firing buys
+>    a mechanism; this is the third. Additive fragment at the documented insertion point in
+>    `.claude/hooks/pretooluse-safety-gates.sh`; owes a non-vacuous control (write the foot-gun, watch
+>    the gate fire, restore).
+> 2. **`OQ-008` (Codex half is now cheap)** — `~/.codex/models_cache.json` is on disk, needs no
+>    network and no key, and carries real slugs + `supported_in_api`. That is a concrete first
+>    increment of per-provider `check-latest` probing.
+> 3. **PR #19 / `OQ-009`** — close it, don't split. `@antfu/eslint-config` 9.1→9.2 drags
+>    `eslint-plugin-unicorn ^68 → ^72` transitively, so the "safe three" are not safe by inspection.
+>    Add a `dependabot.yml` ignore for `typescript` majors.
+> 4. **`OQ-012`** — confirm a NEW agent type appears after a restart (the pool-spawn-vs-claim
+>    question). Cheap, but needs a new agent def + a session restart; it did not get tested in the
+>    08-04 deploy because no def was added.
 >
-> **Do NOT:** merge #19 unsplit · widen the tag scan without an explicit decision · re-point reviewers
-> at `/api/paas/v4` (METERED — "Insufficient balance" on the Coding Plan key) · patch kit-owned files.
+> **Do NOT:** merge #19 unsplit · re-point reviewers at `/api/paas/v4` (METERED) · set `minMaxTokens`
+> on a codex upstream (config now refuses it, `OQ-019`) · patch kit-owned files · assume an inline
+> `<<route:tag>>` still routes — `ADR-0004` made own-line mandatory and it is LIVE.
+
 
 ## The plan (phases / milestones)
 
@@ -53,10 +63,30 @@ related: [status, open-questions, obligations]
 | **Billing-redirect fix** (`39c5adc`) | ✅ passthrough never substitutes a metered key; 6 falsifiers + the inverted test |
 | **GLM max-reasoning chain** (`a3bdbe7`, `66399b9`) | ✅ `extraBody` · `chatPath` · `minMaxTokens` · `reasoning_content`→`thinking`; live-verified end to end |
 | systemd user unit + reboot survival | ✅ `modelmux.service` enabled, verified across a real reboot |
-| Release `v0.6.0` | 🟡 PR #20 open and correctly versioned — merge when ready |
+| **Fix batch** (`38cd513` `bf45c30` `e29f344` `f9f466e` `d989d29`) | ✅ shipped **and DEPLOYED** 2026-08-04; all four acceptances passed live |
+| **`ADR-0004`** — `<<route:>>` must be alone on its own line | ✅ accepted + live (BREAKING; inline tags no longer route) |
+| `docs/glm-direct-vs-proxied.md` — when NOT to use this proxy | ✅ shipped `7c2a529` + `4594231` |
+| Release | 🔴 **CONTESTED** — PR #20 says `1.0.0`; recommendation is `0.6.0` via `bump-minor-pre-major`. Operator's call, unapplied |
+| Independent review of the fix batch | 🔴 **NEVER RUN** — zero independent review on any of the 07-30 code |
 
 ## Locked decisions (this cycle)
 
+- **A `<<route:>>` directive is the tag ALONE on its own line** (`ADR-0004`, `e29f344`). BREAKING for
+  one shape: a def whose only match is prose now falls to `default`. Rejected: docs-only (the
+  runner-up, zero compatibility surface — lost because `LP-005` says a second firing buys a
+  mechanism, and it had fired in two independent trees).
+- **Usage is recorded OUT OF BAND, never fabricated into `message_start`** (`OQ-015`, `d989d29`).
+  Measured: the upstream sends no usage until stream close and `stream_options.include_usage` does
+  not move it earlier, so wire parity is impossible without inventing a number — and the use case is
+  cross-upstream comparison, where a plausible wrong number is worse than an obvious zero.
+- **`minMaxTokens` is refused outright on a `codexSubscription` upstream** rather than silently
+  ignored (`OQ-019`). Accepting a floor that cannot be honoured is the exact failure a floor exists
+  to prevent.
+- **The direct GLM path is documented as a legitimate ALTERNATIVE to this proxy**
+  (`docs/glm-direct-vs-proxied.md`, `7c2a529`). Measured: `adaptive` thinking on `/api/anthropic`
+  out-performs every explicit budget, so the proxy buys **control** (named effort levels,
+  per-subagent routing, a decision log) — **not depth**. Saying so is more useful than implying the
+  proxy is always the upgrade.
 - `format` is a per-upstream declaration; `"anthropic"` stays the default and the untouched fast path.
 - No safe default for the token-cap field → explicit per-upstream `maxTokensField` (ADR pending in the
   Consequences of ADR-0003; newer OpenAI models reject `max_tokens`, local runners' support for
