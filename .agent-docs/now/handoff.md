@@ -179,7 +179,7 @@ env -u ANTHROPIC_API_KEY \
 
 1. This file · 2. `now/status.md` · 3. `now/work-plan.md` §Immediate next · 4.
 `now/open-questions.md` (`OQ-008` `OQ-009` `OQ-010` `OQ-012` `OQ-018`) · 5. `now/obligations.md`
-(**three operator rows**) · 6. `lessons/index.md` (`LP-001`-`LP-010`) · 7.
+(**two operator GATE rows**) · 6. `lessons/index.md` (`LP-001`-`LP-010`) · 7.
 `decisions/0004-…` · 8. `docs/glm-direct-vs-proxied.md` · 9. `CLAUDE.md`. No `checkpoints/` sitrep
 exists.
 

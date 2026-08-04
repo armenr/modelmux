@@ -54,7 +54,6 @@ related: [status, work-plan, open-questions, handoff]
 |---|---|---|---|---|---|
 | operator | the RELEASE VERSION ruling — PR #20 says `1.0.0`; recommendation is `0.6.0` via `bump-minor-pre-major`. Cites the work-plan §Immediate-next | HARD — gates cutting any release; a version is a public commitment and cannot be self-authorized | the next release attempt | **never-chase-never-peek** — an authorization gate; silence means NO release is cut, not a default version | conversation 2026-07-30, restated 2026-08-04; PR #20 |
 | operator | authorization for the ~5-agent INDEPENDENT REVIEW fan-out over the 07-30 code batch (>3 concurrent agents, so beyond the dated `CLAUDE.md` grant) | HARD — zero independent review exists on that code; the standing rules forbid the author being the reviewer | before the next substantive change builds on that batch | **never-chase-never-peek** — an authorization gate; silence means the fan-out does not run and the gap stays recorded | asked 2026-07-30, restated 2026-08-04 |
-| operator | accept / defer / reject on **`LP-007`**, **`LP-008`**, **`LP-009`** (staged in `now/lessons/proposals.md`) | SOFT — nothing is blocked; they simply cannot graduate to `lessons/` without a ruling | the next `/handoff` §7c | chase-once — surface them once more, then leave them staged | staged 2026-07-29 / 2026-07-31 |
 | fieldbook | comes to me at kit cut-time to use this tree as the settings deep-merge test case | SOFT | fieldbook's next kit cut | never-chase-never-peek — silence = they cut without it; nothing of ours is blocked | room msg `683fbb1b` + their acceptance (2026-07-25) |
 
 ## Owed by me (debts)
@@ -113,4 +112,9 @@ related: [status, work-plan, open-questions, handoff]
 
 *(2026-07-26 and 2026-07-29 cycles pruned — journaled in `log.md`.)*
 
-*(Nothing settled this cycle: the room thread closed with nothing owed in either direction.)*
+- ~~**operator** · accept / defer / reject on `LP-007` `LP-008` `LP-009` `LP-010`~~ · **settled
+  2026-08-04** — the operator DELEGATED the ruling (*"adjudicate them using your best judgement"*),
+  and all four were accepted and filed to `lessons/` (`LP-008` evergreen + MOC row; the rest budding).
+  `now/lessons/proposals.md` is empty. Source: `7497f12`.
+
+*(The room thread closed with nothing owed in either direction.)*

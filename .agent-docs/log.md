@@ -53,7 +53,8 @@ Second strand: measured what Claude Code + Z.ai actually does without this proxy
 measurements say the direct path wins on depth. Installed and verified
 `~/.config/fish/functions/claude-glm.fish`; sent the operator a forwardable copy for a third party.
 
-Obligations swept: three OPERATOR rows added (release version · review fan-out · the `LP-` rulings),
+Obligations swept: three OPERATOR rows added (release version · review fan-out · the `LP-` rulings — the last
+settled same-day when the operator delegated the adjudication, leaving TWO live gates),
 all gate-safe (`never-chase-never-peek` on the two authorizations — an agent must never leave a rule
 that self-authorizes a gate). Two tripwires added, one superseded tripwire pruned, and the 07-26 +
 07-29 settled cycles journaled here and removed from the ledger:
