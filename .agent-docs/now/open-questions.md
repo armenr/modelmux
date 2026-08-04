@@ -124,8 +124,28 @@ related: [status, work-plan, obligations]
   change, and silently disarming their key could break whatever they set it up for.
   Relates: `OQ-013` (the incident this completes), `LP-008`.
 
-- **OQ-021** (🟠 capability gap, MEASURED; surfaced 2026-07-30 checking a peer's claim that the Codex
-  leg cannot be steered) — **the Codex backend HONOURS `reasoning: {effort}` and CAN emit reasoning
+- **OQ-012** (🟡 registry mechanics; surfaced + largely ANSWERED 2026-07-29) — **agent definitions are
+  loaded at SESSION START and do not hot-reload.** Proven by direct probe: injected a unique marker
+  into an already-registered agent file, spawned it, asked it to read its own system prompt →
+  `MARKER ABSENT` (the fresh edit) / `TAG PRESENT` (the pre-existing tag). So neither new agent NAMES
+  nor edited agent BODIES take effect mid-session; a new def needs a process restart, and a machine
+  reboot is not required — `claude --resume <session-id>` preserves the transcript.
+  **What remains open:** the consuming session runs from a **pre-warmed spare pool**
+  (`claude bg-spare --bg-spare /tmp/cc-daemon-.../spare/*.claim.sock`). If the registry is fixed at
+  *pool-spawn* time rather than *session-claim* time, a fresh claim from a stale spare could still
+  miss a new def — in which case the lever is the daemon, not the session. **Resolve:** confirm the
+  new agent type appears in the available list after a restart, before relying on it.
+  > **INDEPENDENTLY CONFIRMED 2026-07-29 by `aegis`, via a sharper probe than mine** (room msg
+  > `cd3091d5`). Mine added a marker and watched it not appear; theirs *removed* a routing-relevant
+  > string and watched the behaviour persist: after stripping the prose tag from a control def, the
+  > file on disk had **zero** regex matches and the running agent **still routed to GLM**. Only a
+  > restart cleared it. Two consequences worth more than the mechanism itself: a def edit needs a
+  > restart to take effect, and **"I fixed the file" is not evidence the fix is live — only a fresh
+  > leg reading is.** That is the same class as `LP-003`'s non-vacuity rule, applied to config.
+
+## Recently resolved
+
+- **OQ-021** (🟠 capability gap; surfaced 2026-07-30, **RESOLVED + WIRED 2026-08-04**) — **the Codex backend HONOURS `reasoning: {effort}` and CAN emit reasoning
   summaries; modelmux asks for neither and would discard the summaries if it did.** A peer declined to
   use the leg on the grounds that `gpt-5.6-sol` defaults to `low` effort with no visible reasoning.
   Both halves are fixable, and I had told them the field shape was unverified — so I verified it.
@@ -177,26 +197,21 @@ related: [status, work-plan, obligations]
   translation, not that the backend, the config and the adapter agree end to end.
   Relates: `OQ-015`, ADR-0003, `OQ-020`.
 
-- **OQ-012** (🟡 registry mechanics; surfaced + largely ANSWERED 2026-07-29) — **agent definitions are
-  loaded at SESSION START and do not hot-reload.** Proven by direct probe: injected a unique marker
-  into an already-registered agent file, spawned it, asked it to read its own system prompt →
-  `MARKER ABSENT` (the fresh edit) / `TAG PRESENT` (the pre-existing tag). So neither new agent NAMES
-  nor edited agent BODIES take effect mid-session; a new def needs a process restart, and a machine
-  reboot is not required — `claude --resume <session-id>` preserves the transcript.
-  **What remains open:** the consuming session runs from a **pre-warmed spare pool**
-  (`claude bg-spare --bg-spare /tmp/cc-daemon-.../spare/*.claim.sock`). If the registry is fixed at
-  *pool-spawn* time rather than *session-claim* time, a fresh claim from a stale spare could still
-  miss a new def — in which case the lever is the daemon, not the session. **Resolve:** confirm the
-  new agent type appears in the available list after a restart, before relying on it.
-  > **INDEPENDENTLY CONFIRMED 2026-07-29 by `aegis`, via a sharper probe than mine** (room msg
-  > `cd3091d5`). Mine added a marker and watched it not appear; theirs *removed* a routing-relevant
-  > string and watched the behaviour persist: after stripping the prose tag from a control def, the
-  > file on disk had **zero** regex matches and the running agent **still routed to GLM**. Only a
-  > restart cleared it. Two consequences worth more than the mechanism itself: a def edit needs a
-  > restart to take effect, and **"I fixed the file" is not evidence the fix is live — only a fresh
-  > leg reading is.** That is the same class as `LP-003`'s non-vacuity rule, applied to config.
-
-## Recently resolved
+  **WIRED 2026-08-04 — the acceptance that was owed, run against the live service.** Deployed the
+  binary (`eae8ed25`, verified equal to a fresh HEAD build via `/proc/<pid>/exe`) and probed the
+  build leg with a prompt that actually demands reasoning:
+  ```
+  HTTP 200  7.9s  model=gpt-5.6-sol  stop=end_turn
+  content blocks: ['thinking', 'text']    thinking_chars=113  text_chars=245
+  decision: tag:build -> codex:gpt-5.6-sol      usage: in=33 out=18
+  ```
+  The reasoning summary reaches the client as a `thinking` block. This closes the IMPL→WIRED gap the
+  entry recorded on 07-30 — the tests proved the translation; this proves the backend, the config
+  and the adapter agree end to end.
+  > **The trivial-prompt run showed NO thinking, and that is not a defect.** *"Reply with exactly:
+  > BUILD LEG OK"* returned `['text']` only. A task requiring no reasoning generates no summary to
+  > carry back — the same adaptive behaviour measured on GLM. An acceptance probe for a reasoning
+  > feature has to ASK for reasoning, or it measures the prompt rather than the code.
 
 - **OQ-017** (🔴 routing correctness; surfaced 2026-07-29, **RESOLVED 2026-07-30**, `e29f344` + **ADR-0004**) — **`TAG_RE` is unanchored, so ANY mention of a tag *is* the tag — including the
   sentence that documents it.** `src/signals.ts:3` is `/<<route:([\w-]+)>>/i` matched against the

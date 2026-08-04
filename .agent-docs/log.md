@@ -18,6 +18,39 @@ tags: [log, journal]
 
      A rejected lesson proposal logs its one-line reason here (see now/lessons/proposals.md). -->
 
+## 2026-08-04 | deploy — the 30 July fixes are LIVE, and all four acceptances pass
+
+Built, installed and restarted. Running binary verified equal to a fresh HEAD build by hashing
+`/proc/<pid>/exe`, not by trusting the copy: `eae8ed25`. Rollback copy of the previous binary kept.
+Gates before shipping: lint clean, **248 tests**, reachability OK. Flight deck verified empty first
+(zero genuine hex-id subagent decisions in 30 min).
+
+Four acceptances, all against the live service:
+- **`ADR-0004` anchoring is live — and it caught MY OWN tooling first.** The review probe fell to
+  `default -> anthropic:passthrough` because it sent an INLINE `<<route:review>> You are…`. That is
+  the documented breaking change working exactly as specified, on the first request after deploy.
+  Fixed the probe, not the code; re-ran and it routed. This is the best possible demonstration of why
+  the release note says re-assert `matchedRule` after upgrading.
+- **`OQ-015` usage logging is live**: `zai-max:glm-5.2 in=37 out=211`, and on the responses path too
+  (`codex:gpt-5.6-sol in=33 out=18`). Incidentally a `KeyError` on `matchedRule` in an old one-liner
+  was the first sign it worked — the newest row for that agent is now a usage row, which has no
+  `matchedRule` by design.
+- **`OQ-021` WIRED**: build leg returned `content blocks: ['thinking','text']`, 113 thinking chars,
+  `stop=end_turn`. The reasoning summary reaches the client end to end.
+- **`OQ-020` hot-reload verified IN PRODUCTION**: an atomic replace of the live `routes.toml` logged
+  `[config] reloaded`, and a SECOND replace reloaded again — case 3, the watcher surviving a rename.
+  Config restored byte-identical, service still active.
+
+## 2026-08-04 | lesson — an acceptance probe for a reasoning feature must ASK for reasoning
+
+`OQ-021`'s first acceptance run returned `['text']` only and looked like a failed carry-back. It was
+not: the prompt was *"Reply with exactly: BUILD LEG OK"*. A task requiring no reasoning generates no
+summary to carry back, so the probe measured the PROMPT rather than the code. Re-running with a
+question that genuinely demands reasoning produced the thinking block immediately. Same shape as the
+trivial-vs-hard split measured on GLM earlier (~1,100 vs 39,600 thinking chars). **A feature probe
+whose input does not exercise the feature returns a false negative that looks exactly like a defect**
+— and the tempting next move is to go debug working code.
+
 ## 2026-07-31 | close — thread closed; one verdict amended, one lesson worth more than the thread
 
 The cross-tree model-pinning thread is CLOSED by operator direction, with the subject itself declared
