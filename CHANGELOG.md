@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/armenr/modelmux/compare/v0.5.1...v1.0.0) (2026-08-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **signals:** a `<<route:NAME>>` directive is now recognised only when it is alone on its own line. A def whose ONLY match is a prose mention routed before and falls to `default` now. Re-assert `matchedRule` after upgrading.
+
+### Features
+
+* **log:** record per-request usage, so a translated leg stops reading as zero ([d989d29](https://github.com/armenr/modelmux/commit/d989d298509771bcfeb7fcb9e6c12921394768b5))
+* **responses:** carry a Codex reasoning summary back as a thinking block ([f9f466e](https://github.com/armenr/modelmux/commit/f9f466ef6b6a4329adc4dd287ffa7f29735d12ca))
+* **upstreams:** impose reasoning depth per-upstream, and carry reasoning back ([a3bdbe7](https://github.com/armenr/modelmux/commit/a3bdbe7495c79735eb10e75176cc51ee74d6f2ec))
+* **upstreams:** minMaxTokens — a RAISE-ONLY floor for the outbound token cap ([66399b9](https://github.com/armenr/modelmux/commit/66399b986cd53dd49a7e3d724276ab8a9c1cea20))
+
+
+### Bug Fixes
+
+* **cli:** report the version and fail on an unrecognised command ([46fa645](https://github.com/armenr/modelmux/commit/46fa645dc1e19bd46ab53914c65c022ed3e8e630))
+* **config:** watch the directory, so one safe save cannot kill hot-reload ([bf45c30](https://github.com/armenr/modelmux/commit/bf45c30b571a74c3b970eb692f508beb3b4a493f))
+* **rules:** an authorization fact is repo-local and dated — it never travels ([36854ce](https://github.com/armenr/modelmux/commit/36854ce06c0c38a995c501854e1d8ff404ce0309))
+* **rules:** the harness outranks this kit on whether to dispatch at all ([0554372](https://github.com/armenr/modelmux/commit/0554372dee05e7b9f6ec381bd17b6b5cfedb99e6))
+* **signals:** a &lt;&lt;route:&gt;&gt; tag must be alone on its own line ([e29f344](https://github.com/armenr/modelmux/commit/e29f34429e6f1ed5d027ab5c747cdd8c56400136))
+* **upstreams:** passthrough must never substitute a metered key for a subscription ([39c5adc](https://github.com/armenr/modelmux/commit/39c5adc29f96bc66224084790aaea79bb616d11b))
+* **upstreams:** the token floor must know which wire it is writing to ([38cd513](https://github.com/armenr/modelmux/commit/38cd5135a98526a39077109515632e4911adaf22))
+
 ## [0.5.1](https://github.com/armenr/modelmux/compare/v0.5.0...v0.5.1) (2026-07-25)
 
 
